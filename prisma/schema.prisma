@@ -1,0 +1,103 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum StationType {
+  PROPIA
+  COLABORADORA
+}
+
+model Station {
+  id               String       @id @default(uuid())
+  name             String       @unique
+  code             String?
+  type             StationType
+  order            Int          @default(0)
+  hasPostes        Boolean      @default(false)
+  
+  purchases        Purchase[]
+  postes           PostePrice[]
+  tariffPrices     TariffPrice[]
+
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Product {
+  id               String       @id @default(uuid())
+  code             String       @unique // GOA, GASOLINA, GOA_PREMIUM, HVO, GASOLEO_B, ADBLUE
+  name             String
+  order            Int          @default(0)
+  
+  purchases        Purchase[]
+  postes           PostePrice[]
+  tariffPrices     TariffPrice[]
+}
+
+model Purchase {
+  id                   String     @id @default(uuid())
+  date                 String     // YYYY-MM-DD
+  stationId            String
+  productId            String
+  
+  previousPurchasePrice Decimal?   @default(0) // Columna O
+  purchasePrice        Decimal    @default(0) // Columna P (Precio del día)
+  clh                  Decimal?   @default(0)
+  porte                Decimal?   @default(0)
+  pase                 Decimal?   @default(0)
+  financiacion         Decimal?   @default(0)
+  
+  salePrice            Decimal?   @default(0) // Columna K resultante
+  margin               Decimal?   @default(0)
+
+  station              Station    @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  product              Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@unique([date, stationId, productId])
+}
+
+model PostePrice {
+  id               String     @id @default(uuid())
+  date             String     // YYYY-MM-DD
+  stationId        String
+  productId        String
+  
+  price            Decimal    @default(0)
+  goaPremiumPrice  Decimal?   @default(0) // GOA + 0.04
+  gasolinaMargin   Decimal?   @default(0)
+
+  station          Station    @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  product          Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@unique([date, stationId, productId])
+}
+
+model TariffPrice {
+  id               String     @id @default(uuid())
+  date             String     // YYYY-MM-DD
+  tariffName       String     // TARIFA 12, TARIFA 18, TARIFA 24, etc.
+  stationId        String
+  productId        String
+  
+  priceExclVat     Decimal    @default(0)
+  priceInclVat     Decimal    @default(0)
+
+  station          Station    @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  product          Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@unique([date, tariffName, stationId, productId])
+}
