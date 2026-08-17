@@ -1,27 +1,24 @@
-# ==========================================
-# EFI DATA OIL - Production Dockerfile
-# ==========================================
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# Install required system packages for Prisma and Next.js on Alpine
-RUN apk add --no-cache libc6-compat openssl
+# Install openssl for Prisma ORM
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-# 1. Install dependencies
+# Install dependencies
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 RUN npm install
 
-# 2. Copy source code
+# Copy source code
 COPY . .
 
-# 3. Generate Prisma client & Build Next.js
+# Generate Prisma client and build Next.js application
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
 RUN npm run build
 
-# 4. Production Environment
+# Runtime configuration
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
