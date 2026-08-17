@@ -8,7 +8,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
-RUN npm ci
+RUN npm install
 
 # 3. Builder Stage
 FROM base AS builder
