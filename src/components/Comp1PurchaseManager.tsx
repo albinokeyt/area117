@@ -4,21 +4,39 @@ import React, { useState, useEffect } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
-  TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye
+  TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye, ShieldCheck
 } from 'lucide-react';
 
 interface Comp1Props {
   selectedDate: string;
 }
 
-interface PurchaseRowData {
-  prev: number;
-  curr: number;
-  clh: number;
-  porte: number;
-  pase: number;
-  fin: number;
-  sale: number;
+// Lista exacta de las 13 colaboradoras clave (Columna J) para resaltar en color anaranjado
+const FIXED_ORANGE_STATIONS = [
+  'Z.FRANCA',
+  'BENAVENTE',
+  'IRUN ZAISA III',
+  'AVILESINA',
+  'MERIDA',
+  'SANCTI-SPIRITUS',
+  'SAN VICENTE DEL PALACIO',
+  'WATERY ARANDA',
+  'PUERTO DE BARCELONA',
+  'FEGOBLAN PONTEVEDRA',
+  'VEGA DE VALCARCE',
+  'HOILA TOLEDO',
+  'PETREM FIGUERES',
+  'FIGUERES',
+];
+
+interface PurchaseRowValues {
+  prev: string;
+  curr: string;
+  clh: string;
+  porte: string;
+  pase: string;
+  fin: string;
+  sale: string;
 }
 
 export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
@@ -29,56 +47,69 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     { code: 'GOA_PROFESIONAL', name: 'Gasóleo Profesional / Premium (+0.04€)', isAutoPremium: true },
   ];
 
-  // 19 estaciones Propias y 34 estaciones Colaboradoras completas del Excel
+  // 19 estaciones Propias y 34 estaciones Colaboradoras completas
   const propiasStations = PROPIAS_STATIONS;
   const colaboradorasStations = COLABORADORA_STATIONS;
 
-  // Estado local para los datos de compra
-  const [purchases, setPurchases] = useState<Record<string, PurchaseRowData>>(() => {
-    const initial: Record<string, PurchaseRowData> = {};
+  // Helper para convertir cualquier texto con coma o punto a número válido
+  const parseNum = (val: string | number | undefined): number => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const clean = val.toString().replace(',', '.').trim();
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Helper para formatear número en string
+  const formatNum = (num: number, decimals: number = 4): string => {
+    return num.toFixed(decimals);
+  };
+
+  // Estado local para los datos de compra (almacenados como texto para aceptar coma y punto libremente)
+  const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
+    const initial: Record<string, PurchaseRowValues> = {};
     
     [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS].forEach((st) => {
-      // Base GOA
       const basePrev = 1.1500;
       const baseCurr = 1.1550;
 
       // GOA
       initial[`${st.name}_GOA`] = {
-        prev: basePrev,
-        curr: baseCurr,
-        clh: 0.0050,
-        porte: 0.0080,
-        pase: 0.0000,
-        fin: 0.0020,
-        sale: 1.1950,
+        prev: '1.1500',
+        curr: '1.1550',
+        clh: '0.0050',
+        porte: '0.0080',
+        pase: '0.0000',
+        fin: '0.0020',
+        sale: '1.1950',
       };
 
       // GASOLINA
       initial[`${st.name}_GASOLINA`] = {
-        prev: 1.2800,
-        curr: 1.2850,
-        clh: 0.0050,
-        porte: 0.0080,
-        pase: 0.0000,
-        fin: 0.0020,
-        sale: 1.3450,
+        prev: '1.2800',
+        curr: '1.2850',
+        clh: '0.0050',
+        porte: '0.0080',
+        pase: '0.0000',
+        fin: '0.0020',
+        sale: '1.3450',
       };
 
       // GOA PROFESIONAL (GOA + 0.04)
       initial[`${st.name}_GOA_PROFESIONAL`] = {
-        prev: Number((basePrev + 0.04).toFixed(4)),
-        curr: Number((baseCurr + 0.04).toFixed(4)),
-        clh: 0.0050,
-        porte: 0.0080,
-        pase: 0.0000,
-        fin: 0.0020,
-        sale: Number((1.1950 + 0.04).toFixed(4)),
+        prev: '1.1900',
+        curr: '1.1950',
+        clh: '0.0050',
+        porte: '0.0080',
+        pase: '0.0000',
+        fin: '0.0020',
+        sale: '1.2350',
       };
     });
     return initial;
   });
 
-  // Registro de celdas modificadas hoy (para pintarlas en amarillo)
+  // Registro de claves modificadas hoy (para pintarlas en amarillo)
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
   const [isSaved, setIsSaved] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -89,7 +120,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setPurchases(parsed.data || {});
+        if (parsed.data) {
+          setPurchases(parsed.data);
+        }
         if (parsed.modified) {
           setModifiedKeys(new Set(parsed.modified));
         }
@@ -114,41 +147,42 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setIsSaved(false);
   };
 
-  // Manejar cambio en los inputs
+  // Manejar cambio en los inputs (soporta tanto coma ',' como punto '.')
   const handleInputChange = (
     stationName: string,
     prodCode: string,
-    field: keyof PurchaseRowData,
+    field: keyof PurchaseRowValues,
     val: string
   ) => {
     const key = `${stationName}_${prodCode}`;
-    const num = parseFloat(val) || 0;
 
     setPurchases((prev) => {
       const updated = { ...prev };
       const currentItem = updated[key] || {
-        prev: 0,
-        curr: 0,
-        clh: 0,
-        porte: 0,
-        pase: 0,
-        fin: 0,
-        sale: 0,
+        prev: '0',
+        curr: '0',
+        clh: '0',
+        porte: '0',
+        pase: '0',
+        fin: '0',
+        sale: '0',
       };
 
       updated[key] = {
         ...currentItem,
-        [field]: num,
+        [field]: val,
       };
 
       // Si se modifica el GOA normal, actualizar automáticamente el GOA Profesional (+0.04€)
       if (prodCode === 'GOA' && field === 'curr') {
         const profKey = `${stationName}_GOA_PROFESIONAL`;
+        const currNum = parseNum(val);
+        const saleNum = parseNum(updated[key].sale);
         if (updated[profKey]) {
           updated[profKey] = {
             ...updated[profKey],
-            curr: Number((num + 0.04).toFixed(4)),
-            sale: Number((updated[key].sale + 0.04).toFixed(4)),
+            curr: formatNum(currNum + 0.04),
+            sale: formatNum(saleNum + 0.04),
           };
         }
       }
@@ -171,15 +205,17 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   // Guardar compras del día
   const handleSave = () => {
-    localStorage.setItem(
-      `efi_purchases_${selectedDate}`,
-      JSON.stringify({
-        date: selectedDate,
-        data: purchases,
-        modified: Array.from(modifiedKeys),
-        updatedAt: new Date().toISOString(),
-      })
-    );
+    try {
+      localStorage.setItem(
+        `efi_purchases_${selectedDate}`,
+        JSON.stringify({
+          date: selectedDate,
+          data: purchases,
+          modified: Array.from(modifiedKeys),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+    } catch (e) {}
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3500);
   };
@@ -188,16 +224,18 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   const allComparisons = [...propiasStations, ...colaboradorasStations].flatMap((st) =>
     FUEL_PRODUCTS.map((prod) => {
       const key = `${st.name}_${prod.code}`;
-      const item = purchases[key] || { prev: 0, curr: 0, clh: 0, porte: 0, pase: 0, fin: 0, sale: 0 };
-      const diff = item.curr - item.prev;
-      const pct = item.prev > 0 ? (diff / item.prev) * 100 : 0;
+      const item = purchases[key] || { prev: '0', curr: '0', clh: '0', porte: '0', pase: '0', fin: '0', sale: '0' };
+      const prevNum = parseNum(item.prev);
+      const currNum = parseNum(item.curr);
+      const diff = currNum - prevNum;
+      const pct = prevNum > 0 ? (diff / prevNum) * 100 : 0;
       const isModified = modifiedKeys.has(key);
       return {
         station: st.name,
         type: st.type,
         product: prod.name,
-        prev: item.prev,
-        curr: item.curr,
+        prev: prevNum,
+        curr: currNum,
         diff,
         pct,
         isModified,
@@ -212,28 +250,46 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   // Renderizar tabla de un bloque de estaciones
   const renderStationTable = (
     title: string,
-    badgeText: string,
+    subtitle: string,
     icon: React.ElementType,
-    stations: typeof propiasStations
+    stations: typeof propiasStations,
+    isCollaboratorBlock: boolean = false
   ) => {
     const Icon = icon;
     return (
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
-        <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <div className={`p-2.5 rounded-xl border ${
+              isCollaboratorBlock
+                ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+            }`}>
               <Icon className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base tracking-tight">{title}</h3>
-              <p className="text-xs text-slate-400">{badgeText}</p>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-white text-base tracking-tight">{title}</h3>
+                <span className="text-xs font-mono font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
+                  {stations.length} Estaciones
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">{subtitle}</p>
             </div>
           </div>
-          <div className="flex items-center space-x-2 text-xs">
-            <span className="flex items-center space-x-1.5 bg-amber-400/10 text-amber-300 border border-amber-400/30 px-3 py-1 rounded-full font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="flex items-center space-x-1.5 bg-amber-400/15 text-amber-300 border border-amber-400/40 px-3 py-1 rounded-full font-bold shadow-sm">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
               <span>Amarillo = Modificado Hoy</span>
             </span>
+
+            {isCollaboratorBlock && (
+              <span className="flex items-center space-x-1.5 bg-orange-500/20 text-orange-300 border border-orange-500/40 px-3 py-1 rounded-full font-bold shadow-sm">
+                <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                <span>Naranja = Colaboradoras Fijas (13 Clave)</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -241,10 +297,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
-                <th className="py-3.5 px-4 sticky left-0 bg-slate-950 z-10">Estación</th>
+                <th className="py-3.5 px-4 sticky left-0 bg-slate-950 z-20">Estación</th>
                 <th className="py-3.5 px-3">Producto</th>
-                <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">Precio Compra Anterior (€)</th>
-                <th className="py-3.5 px-3 text-amber-300 bg-slate-900">Precio Compra Hoy (€)</th>
+                <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">Precio Anterior (€)</th>
+                <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
+                  Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
+                </th>
                 <th className="py-3.5 px-2">CLH (€)</th>
                 <th className="py-3.5 px-2">Porte (€)</th>
                 <th className="py-3.5 px-2">Pase (€)</th>
@@ -256,39 +314,60 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
               {stations.map((st) => {
+                const isFixedOrange = FIXED_ORANGE_STATIONS.some((name) =>
+                  st.name.toUpperCase().includes(name.toUpperCase())
+                );
+
                 return FUEL_PRODUCTS.map((prod, pIdx) => {
                   const key = `${st.name}_${prod.code}`;
                   const item = purchases[key] || {
-                    prev: 0,
-                    curr: 0,
-                    clh: 0,
-                    porte: 0,
-                    pase: 0,
-                    fin: 0,
-                    sale: 0,
+                    prev: '0',
+                    curr: '0',
+                    clh: '0',
+                    porte: '0',
+                    pase: '0',
+                    fin: '0',
+                    sale: '0',
                   };
 
-                  const totalCost = Number(
-                    (item.curr + item.clh + item.porte + item.pase + item.fin).toFixed(4)
-                  );
-                  const margin = Number((item.sale - totalCost).toFixed(4));
+                  const currNum = parseNum(item.curr);
+                  const clhNum = parseNum(item.clh);
+                  const porteNum = parseNum(item.porte);
+                  const paseNum = parseNum(item.pase);
+                  const finNum = parseNum(item.fin);
+                  const saleNum = parseNum(item.sale);
+
+                  const totalCost = Number((currNum + clhNum + porteNum + paseNum + finNum).toFixed(4));
+                  const margin = Number((saleNum - totalCost).toFixed(4));
                   const isModifiedToday = modifiedKeys.has(key);
+
+                  // Estilos para colaboradoras fijas anaranjadas
+                  const rowBgClass = isFixedOrange
+                    ? 'bg-orange-950/20 hover:bg-orange-950/30'
+                    : 'hover:bg-slate-800/40';
+
+                  const stationCellBgClass = isFixedOrange
+                    ? 'bg-orange-950/40 border-l-4 border-l-orange-500 text-orange-200'
+                    : 'bg-slate-900 text-white';
 
                   return (
                     <tr
                       key={key}
-                      className={`transition-colors hover:bg-slate-800/40 ${
+                      className={`transition-colors ${rowBgClass} ${
                         pIdx === FUEL_PRODUCTS.length - 1 ? 'border-b-2 border-slate-800/80' : ''
                       }`}
                     >
-                      {/* Nombre de la estación (agrupado visualmente) */}
-                      <td className="py-2.5 px-4 font-bold text-white sticky left-0 bg-slate-900 z-10 border-r border-slate-800">
+                      {/* Nombre de la estación (agrupado visualmente y coloreado en anaranjado si es fija) */}
+                      <td
+                        className={`py-2.5 px-4 font-bold sticky left-0 z-10 border-r border-slate-800 transition-colors ${stationCellBgClass}`}
+                      >
                         {pIdx === 0 ? (
-                          <div className="flex items-center space-x-2">
-                            <span>{st.name}</span>
-                            {st.isFixedColaboradora && (
-                              <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-mono">
-                                FIJA
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                            <span className="font-extrabold tracking-tight">{st.name}</span>
+                            {isFixedOrange && (
+                              <span className="text-[9px] bg-orange-500/25 text-orange-300 border border-orange-500/40 px-2 py-0.5 rounded-full font-black tracking-wider uppercase inline-flex items-center space-x-1 shadow-sm">
+                                <ShieldCheck className="h-3 w-3 text-orange-400" />
+                                <span>FIJA EFI</span>
                               </span>
                             )}
                           </div>
@@ -300,23 +379,23 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       {/* Producto */}
                       <td className="py-2.5 px-3 font-semibold">
                         <span
-                          className={`px-2 py-0.5 rounded text-[11px] ${
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium ${
                             prod.code === 'GOA'
-                              ? 'bg-amber-500/10 text-amber-300'
+                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/20'
                               : prod.code === 'GASOLINA'
-                              ? 'bg-blue-500/10 text-blue-300'
-                              : 'bg-emerald-500/10 text-emerald-300 italic'
+                              ? 'bg-blue-500/15 text-blue-300 border border-blue-500/20'
+                              : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 italic'
                           }`}
                         >
                           {prod.name}
                         </span>
                       </td>
 
-                      {/* Precio Anterior (Automático) */}
+                      {/* Precio Anterior (Automático o editable con . o ,) */}
                       <td className="py-2.5 px-3 bg-slate-900/40">
                         <input
-                          type="number"
-                          step="0.0001"
+                          type="text"
+                          inputMode="decimal"
                           value={item.prev}
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'prev', e.target.value)
@@ -325,31 +404,32 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         />
                       </td>
 
-                      {/* Precio Compra Hoy (Resaltado en Amarillo si es editado) */}
+                      {/* Precio Compra Hoy (Resaltado en AMARILLO brillante si es editado) */}
                       <td
                         className={`py-2.5 px-3 transition-all ${
-                          isModifiedToday ? 'bg-amber-400/15' : 'bg-slate-900/30'
+                          isModifiedToday ? 'bg-amber-400/25' : 'bg-slate-900/30'
                         }`}
                       >
                         <div className="relative inline-flex items-center">
                           <input
-                            type="number"
-                            step="0.0001"
+                            type="text"
+                            inputMode="decimal"
                             disabled={prod.isAutoPremium}
                             value={item.curr}
                             onChange={(e) =>
                               handleInputChange(st.name, prod.code, 'curr', e.target.value)
                             }
-                            className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                            placeholder="0,0000"
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
                               isModifiedToday
-                                ? 'bg-amber-500/20 border-2 border-amber-400 text-amber-300 shadow-md shadow-amber-500/20'
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40'
                                 : prod.isAutoPremium
                                 ? 'bg-slate-950/70 border border-slate-800 text-slate-400 cursor-not-allowed'
                                 : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
                             }`}
                           />
                           {isModifiedToday && (
-                            <span className="ml-2 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded tracking-tighter shadow">
+                            <span className="ml-2 text-[9px] bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 font-black px-2 py-0.5 rounded shadow tracking-tighter uppercase animate-in fade-in">
                               HOY
                             </span>
                           )}
@@ -359,8 +439,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       {/* CLH */}
                       <td className="py-2.5 px-2">
                         <input
-                          type="number"
-                          step="0.001"
+                          type="text"
+                          inputMode="decimal"
                           value={item.clh}
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'clh', e.target.value)
@@ -372,8 +452,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       {/* Porte */}
                       <td className="py-2.5 px-2">
                         <input
-                          type="number"
-                          step="0.001"
+                          type="text"
+                          inputMode="decimal"
                           value={item.porte}
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'porte', e.target.value)
@@ -385,8 +465,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       {/* Pase */}
                       <td className="py-2.5 px-2">
                         <input
-                          type="number"
-                          step="0.001"
+                          type="text"
+                          inputMode="decimal"
                           value={item.pase}
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'pase', e.target.value)
@@ -398,8 +478,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       {/* Financiación */}
                       <td className="py-2.5 px-2">
                         <input
-                          type="number"
-                          step="0.001"
+                          type="text"
+                          inputMode="decimal"
                           value={item.fin}
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'fin', e.target.value)
@@ -416,8 +496,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       {/* Precio de Venta Sugerido */}
                       <td className="py-2.5 px-3 bg-blue-500/5">
                         <input
-                          type="number"
-                          step="0.0001"
+                          type="text"
+                          inputMode="decimal"
                           value={item.sale}
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'sale', e.target.value)
@@ -459,7 +539,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               Ingreso Diario de Precios de Compra
             </h2>
             <p className="text-slate-400 text-sm">
-              Gestión centralizada de precios de adquisición, costes logísticos y cálculo de precios de venta.
+              Acepta números con punto (<code className="text-amber-300 font-bold">.</code>) o coma (<code className="text-amber-300 font-bold">,</code>). Resalta en <strong>amarillo</strong> las modificaciones de hoy y en <strong>anaranjado</strong> las estaciones colaboradoras fijas.
             </p>
           </div>
 
@@ -497,20 +577,22 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         </div>
       </div>
 
-      {/* Bloque 1: Estaciones Propias */}
+      {/* Bloque 1: Estaciones Propias (19 Estaciones) */}
       {renderStationTable(
         'Estaciones Propias',
-        'Precios de compra y postes de las 10 estaciones principales',
+        'Precios de compra y postes de las 19 estaciones propias (Rangos N2:U21)',
         Building2,
-        propiasStations
+        propiasStations,
+        false
       )}
 
-      {/* Bloque 2: Estaciones Colaboradoras */}
+      {/* Bloque 2: Estaciones Colaboradoras (34 Estaciones con 13 Fijas en Anaranjado) */}
       {renderStationTable(
         'Estaciones Colaboradoras',
-        'Precios acordados y costes de red de estaciones colaboradoras',
+        'Precios acordados y costes de red de las 34 estaciones colaboradoras (Rangos N23:U58)',
         Store,
-        colaboradorasStations
+        colaboradorasStations,
+        true
       )}
 
       {/* Modal: Informe de Comparativa de Precios */}
@@ -526,7 +608,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 <div>
                   <h3 className="text-lg font-bold text-white">Informe de Comparativa de Precios</h3>
                   <p className="text-xs text-slate-400">
-                    Fecha: <span className="text-amber-300 font-mono">{selectedDate}</span> &bull; Análisis de Variación Día Anterior vs Hoy
+                    Fecha: <span className="text-amber-300 font-mono">{selectedDate}</span> &bull; Análisis de Variación Día Anterior vs Hoy ({allComparisons.length} Registros)
                   </p>
                 </div>
               </div>
