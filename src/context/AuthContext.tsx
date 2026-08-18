@@ -47,39 +47,34 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<User[]>(DEFAULT_USERS);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Iniciar con Administrador para que el render de servidor y cliente coincidan perfectamente
+  const [currentUser, setCurrentUser] = useState<User | null>(DEFAULT_USERS[0]);
 
   useEffect(() => {
-    // Cargar sesión persistente si existe
-    const savedUser = localStorage.getItem('efi_current_user');
-    const savedUsers = localStorage.getItem('efi_users_list');
-    
-    if (savedUsers) {
-      try {
+    // Sincronizar desde localStorage solo tras montar en el cliente
+    try {
+      const savedUser = localStorage.getItem('efi_current_user');
+      const savedUsers = localStorage.getItem('efi_users_list');
+      
+      if (savedUsers) {
         setUsers(JSON.parse(savedUsers));
-      } catch (e) {
-        console.error(e);
       }
-    }
-    
-    if (savedUser) {
-      try {
+      
+      if (savedUser) {
         setCurrentUser(JSON.parse(savedUser));
-      } catch (e) {
-        console.error(e);
       }
-    } else {
-      // Iniciar sesión por defecto con el Administrador para agilizar pruebas
-      setCurrentUser(DEFAULT_USERS[0]);
+    } catch (e) {
+      console.error('Error al leer almacenamiento local:', e);
     }
   }, []);
 
   const login = (email: string, pass: string): boolean => {
-    // Simulación de login (Acepta cualquier password >= 4 caracteres o 'admin123')
     const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (found && pass.length >= 4) {
       setCurrentUser(found);
-      localStorage.setItem('efi_current_user', JSON.stringify(found));
+      try {
+        localStorage.setItem('efi_current_user', JSON.stringify(found));
+      } catch (e) {}
       return true;
     }
     return false;
@@ -87,7 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('efi_current_user');
+    try {
+      localStorage.removeItem('efi_current_user');
+    } catch (e) {}
   };
 
   const addUser = (name: string, email: string, role: User['role']) => {
@@ -100,13 +97,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [...users, newUser];
     setUsers(updated);
-    localStorage.setItem('efi_users_list', JSON.stringify(updated));
+    try {
+      localStorage.setItem('efi_users_list', JSON.stringify(updated));
+    } catch (e) {}
   };
 
   const deleteUser = (id: string) => {
     const updated = users.filter((u) => u.id !== id);
     setUsers(updated);
-    localStorage.setItem('efi_users_list', JSON.stringify(updated));
+    try {
+      localStorage.setItem('efi_users_list', JSON.stringify(updated));
+    } catch (e) {}
     if (currentUser?.id === id) {
       logout();
     }

@@ -417,7 +417,7 @@ SECRET_KEY=efi-data-oil-secure-token-2026`}
           <CodeBlock
             title="Plantilla de Mensaje WhatsApp para Estaciones"
             code={`⛽ *ACTUALIZACIÓN DE PRECIOS - EFI DATA OIL* ⛽
-📅 Fecha: ${new Date().toISOString().split('T')[0]}
+📅 Fecha: 2026-08-18
 
 Estimados compañeros / colaboradores,
 Se han actualizado los precios diarios en el sistema:

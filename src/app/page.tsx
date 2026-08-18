@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { LoginForm } from '@/components/LoginForm';
@@ -14,8 +14,25 @@ import { InstructionsManager } from '@/components/InstructionsManager';
 
 function AppContent() {
   const { currentUser } = useAuth();
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState('2026-08-18');
+
+  useEffect(() => {
+    setMounted(true);
+    try {
+      setSelectedDate(new Date().toISOString().split('T')[0]);
+    } catch (e) {}
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
+        <div className="h-10 w-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-semibold text-slate-400 font-sans">Cargando EFI DATA OIL...</p>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <LoginForm />;
@@ -43,7 +60,7 @@ function AppContent() {
           <span><strong className="text-slate-400">EFI DATA OIL App</strong> &bull; Sistema de Gestión de Compras y Precios</span>
           <div className="flex items-center space-x-4">
             <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-mono border border-emerald-500/20">Docker Ready (Easypanel)</span>
-            <span>v1.1.0</span>
+            <span>v1.2.0</span>
           </div>
         </div>
       </footer>
