@@ -592,7 +592,10 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
             <div className="px-6 py-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className={`p-2.5 rounded-xl border ${KPI_DETAILS[selectedKpi].color}`}>
-                  {React.createElement(KPI_DETAILS[selectedKpi].icon, { className: 'h-6 w-6' })}
+                  {(() => {
+                    const IconComp = KPI_DETAILS[selectedKpi].icon;
+                    return <IconComp className="h-6 w-6" />;
+                  })()}
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white">{KPI_DETAILS[selectedKpi].title}</h3>
