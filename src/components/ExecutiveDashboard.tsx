@@ -14,27 +14,27 @@ interface DashboardProps {
 
 // Datos de estaciones representativos del sistema
 const MOCK_PROPIAS = [
-  { station: 'ARCOS', goa: 1.2150, premium: 1.2550, gasolina: 1.3750, margin: 0.0420, weeklyGain: 1420 },
-  { station: 'ALCUBILLAS', goa: 1.2180, premium: 1.2580, gasolina: 1.3800, margin: 0.0390, weeklyGain: 1380 },
-  { station: 'TORREJON', goa: 1.2100, premium: 1.2500, gasolina: 1.3700, margin: 0.0450, weeklyGain: 1650 },
-  { station: 'ARCOS JALON', goa: 1.2140, premium: 1.2540, gasolina: 1.3740, margin: 0.0410, weeklyGain: 1390 },
-  { station: 'ALFAJARIN', goa: 1.2160, premium: 1.2560, gasolina: 1.3780, margin: 0.0400, weeklyGain: 1410 },
-  { station: 'TORREMOCHA', goa: 1.2190, premium: 1.2590, gasolina: 1.3820, margin: 0.0380, weeklyGain: 1290 },
-  { station: 'MADRID', goa: 1.2200, premium: 1.2600, gasolina: 1.3850, margin: 0.0380, weeklyGain: 1510 },
-  { station: 'VALLECAS', goa: 1.2130, premium: 1.2530, gasolina: 1.3720, margin: 0.0410, weeklyGain: 1460 },
-  { station: 'UCLES', goa: 1.2170, premium: 1.2570, gasolina: 1.3790, margin: 0.0390, weeklyGain: 1320 },
-  { station: 'PAMPLONA', goa: 1.2090, premium: 1.2490, gasolina: 1.3680, margin: 0.0480, weeklyGain: 1720 },
+  { station: 'ARCOS', type: 'PROPIA', goa: 1.2150, premium: 1.2550, gasolina: 1.3750, margin: 0.0420, weeklyGain: 1420 },
+  { station: 'ALCUBILLAS', type: 'PROPIA', goa: 1.2180, premium: 1.2580, gasolina: 1.3800, margin: 0.0390, weeklyGain: 1380 },
+  { station: 'TORREJON', type: 'PROPIA', goa: 1.2100, premium: 1.2500, gasolina: 1.3700, margin: 0.0450, weeklyGain: 1650 },
+  { station: 'ARCOS JALON', type: 'PROPIA', goa: 1.2140, premium: 1.2540, gasolina: 1.3740, margin: 0.0410, weeklyGain: 1390 },
+  { station: 'ALFAJARIN', type: 'PROPIA', goa: 1.2160, premium: 1.2560, gasolina: 1.3780, margin: 0.0400, weeklyGain: 1410 },
+  { station: 'TORREMOCHA', type: 'PROPIA', goa: 1.2190, premium: 1.2590, gasolina: 1.3820, margin: 0.0380, weeklyGain: 1290 },
+  { station: 'MADRID', type: 'PROPIA', goa: 1.2200, premium: 1.2600, gasolina: 1.3850, margin: 0.0380, weeklyGain: 1510 },
+  { station: 'VALLECAS', type: 'PROPIA', goa: 1.2130, premium: 1.2530, gasolina: 1.3720, margin: 0.0410, weeklyGain: 1460 },
+  { station: 'UCLES', type: 'PROPIA', goa: 1.2170, premium: 1.2570, gasolina: 1.3790, margin: 0.0390, weeklyGain: 1320 },
+  { station: 'PAMPLONA', type: 'PROPIA', goa: 1.2090, premium: 1.2490, gasolina: 1.3680, margin: 0.0480, weeklyGain: 1720 },
 ];
 
 const MOCK_COLABORADORAS = [
-  { station: 'Z.FRANCA', goa: 1.1850, premium: 1.2250, gasolina: 1.3450, margin: 0.0360, weeklyGain: 1890 },
-  { station: 'BENAVENTE', goa: 1.1790, premium: 1.2190, gasolina: 1.3390, margin: 0.0380, weeklyGain: 1620 },
-  { station: 'IRUN ZAISA III', goa: 1.1920, premium: 1.2320, gasolina: 1.3520, margin: 0.0410, weeklyGain: 1980 },
-  { station: 'AVILESINA', goa: 1.1880, premium: 1.2280, gasolina: 1.3480, margin: 0.0370, weeklyGain: 1540 },
-  { station: 'MERIDA', goa: 1.1820, premium: 1.2220, gasolina: 1.3420, margin: 0.0390, weeklyGain: 1480 },
-  { station: 'SANCTI-SPIRITUS', goa: 1.1760, premium: 1.2160, gasolina: 1.3360, margin: 0.0430, weeklyGain: 1690 },
-  { station: 'PUERTO DE BARCELONA', goa: 1.1940, premium: 1.2340, gasolina: 1.3540, margin: 0.0400, weeklyGain: 2150 },
-  { station: 'VEGA DE VALCARCE', goa: 1.1910, premium: 1.2310, gasolina: 1.3510, margin: 0.0390, weeklyGain: 1740 },
+  { station: 'Z.FRANCA', type: 'COLABORADORA', goa: 1.1850, premium: 1.2250, gasolina: 1.3450, margin: 0.0360, weeklyGain: 1890 },
+  { station: 'BENAVENTE', type: 'COLABORADORA', goa: 1.1790, premium: 1.2190, gasolina: 1.3390, margin: 0.0380, weeklyGain: 1620 },
+  { station: 'IRUN ZAISA III', type: 'COLABORADORA', goa: 1.1920, premium: 1.2320, gasolina: 1.3520, margin: 0.0410, weeklyGain: 1980 },
+  { station: 'AVILESINA', type: 'COLABORADORA', goa: 1.1880, premium: 1.2280, gasolina: 1.3480, margin: 0.0370, weeklyGain: 1540 },
+  { station: 'MERIDA', type: 'COLABORADORA', goa: 1.1820, premium: 1.2220, gasolina: 1.3420, margin: 0.0390, weeklyGain: 1480 },
+  { station: 'SANCTI-SPIRITUS', type: 'COLABORADORA', goa: 1.1760, premium: 1.2160, gasolina: 1.3360, margin: 0.0430, weeklyGain: 1690 },
+  { station: 'PUERTO DE BARCELONA', type: 'COLABORADORA', goa: 1.1940, premium: 1.2340, gasolina: 1.3540, margin: 0.0400, weeklyGain: 2150 },
+  { station: 'VEGA DE VALCARCE', type: 'COLABORADORA', goa: 1.1910, premium: 1.2310, gasolina: 1.3510, margin: 0.0390, weeklyGain: 1740 },
 ];
 
 const PURCHASE_TREND = [1.1820, 1.1850, 1.1790, 1.1900, 1.1950, 1.1880, 1.2010, 1.1970];
@@ -470,7 +470,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
                           {i + 1}
                         </span>
                         <span className="font-bold text-white">{st.station}</span>
-                        <span className="text-[9px] text-slate-500 font-mono">({st.type.charAt(0)})</span>
+                        <span className="text-[9px] text-slate-500 font-mono">({(st.type || 'P').charAt(0)})</span>
                       </div>
                       <div className="flex items-center space-x-2 font-mono">
                         <span className="text-emerald-400 font-bold">+{st.weeklyGain.toLocaleString()} €</span>

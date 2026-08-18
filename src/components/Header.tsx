@@ -97,11 +97,15 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
               {currentUser && (
                 <div className="flex items-center space-x-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
                   <div className="h-7 w-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-black shrink-0">
-                    {currentUser.name.charAt(0).toUpperCase()}
+                    {(currentUser?.name || 'A').charAt(0).toUpperCase()}
                   </div>
                   <div className="hidden md:block">
-                    <p className="text-[11px] font-bold text-white leading-tight truncate max-w-[100px]">{currentUser.name.split(' ')[0]}</p>
-                    <p className="text-[10px] text-slate-400 leading-tight">{ROLE_LABELS[currentUser.role]}</p>
+                    <p className="text-[11px] font-bold text-white leading-tight truncate max-w-[100px]">
+                      {currentUser?.name ? currentUser.name.split(' ')[0] : 'Admin'}
+                    </p>
+                    <p className="text-[10px] text-slate-400 leading-tight">
+                      {currentUser?.role ? ROLE_LABELS[currentUser.role] : 'Administrador'}
+                    </p>
                   </div>
                   <button
                     onClick={logout}
