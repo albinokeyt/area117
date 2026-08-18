@@ -164,7 +164,7 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
                 </div>
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
                   <span className="text-[11px] text-slate-400 block mb-1">Estaciones Activas</span>
-                  <span className="text-xl font-bold text-purple-400 font-mono">50 Total</span>
+                  <span className="text-xl font-bold text-purple-400 font-mono">53 Total</span>
                 </div>
               </div>
 
@@ -175,13 +175,13 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
                   <div className="flex items-center space-x-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                     <span className="text-slate-300">
-                      <strong>Estaciones Propias:</strong> 10 cargadas con GOA, Gasolina y Premium
+                      <strong>Estaciones Propias:</strong> 19 cargadas con GOA, Gasolina y Premium
                     </span>
                   </div>
                   <div className="flex items-center space-x-2.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                     <span className="text-slate-300">
-                      <strong>Estaciones Colaboradoras:</strong> 13 Fijas sincronizadas
+                      <strong>Estaciones Colaboradoras:</strong> 34 (13 Fijas sincronizadas)
                     </span>
                   </div>
                   <div className="flex items-center space-x-2.5">

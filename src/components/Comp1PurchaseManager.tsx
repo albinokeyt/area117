@@ -29,9 +29,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     { code: 'GOA_PROFESIONAL', name: 'Gasóleo Profesional / Premium (+0.04€)', isAutoPremium: true },
   ];
 
-  // 10 estaciones principales Propias y lista Colaboradoras
-  const propiasStations = PROPIAS_STATIONS.slice(0, 10);
-  const colaboradorasStations = COLABORADORA_STATIONS.slice(0, 15);
+  // 19 estaciones Propias y 34 estaciones Colaboradoras completas del Excel
+  const propiasStations = PROPIAS_STATIONS;
+  const colaboradorasStations = COLABORADORA_STATIONS;
 
   // Estado local para los datos de compra
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowData>>(() => {

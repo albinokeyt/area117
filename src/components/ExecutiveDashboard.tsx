@@ -12,30 +12,26 @@ interface DashboardProps {
   onNavigateTab?: (tab: string) => void;
 }
 
-// Datos de estaciones representativos del sistema
-const MOCK_PROPIAS = [
-  { station: 'ARCOS', type: 'PROPIA', goa: 1.2150, premium: 1.2550, gasolina: 1.3750, margin: 0.0420, weeklyGain: 1420 },
-  { station: 'ALCUBILLAS', type: 'PROPIA', goa: 1.2180, premium: 1.2580, gasolina: 1.3800, margin: 0.0390, weeklyGain: 1380 },
-  { station: 'TORREJON', type: 'PROPIA', goa: 1.2100, premium: 1.2500, gasolina: 1.3700, margin: 0.0450, weeklyGain: 1650 },
-  { station: 'ARCOS JALON', type: 'PROPIA', goa: 1.2140, premium: 1.2540, gasolina: 1.3740, margin: 0.0410, weeklyGain: 1390 },
-  { station: 'ALFAJARIN', type: 'PROPIA', goa: 1.2160, premium: 1.2560, gasolina: 1.3780, margin: 0.0400, weeklyGain: 1410 },
-  { station: 'TORREMOCHA', type: 'PROPIA', goa: 1.2190, premium: 1.2590, gasolina: 1.3820, margin: 0.0380, weeklyGain: 1290 },
-  { station: 'MADRID', type: 'PROPIA', goa: 1.2200, premium: 1.2600, gasolina: 1.3850, margin: 0.0380, weeklyGain: 1510 },
-  { station: 'VALLECAS', type: 'PROPIA', goa: 1.2130, premium: 1.2530, gasolina: 1.3720, margin: 0.0410, weeklyGain: 1460 },
-  { station: 'UCLES', type: 'PROPIA', goa: 1.2170, premium: 1.2570, gasolina: 1.3790, margin: 0.0390, weeklyGain: 1320 },
-  { station: 'PAMPLONA', type: 'PROPIA', goa: 1.2090, premium: 1.2490, gasolina: 1.3680, margin: 0.0480, weeklyGain: 1720 },
-];
+// 19 Estaciones Propias y 34 Estaciones Colaboradoras completas del Excel
+const MOCK_PROPIAS = PROPIAS_STATIONS.map((st, i) => ({
+  station: st.name,
+  type: 'PROPIA' as const,
+  goa: Number((1.2100 + (i % 5) * 0.002).toFixed(4)),
+  premium: Number((1.2500 + (i % 5) * 0.002).toFixed(4)),
+  gasolina: Number((1.3700 + (i % 5) * 0.003).toFixed(4)),
+  margin: Number((0.0380 + (i % 4) * 0.002).toFixed(4)),
+  weeklyGain: 1300 + (i * 35),
+}));
 
-const MOCK_COLABORADORAS = [
-  { station: 'Z.FRANCA', type: 'COLABORADORA', goa: 1.1850, premium: 1.2250, gasolina: 1.3450, margin: 0.0360, weeklyGain: 1890 },
-  { station: 'BENAVENTE', type: 'COLABORADORA', goa: 1.1790, premium: 1.2190, gasolina: 1.3390, margin: 0.0380, weeklyGain: 1620 },
-  { station: 'IRUN ZAISA III', type: 'COLABORADORA', goa: 1.1920, premium: 1.2320, gasolina: 1.3520, margin: 0.0410, weeklyGain: 1980 },
-  { station: 'AVILESINA', type: 'COLABORADORA', goa: 1.1880, premium: 1.2280, gasolina: 1.3480, margin: 0.0370, weeklyGain: 1540 },
-  { station: 'MERIDA', type: 'COLABORADORA', goa: 1.1820, premium: 1.2220, gasolina: 1.3420, margin: 0.0390, weeklyGain: 1480 },
-  { station: 'SANCTI-SPIRITUS', type: 'COLABORADORA', goa: 1.1760, premium: 1.2160, gasolina: 1.3360, margin: 0.0430, weeklyGain: 1690 },
-  { station: 'PUERTO DE BARCELONA', type: 'COLABORADORA', goa: 1.1940, premium: 1.2340, gasolina: 1.3540, margin: 0.0400, weeklyGain: 2150 },
-  { station: 'VEGA DE VALCARCE', type: 'COLABORADORA', goa: 1.1910, premium: 1.2310, gasolina: 1.3510, margin: 0.0390, weeklyGain: 1740 },
-];
+const MOCK_COLABORADORAS = COLABORADORA_STATIONS.map((st, i) => ({
+  station: st.name,
+  type: 'COLABORADORA' as const,
+  goa: Number((1.1800 + (i % 6) * 0.002).toFixed(4)),
+  premium: Number((1.2200 + (i % 6) * 0.002).toFixed(4)),
+  gasolina: Number((1.3400 + (i % 6) * 0.003).toFixed(4)),
+  margin: Number((0.0360 + (i % 4) * 0.002).toFixed(4)),
+  weeklyGain: 1400 + (i * 25),
+}));
 
 const PURCHASE_TREND = [1.1820, 1.1850, 1.1790, 1.1900, 1.1950, 1.1880, 1.2010, 1.1970];
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Hoy'];
@@ -355,10 +351,10 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
           <div className="mt-3">
             <p className="text-xs font-semibold text-slate-400">Estaciones Propias Activas</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              10 <span className="text-xs text-slate-400">EESS Principales</span>
+              19 <span className="text-xs text-slate-400">EESS Propias</span>
             </p>
             <p className="text-[11px] text-blue-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>Postes actualizados</span>
+              <span>Postes y compras actualizados</span>
               <span className="text-slate-600">&bull;</span>
               <span className="underline group-hover:text-blue-300">Ver histórico</span>
             </p>
@@ -375,13 +371,13 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <span className="text-[10px] bg-purple-500/10 text-purple-300 font-bold px-2 py-0.5 rounded-full border border-purple-500/20">
-              13 Fijas
+              13 Fijas / 34 Total
             </span>
           </div>
           <div className="mt-3">
-            <p className="text-xs font-semibold text-slate-400">Colaboradoras Fijas (EFI)</p>
+            <p className="text-xs font-semibold text-slate-400">Estaciones Colaboradoras (EFI)</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              13 <span className="text-xs text-slate-400">Columna J</span>
+              34 <span className="text-xs text-slate-400">EESS (13 Fijas)</span>
             </p>
             <p className="text-[11px] text-purple-400/90 font-medium mt-1 flex items-center space-x-1">
               <span>Z.Franca, Irun, Benavente...</span>
