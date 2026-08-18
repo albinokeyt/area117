@@ -30,7 +30,7 @@ function AppContent() {
         setSelectedDate={setSelectedDate}
       />
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {activeTab === 'dashboard' && <ExecutiveDashboard />}
+        {activeTab === 'dashboard' && <ExecutiveDashboard onNavigateTab={setActiveTab} />}
         {activeTab === 'comp1' && <Comp1PurchaseManager selectedDate={selectedDate} />}
         {activeTab === 'comp2' && <Comp2EfiExporter selectedDate={selectedDate} />}
         {activeTab === 'postes' && <PostesManager />}
