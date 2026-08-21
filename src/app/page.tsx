@@ -8,6 +8,7 @@ import { Comp1PurchaseManager } from '@/components/Comp1PurchaseManager';
 import { Comp2EfiExporter } from '@/components/Comp2EfiExporter';
 import { PostesManager } from '@/components/PostesManager';
 import { SabanaPreciosManager } from '@/components/SabanaPreciosManager';
+import { PdfGeneratorManager } from '@/components/PdfGeneratorManager';
 import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
 import { UserManager } from '@/components/UserManager';
 import { InstructionsManager } from '@/components/InstructionsManager';
@@ -49,9 +50,10 @@ function AppContent() {
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 space-y-8">
         {activeTab === 'dashboard' && <ExecutiveDashboard onNavigateTab={setActiveTab} />}
         {activeTab === 'comp1' && <Comp1PurchaseManager selectedDate={selectedDate} />}
-        {activeTab === 'comp2' && <Comp2EfiExporter selectedDate={selectedDate} />}
         {activeTab === 'postes' && <PostesManager />}
         {activeTab === 'sabana' && <SabanaPreciosManager selectedDate={selectedDate} />}
+        {activeTab === 'pdf' && <PdfGeneratorManager selectedDate={selectedDate} />}
+        {activeTab === 'comp2' && <Comp2EfiExporter selectedDate={selectedDate} />}
         {activeTab === 'users' && <UserManager />}
         {activeTab === 'instructions' && <InstructionsManager />}
       </main>

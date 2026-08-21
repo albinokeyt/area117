@@ -5,7 +5,7 @@ import { useAuth, User } from '@/context/AuthContext';
 import {
   Fuel, BarChart3, FileSpreadsheet, ShieldCheck, Layers,
   Download, Users, LogOut, ChevronDown, BookOpen, Calendar, X,
-  TrendingUp, Building2, Store, CheckCircle2, DollarSign
+  TrendingUp, Building2, Store, CheckCircle2, DollarSign, Printer, FileText
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -26,7 +26,8 @@ const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { id: 'comp1', label: 'Compras', icon: FileSpreadsheet },
   { id: 'postes', label: 'Postes', icon: Layers },
-  { id: 'sabana', label: 'Sábana/PDFs', icon: Download },
+  { id: 'sabana', label: 'Sábana de Precios', icon: Download },
+  { id: 'pdf', label: 'PDFs & Clientes', icon: Printer },
   { id: 'comp2', label: 'EFI Export', icon: ShieldCheck },
   { id: 'users', label: 'Usuarios', icon: Users },
   { id: 'instructions', label: 'Instrucciones', icon: BookOpen },
