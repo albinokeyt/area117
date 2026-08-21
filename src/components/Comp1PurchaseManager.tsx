@@ -4,14 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
-  TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye, ShieldCheck
+  TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye, ShieldCheck, Droplet
 } from 'lucide-react';
 
 interface Comp1Props {
   selectedDate: string;
 }
 
-// Lista exacta de las 13 colaboradoras clave (Columna J) para resaltar en color anaranjado
+// 13 Colaboradoras Fijas (Columna J) para resaltar en color anaranjado
 const FIXED_ORANGE_STATIONS = [
   'Z.FRANCA',
   'BENAVENTE',
@@ -29,6 +29,20 @@ const FIXED_ORANGE_STATIONS = [
   'FIGUERES',
 ];
 
+// Estaciones específicas con AdBlue según el recuadro del Excel (Celdas H62:K73)
+const ADBLUE_STATIONS_CONFIG: Record<string, { defaultBuy: number; defaultSale: number }> = {
+  'TORREJON': { defaultBuy: 0.5360, defaultSale: 0.8490 },
+  'ARCOS JALON': { defaultBuy: 0.2650, defaultSale: 0.7490 },
+  'ALFAJARIN': { defaultBuy: 0.4000, defaultSale: 0.8490 },
+  'TORREMOCHA': { defaultBuy: 0.2650, defaultSale: 0.7490 },
+  'MADRID': { defaultBuy: 0.5360, defaultSale: 0.8490 },
+  'VALLECAS': { defaultBuy: 0.6190, defaultSale: 0.8490 },
+  'HUMILLADERO': { defaultBuy: 0.5770, defaultSale: 0.7900 },
+  'UCLES': { defaultBuy: 0.3000, defaultSale: 0.7990 },
+  'BENAMEJI': { defaultBuy: 0.5360, defaultSale: 0.7990 },
+  'SORIA ALCUBILLAS': { defaultBuy: 0.2550, defaultSale: 0.8490 },
+};
+
 interface PurchaseRowValues {
   prev: string;
   curr: string;
@@ -40,14 +54,7 @@ interface PurchaseRowValues {
 }
 
 export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
-  // Productos a gestionar por estación
-  const FUEL_PRODUCTS = [
-    { code: 'GOA', name: 'Gasóleo A (GOA)', isAutoPremium: false },
-    { code: 'GASOLINA', name: 'Gasolina 95', isAutoPremium: false },
-    { code: 'GOA_PROFESIONAL', name: 'Gasóleo Profesional / Premium (+0.04€)', isAutoPremium: true },
-  ];
-
-  // 19 estaciones Propias y 34 estaciones Colaboradoras completas
+  // 19 estaciones Propias y 34 estaciones Colaboradoras completas del Excel
   const propiasStations = PROPIAS_STATIONS;
   const colaboradorasStations = COLABORADORA_STATIONS;
 
@@ -65,14 +72,23 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return num.toFixed(decimals);
   };
 
+  // Obtener la lista de productos correspondiente a una estación
+  const getProductsForStation = (stationName: string) => {
+    const products = [
+      { code: 'GOA', name: 'Gasóleo A (GOA)' },
+      { code: 'GASOLINA', name: 'Gasolina 95' },
+    ];
+    if (ADBLUE_STATIONS_CONFIG[stationName]) {
+      products.push({ code: 'ADBLUE', name: 'AdBlue' });
+    }
+    return products;
+  };
+
   // Estado local para los datos de compra (almacenados como texto para aceptar coma y punto libremente)
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
     const initial: Record<string, PurchaseRowValues> = {};
     
     [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS].forEach((st) => {
-      const basePrev = 1.1500;
-      const baseCurr = 1.1550;
-
       // GOA
       initial[`${st.name}_GOA`] = {
         prev: '1.1500',
@@ -95,16 +111,19 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         sale: '1.3450',
       };
 
-      // GOA PROFESIONAL (GOA + 0.04)
-      initial[`${st.name}_GOA_PROFESIONAL`] = {
-        prev: '1.1900',
-        curr: '1.1950',
-        clh: '0.0050',
-        porte: '0.0080',
-        pase: '0.0000',
-        fin: '0.0020',
-        sale: '1.2350',
-      };
+      // ADBLUE (Solo para las estaciones del recuadro H62:K73)
+      if (ADBLUE_STATIONS_CONFIG[st.name]) {
+        const adblueData = ADBLUE_STATIONS_CONFIG[st.name];
+        initial[`${st.name}_ADBLUE`] = {
+          prev: formatNum(adblueData.defaultBuy),
+          curr: formatNum(adblueData.defaultBuy),
+          clh: '0.0000',
+          porte: '0.0000',
+          pase: '0.0000',
+          fin: '0.0000',
+          sale: formatNum(adblueData.defaultSale),
+        };
+      }
     });
     return initial;
   });
@@ -173,20 +192,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         [field]: val,
       };
 
-      // Si se modifica el GOA normal, actualizar automáticamente el GOA Profesional (+0.04€)
-      if (prodCode === 'GOA' && field === 'curr') {
-        const profKey = `${stationName}_GOA_PROFESIONAL`;
-        const currNum = parseNum(val);
-        const saleNum = parseNum(updated[key].sale);
-        if (updated[profKey]) {
-          updated[profKey] = {
-            ...updated[profKey],
-            curr: formatNum(currNum + 0.04),
-            sale: formatNum(saleNum + 0.04),
-          };
-        }
-      }
-
       return updated;
     });
 
@@ -194,9 +199,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setModifiedKeys((prev) => {
       const next = new Set(prev);
       next.add(key);
-      if (prodCode === 'GOA') {
-        next.add(`${stationName}_GOA_PROFESIONAL`);
-      }
       return next;
     });
 
@@ -221,8 +223,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   };
 
   // Calcular métricas de comparativa para el informe
-  const allComparisons = [...propiasStations, ...colaboradorasStations].flatMap((st) =>
-    FUEL_PRODUCTS.map((prod) => {
+  const allComparisons = [...propiasStations, ...colaboradorasStations].flatMap((st) => {
+    const prods = getProductsForStation(st.name);
+    return prods.map((prod) => {
       const key = `${st.name}_${prod.code}`;
       const item = purchases[key] || { prev: '0', curr: '0', clh: '0', porte: '0', pase: '0', fin: '0', sale: '0' };
       const prevNum = parseNum(item.prev);
@@ -240,8 +243,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         pct,
         isModified,
       };
-    })
-  );
+    });
+  });
 
   const priceIncreases = allComparisons.filter((c) => c.diff > 0.0001);
   const priceDecreases = allComparisons.filter((c) => c.diff < -0.0001);
@@ -317,8 +320,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 const isFixedOrange = FIXED_ORANGE_STATIONS.some((name) =>
                   st.name.toUpperCase().includes(name.toUpperCase())
                 );
+                const stationProds = getProductsForStation(st.name);
 
-                return FUEL_PRODUCTS.map((prod, pIdx) => {
+                return stationProds.map((prod, pIdx) => {
                   const key = `${st.name}_${prod.code}`;
                   const item = purchases[key] || {
                     prev: '0',
@@ -354,7 +358,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                     <tr
                       key={key}
                       className={`transition-colors ${rowBgClass} ${
-                        pIdx === FUEL_PRODUCTS.length - 1 ? 'border-b-2 border-slate-800/80' : ''
+                        pIdx === stationProds.length - 1 ? 'border-b-2 border-slate-800/80' : ''
                       }`}
                     >
                       {/* Nombre de la estación (agrupado visualmente y coloreado en anaranjado si es fija) */}
@@ -379,15 +383,16 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       {/* Producto */}
                       <td className="py-2.5 px-3 font-semibold">
                         <span
-                          className={`px-2 py-0.5 rounded text-[11px] font-medium ${
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium inline-flex items-center space-x-1 ${
                             prod.code === 'GOA'
                               ? 'bg-amber-500/15 text-amber-300 border border-amber-500/20'
                               : prod.code === 'GASOLINA'
                               ? 'bg-blue-500/15 text-blue-300 border border-blue-500/20'
-                              : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 italic'
+                              : 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold'
                           }`}
                         >
-                          {prod.name}
+                          {prod.code === 'ADBLUE' && <Droplet className="h-3 w-3 text-cyan-400" />}
+                          <span>{prod.name}</span>
                         </span>
                       </td>
 
@@ -414,7 +419,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           <input
                             type="text"
                             inputMode="decimal"
-                            disabled={prod.isAutoPremium}
                             value={item.curr}
                             onChange={(e) =>
                               handleInputChange(st.name, prod.code, 'curr', e.target.value)
@@ -423,8 +427,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
                               isModifiedToday
                                 ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40'
-                                : prod.isAutoPremium
-                                ? 'bg-slate-950/70 border border-slate-800 text-slate-400 cursor-not-allowed'
                                 : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
                             }`}
                           />
@@ -539,7 +541,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               Ingreso Diario de Precios de Compra
             </h2>
             <p className="text-slate-400 text-sm">
-              Acepta números con punto (<code className="text-amber-300 font-bold">.</code>) o coma (<code className="text-amber-300 font-bold">,</code>). Resalta en <strong>amarillo</strong> las modificaciones de hoy y en <strong>anaranjado</strong> las estaciones colaboradoras fijas.
+              Gestión de <strong>Gasóleo A</strong>, <strong>Gasolina 95</strong> y <strong>AdBlue</strong> (en las 10 estaciones habilitadas). Acepta punto (<code className="text-amber-300 font-bold">.</code>) o coma (<code className="text-amber-300 font-bold">,</code>).
             </p>
           </div>
 
@@ -580,7 +582,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       {/* Bloque 1: Estaciones Propias (19 Estaciones) */}
       {renderStationTable(
         'Estaciones Propias',
-        'Precios de compra y postes de las 19 estaciones propias (Rangos N2:U21)',
+        'Precios de compra y costes de las 19 estaciones propias',
         Building2,
         propiasStations,
         false
@@ -589,7 +591,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       {/* Bloque 2: Estaciones Colaboradoras (34 Estaciones con 13 Fijas en Anaranjado) */}
       {renderStationTable(
         'Estaciones Colaboradoras',
-        'Precios acordados y costes de red de las 34 estaciones colaboradoras (Rangos N23:U58)',
+        'Precios acordados y costes de red de las 34 estaciones colaboradoras',
         Store,
         colaboradorasStations,
         true
