@@ -25,9 +25,9 @@ const ROLE_LABELS: Record<User['role'], string> = {
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { id: 'comp1', label: 'Compras', icon: FileSpreadsheet },
-  { id: 'comp2', label: 'EFI Export', icon: ShieldCheck },
   { id: 'postes', label: 'Postes', icon: Layers },
   { id: 'sabana', label: 'Sábana/PDFs', icon: Download },
+  { id: 'comp2', label: 'EFI Export', icon: ShieldCheck },
   { id: 'users', label: 'Usuarios', icon: Users },
   { id: 'instructions', label: 'Instrucciones', icon: BookOpen },
 ];
