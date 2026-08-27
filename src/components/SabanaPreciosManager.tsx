@@ -12,15 +12,15 @@ interface SabanaProps {
 
 // Tarifas Estándar (Columnas B a T en el Excel)
 const STANDARD_TARIFFS = [
-  { id: '12', name: 'Tarifa 12', markup: 0.120 },
-  { id: '18', name: 'Tarifa 18', markup: 0.126 },
-  { id: '24', name: 'Tarifa 24', markup: 0.132 },
-  { id: '36', name: 'Tarifa 36', markup: 0.144 },
-  { id: '40', name: 'Tarifa 40', markup: 0.148 },
-  { id: '42', name: 'Tarifa 42', markup: 0.150 },
-  { id: '47', name: 'Tarifa 47', markup: 0.155 },
-  { id: '50', name: 'Tarifa 50 (60)', markup: 0.160 },
-  { id: '60', name: 'Tarifa 60 (80)', markup: 0.170 },
+  { id: '12', name: '12', colTitle: '12 SIN IVA', markup: 0.120 },
+  { id: '18', name: '18', colTitle: '18 SIN IVA', markup: 0.126 },
+  { id: '24', name: '24', colTitle: '24 SIN IVA', markup: 0.132 },
+  { id: '36', name: '36', colTitle: '36 SIN IVA', markup: 0.144 },
+  { id: '40', name: '40', colTitle: '40 SIN IVA', markup: 0.148 },
+  { id: '42', name: '42', colTitle: '42 SIN IVA', markup: 0.150 },
+  { id: '47', name: '47', colTitle: '47 SIN IVA', markup: 0.155 },
+  { id: '50', name: '50 (60)', colTitle: '50 (60) SIN IVA', markup: 0.160 },
+  { id: '60', name: '60 (80)', colTitle: '60 (80) SIN IVA', markup: 0.170 },
 ];
 
 // Estructura Exacta de Tarifas Especiales del Excel (Columnas V a BF)
@@ -130,7 +130,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   };
 
   const triggerDownload = (fileName: string, csvContent: string) => {
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Añadimos UTF-8 BOM (\uFEFF) para que Excel abra acentos y formatos automáticamente sin problemas
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = fileName;
@@ -139,45 +140,84 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     setTimeout(() => setDownloadToast(null), 3500);
   };
 
-  // Descarga de la tabla de Tarifas Estándar (12 a 60)
+  // Descarga de la tabla de Tarifas Estándar con el formato EXACTO del Excel (media_1787840120442.png)
   const handleExportStandardCsv = () => {
-    let csv = 'Tipo;Estacion;';
+    // Fila 1: Cabecera idéntica a la imagen del usuario
+    let csv = 'EESS DE SERVICIO;';
     STANDARD_TARIFFS.forEach((t) => {
-      csv += `${t.name} Sin IVA;${t.name} Con IVA (+21%);`;
+      csv += `${t.colTitle};CON IVA;`;
     });
     csv += '\n';
 
-    filteredStations.forEach((st) => {
-      const isPropia = st.type === 'PROPIA';
-      const base = getStationBasePrice(st.name, isPropia);
-      csv += `${st.type};${st.name};`;
+    // Bloque 1: Estaciones Propias (19 EESS)
+    PROPIAS_STATIONS.forEach((st) => {
+      const base = getStationBasePrice(st.name, true);
+      csv += `${st.name};`;
       STANDARD_TARIFFS.forEach((t) => {
-        const sinIva = Number((base + t.markup).toFixed(4));
-        const conIva = Number((sinIva * 1.21).toFixed(4));
-        csv += `${sinIva.toFixed(4).replace('.', ',')};${conIva.toFixed(4).replace('.', ',')};`;
+        const sinIva = Number((base + t.markup).toFixed(3));
+        const conIva = Number((sinIva * 1.21).toFixed(3));
+        csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
       csv += '\n';
     });
 
-    triggerDownload(`SABANA_TARIFAS_ESTANDAR_12_60_${selectedDate}.csv`, csv);
+    // Fila Divisora: COLABORADORAS con 0,000
+    csv += 'COLABORADORAS;';
+    STANDARD_TARIFFS.forEach(() => {
+      csv += '0,000;0,000;';
+    });
+    csv += '\n';
+
+    // Bloque 2: Estaciones Colaboradoras (34 EESS)
+    COLABORADORA_STATIONS.forEach((st) => {
+      const base = getStationBasePrice(st.name, false);
+      csv += `${st.name};`;
+      STANDARD_TARIFFS.forEach((t) => {
+        const sinIva = Number((base + t.markup).toFixed(3));
+        const conIva = Number((sinIva * 1.21).toFixed(3));
+        csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
+      });
+      csv += '\n';
+    });
+
+    triggerDownload(`SABANA_TARIFAS_12_60_${selectedDate}.csv`, csv);
   };
 
   // Descarga de un bloque de Tarifa Especial individual
   const handleExportSpecialBlockCsv = (block: SpecialTariffGroupDef) => {
-    let csv = `Tipo;Estacion;`;
+    let csv = `EESS DE SERVICIO;`;
     block.tariffs.forEach((t) => {
-      csv += `${t.name} Sin IVA;${t.name} Con IVA (+21%);`;
+      csv += `${t.name.toUpperCase()} SIN IVA;CON IVA;`;
     });
     csv += '\n';
 
-    filteredStations.forEach((st) => {
-      const isPropia = st.type === 'PROPIA';
-      const base = getStationBasePrice(st.name, isPropia);
-      csv += `${st.type};${st.name};`;
+    // Propias
+    PROPIAS_STATIONS.forEach((st) => {
+      const base = getStationBasePrice(st.name, true);
+      csv += `${st.name};`;
       block.tariffs.forEach((t) => {
-        const sinIva = Number((base + t.markup).toFixed(4));
-        const conIva = Number((sinIva * 1.21).toFixed(4));
-        csv += `${sinIva.toFixed(4).replace('.', ',')};${conIva.toFixed(4).replace('.', ',')};`;
+        const sinIva = Number((base + t.markup).toFixed(3));
+        const conIva = Number((sinIva * 1.21).toFixed(3));
+        csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
+      });
+      csv += '\n';
+    });
+
+    // Separador
+    csv += 'COLABORADORAS;';
+    block.tariffs.forEach(() => {
+      csv += '0,000;0,000;';
+    });
+    csv += '\n';
+
+    // Colaboradoras
+    COLABORADORA_STATIONS.forEach((st) => {
+      const base = getStationBasePrice(st.name, false);
+      csv += `${st.name};`;
+      block.tariffs.forEach((t) => {
+        const sinIva = Number((base + t.markup).toFixed(3));
+        const conIva = Number((sinIva * 1.21).toFixed(3));
+        csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
       csv += '\n';
     });
@@ -200,7 +240,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               Sábana General de Precios y Tarifas
             </h2>
             <p className="text-slate-400 text-sm">
-              Columna de estaciones identificada con <strong className="text-blue-400">Azul para Propias</strong> y <strong className="text-purple-400">Morado para Colaboradoras</strong>. Cada recuadro cuenta con su botón de descarga individual en Excel.
+              Columna de estaciones identificada con <strong className="text-blue-400">Azul para Propias</strong> y <strong className="text-purple-400">Morado para Colaboradoras</strong>. Cada recuadro cuenta con su botón de descarga individual en formato exacto Excel.
             </p>
           </div>
 
@@ -209,7 +249,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 hover:from-amber-400 hover:to-amber-300 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all active:scale-95"
           >
             <Download className="h-4 w-4" />
-            <span>Descargar Sábana Estándar Completa</span>
+            <span>Descargar Sábana Estándar (Excel)</span>
           </button>
         </div>
       </div>
@@ -295,7 +335,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                   Cols B:T
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Precios sin IVA y con IVA (+21%) para toda la red de estaciones</p>
+              <p className="text-xs text-slate-400">Precios sin IVA y con IVA (+21%) con formato idéntico al Excel oficial</p>
             </div>
           </div>
 
@@ -314,7 +354,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               {/* Header Row 1: Tarifas Groups */}
               <tr className="border-b border-slate-800 text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                 <th className="py-3 px-4 sticky left-0 bg-slate-950 z-40 border-r border-slate-800" rowSpan={2}>
-                  Estación de Servicio
+                  EESS DE SERVICIO
                 </th>
                 {STANDARD_TARIFFS.map((tariff) => (
                   <th
@@ -322,7 +362,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                     colSpan={2}
                     className="py-2.5 px-3 text-center border-r border-slate-800 bg-slate-900/90 text-amber-300 font-extrabold"
                   >
-                    {tariff.name}
+                    TARIFA {tariff.name}
                   </th>
                 ))}
               </tr>
@@ -331,9 +371,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               <tr className="border-b-2 border-slate-700 text-slate-400 font-semibold text-[10px] uppercase">
                 {STANDARD_TARIFFS.map((tariff) => (
                   <React.Fragment key={`${tariff.id}_sub`}>
-                    <th className="py-2 px-2.5 text-right bg-slate-950 text-slate-300">Sin IVA</th>
+                    <th className="py-2 px-2.5 text-right bg-slate-950 text-slate-300">{tariff.colTitle}</th>
                     <th className="py-2 px-2.5 text-right bg-slate-950/80 text-emerald-400 border-r border-slate-800">
-                      Con IVA (+21%)
+                      CON IVA
                     </th>
                   </React.Fragment>
                 ))}
@@ -368,18 +408,18 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                       </div>
                     </td>
 
-                    {/* Columnas de Precios (Limpias y Neutras para Máxima Legibilidad) */}
+                    {/* Columnas de Precios */}
                     {STANDARD_TARIFFS.map((tariff) => {
-                      const sinIva = Number((base + tariff.markup).toFixed(4));
-                      const conIva = Number((sinIva * 1.21).toFixed(4));
+                      const sinIva = Number((base + tariff.markup).toFixed(3));
+                      const conIva = Number((sinIva * 1.21).toFixed(3));
 
                       return (
                         <React.Fragment key={`${st.name}_${tariff.id}`}>
                           <td className="py-2.5 px-2.5 text-right text-slate-300 bg-slate-900/10">
-                            {sinIva.toFixed(3)} €
+                            {sinIva.toFixed(3).replace('.', ',')}
                           </td>
                           <td className="py-2.5 px-2.5 text-right font-bold text-emerald-400 bg-emerald-500/5 border-r border-slate-800/80">
-                            {conIva.toFixed(3)} €
+                            {conIva.toFixed(3).replace('.', ',')}
                           </td>
                         </React.Fragment>
                       );
@@ -433,7 +473,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead className="sticky top-0 bg-slate-950 z-10">
                       <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                        <th className="py-2.5 px-3" rowSpan={2}>Estación</th>
+                        <th className="py-2.5 px-3" rowSpan={2}>EESS DE SERVICIO</th>
                         {block.tariffs.map((t, idx) => (
                           <th key={idx} colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
                             {t.name}
@@ -462,16 +502,16 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                               {st.name}
                             </td>
                             {block.tariffs.map((t, idx) => {
-                              const sinIva = Number((base + t.markup).toFixed(4));
-                              const conIva = Number((sinIva * 1.21).toFixed(4));
+                              const sinIva = Number((base + t.markup).toFixed(3));
+                              const conIva = Number((sinIva * 1.21).toFixed(3));
 
                               return (
                                 <React.Fragment key={idx}>
                                   <td className="py-2 px-2 text-right text-slate-300 border-l border-slate-800/50">
-                                    {sinIva.toFixed(3)} €
+                                    {sinIva.toFixed(3).replace('.', ',')}
                                   </td>
                                   <td className="py-2 px-2 text-right font-bold text-emerald-400">
-                                    {conIva.toFixed(3)} €
+                                    {conIva.toFixed(3).replace('.', ',')}
                                   </td>
                                 </React.Fragment>
                               );

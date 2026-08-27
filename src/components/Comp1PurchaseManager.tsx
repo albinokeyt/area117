@@ -351,7 +351,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
                   Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
                 </th>
-                <th className="py-3.5 px-2">CLH (Depósito)</th>
+                <th className="py-3.5 px-3 text-slate-300">CLH (Terminal)</th>
                 <th className="py-3.5 px-2 text-amber-300">Porte (R)</th>
                 <th className="py-3.5 px-2 text-blue-300">Pase (S)</th>
                 <th className="py-3.5 px-2 text-purple-300">Financ. (T)</th>
@@ -381,13 +381,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   };
 
                   const currNum = parseNum(item.curr);
-                  const clhNum = parseNum(item.clh);
                   const porteNum = parseNum(item.porte);
                   const paseNum = parseNum(item.pase);
                   const finNum = parseNum(item.fin);
                   const saleNum = parseNum(item.sale);
 
-                  const totalCost = Number((currNum + clhNum + porteNum + paseNum + finNum).toFixed(4));
+                  const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(4));
                   const margin = Number((saleNum - totalCost).toFixed(4));
                   const isModifiedToday = modifiedKeys.has(key);
 
@@ -484,24 +483,18 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* CLH (Depósito de origen / Costo) */}
-                      <td className="py-2.5 px-2">
-                        <div className="flex flex-col">
-                          {prod.code !== 'ADBLUE' && excelCosts?.clhName && (
-                            <span className="text-[10px] text-slate-400 font-mono font-semibold truncate max-w-[80px]" title={excelCosts.clhName}>
-                              {excelCosts.clhName}
-                            </span>
-                          )}
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={item.clh}
-                            onChange={(e) =>
-                              handleInputChange(st.name, prod.code, 'clh', e.target.value)
-                            }
-                            className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-slate-300 text-[11px] font-mono focus:border-amber-400 focus:outline-none mt-0.5"
-                          />
-                        </div>
+                      {/* CLH (Nombre del Depósito / Terminal de compra) */}
+                      <td className="py-2.5 px-3">
+                        {prod.code !== 'ADBLUE' && excelCosts?.clhName ? (
+                          <span
+                            className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 text-xs font-mono font-semibold tracking-tight shadow-sm truncate max-w-[120px]"
+                            title={`Terminal CLH: ${excelCosts.clhName}`}
+                          >
+                            {excelCosts.clhName}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 text-xs font-mono">-</span>
+                        )}
                       </td>
 
                       {/* Porte (Columna R del Excel) */}
@@ -594,7 +587,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               Ingreso Diario de Precios de Compra
             </h2>
             <p className="text-slate-400 text-sm">
-              Selecciona la sub-ventana superior para gestionar <strong>Gasóleo A</strong>, <strong>Gasolina 95</strong> o <strong>AdBlue</strong> de forma limpia e individual.
+              Columna <strong>CLH</strong> con los nombres de depósitos oficiales. Sub-menús superiores para <strong>Gasóleo A</strong>, <strong>Gasolina 95</strong> y <strong>AdBlue</strong>.
             </p>
           </div>
 

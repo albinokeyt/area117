@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Layers, Flame, Zap, Droplet, Check, Save, Sparkles,
-  TrendingUp, ArrowRightLeft, Fuel, ShieldCheck, Gauge
+  TrendingUp, ArrowRightLeft, Fuel, ShieldCheck, Gauge,
+  Download, Image as ImageIcon
 } from 'lucide-react';
 
-// 14 Estaciones exactas de postes de estaciones propias según el Excel
 const POSTES_PROPIAS_STATIONS = [
   { name: 'ARCOS', defaultGoa: '1.599', defaultGasolina: '1.499', defaultGain: '0.114' },
   { name: 'ALCUBILLAS', defaultGoa: '1.599', defaultGasolina: '1.499', defaultGain: '0.114' },
@@ -25,7 +25,6 @@ const POSTES_PROPIAS_STATIONS = [
 ];
 
 export function PostesManager() {
-  // Helper para convertir cualquier texto con coma o punto a número válido
   const parseNum = (val: string | number | undefined): number => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -34,12 +33,10 @@ export function PostesManager() {
     return isNaN(num) ? 0 : num;
   };
 
-  // Helper para formatear número en string
   const formatNum = (num: number, decimals: number = 4): string => {
     return num.toFixed(decimals);
   };
 
-  // Estado de Postes de Estaciones Propias (Almacenado en string para soportar coma y punto)
   const [postes, setPostes] = useState<Record<string, { goa: string; gasolina: string; gasolinaGain: string }>>(() => {
     const init: Record<string, { goa: string; gasolina: string; gasolinaGain: string }> = {};
     POSTES_PROPIAS_STATIONS.forEach((st) => {
@@ -52,20 +49,16 @@ export function PostesManager() {
     return init;
   });
 
-  // Estado HVO General y Estaciones Individuales
   const [hvoGeneralSinIva, setHvoGeneralSinIva] = useState('1.5280');
-  const [hvoUltimaCompra, setHvoUltimaCompra] = useState('1.2850');
   const [hvoAlfajarinSinIva, setHvoAlfajarinSinIva] = useState('1.2560');
-  const [hvoValdemoroSinIva, setHvoValdemoroSinIva] = useState('1.3470');
+  const [hvoValdemoroSinIva, setHvoValdemoroSinIva] = useState('1.5590');
 
-  // Estado Gasóleo B (3 Estaciones: UCLES, TORREMOCHA, ARCOS)
   const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string }>>({
     'UCLES': { compra: '1.0045', transfer: '1.0240', gob: '1.2886' },
     'TORREMOCHA': { compra: '1.0045', transfer: '1.0240', gob: '1.2886' },
     'ARCOS': { compra: '1.0045', transfer: '1.0240', gob: '1.2886' },
   });
 
-  // Estado AdBlue (10 Estaciones del Excel)
   const [adblueRows, setAdblueRows] = useState<Record<string, { compra: string; poste: string }>>({
     'TORREJON': { compra: '0.5360', poste: '0.8490' },
     'ARCOS JALON': { compra: '0.2650', poste: '0.7490' },
@@ -79,18 +72,16 @@ export function PostesManager() {
     'SORIA ALCUBILLAS': { compra: '0.2550', poste: '0.8490' },
   });
 
-  // Estado Gases y Energías Alternativas (GLP, GNC, GNL)
   const [gasesRows, setGasesRows] = useState<Record<string, { sinIva: string; poste: string }>>({
-    'GLP / Autogás': { sinIva: '0.7850', poste: '0.9490' },
+    'GLP / Autogas': { sinIva: '0.7850', poste: '0.9490' },
     'GNC (Gas Natural Comprimido)': { sinIva: '0.9500', poste: '1.1490' },
     'GNL (Gas Natural Licuado)': { sinIva: '0.8900', poste: '1.0790' },
   });
 
-  // Registro de claves modificadas hoy (para pintarlas en amarillo)
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
   const [isSaved, setIsSaved] = useState(false);
+  const [imageToast, setImageToast] = useState<string | null>(null);
 
-  // Cargar datos previos de localStorage si existen
   useEffect(() => {
     try {
       const saved = localStorage.getItem('efi_postes_data');
@@ -118,6 +109,14 @@ export function PostesManager() {
         [field]: val,
       },
     }));
+
+    if (stName === 'VALDEMORO' && field === 'goa') {
+      const numValdemoro = parseNum(val);
+      if (numValdemoro > 0) {
+        setHvoValdemoroSinIva(formatNum(numValdemoro + 0.0700));
+        setModifiedKeys((prev) => new Set(prev).add('hvo_valdemoro'));
+      }
+    }
 
     setModifiedKeys((prev) => {
       const next = new Set(prev);
@@ -148,39 +147,162 @@ export function PostesManager() {
     setTimeout(() => setIsSaved(false), 3500);
   };
 
+  const downloadPostesAsPng = (
+    stationNames: string[],
+    groupTitle: string,
+    outputFileName: string
+  ) => {
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    const rowHeight = 44;
+    const totalStations = stationNames.length;
+    const totalRows = totalStations * 2;
+
+    const col1Width = 180;
+    const col2Width = 170;
+    const col3Width = 140;
+    const width = col1Width + col2Width + col3Width;
+    const height = totalRows * rowHeight;
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    stationNames.forEach((stName, sIdx) => {
+      const item = postes[stName] || { goa: '1.579', gasolina: '1.479', gasolinaGain: '0.075' };
+      const yStart = sIdx * 2 * rowHeight;
+
+      ctx.fillStyle = '#FBE8DB';
+      ctx.fillRect(0, yStart, col1Width, rowHeight * 2);
+
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(stName, col1Width / 2, yStart + rowHeight);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(col1Width, yStart, col2Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('GOA', col1Width + col2Width / 2, yStart + rowHeight / 2);
+
+      ctx.fillStyle = '#FFF000';
+      ctx.fillRect(col1Width + col2Width, yStart, col3Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      const goaPriceStr = parseNum(item.goa).toFixed(3).replace('.', ',');
+      ctx.fillText(goaPriceStr, col1Width + col2Width + col3Width / 2, yStart + rowHeight / 2);
+
+      const yGas = yStart + rowHeight;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(col1Width, yGas, col2Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('GASOLINA', col1Width + col2Width / 2, yGas + rowHeight / 2);
+
+      ctx.fillStyle = '#FFF000';
+      ctx.fillRect(col1Width + col2Width, yGas, col3Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      const gasPriceStr = parseNum(item.gasolina).toFixed(3).replace('.', ',');
+      ctx.fillText(gasPriceStr, col1Width + col2Width + col3Width / 2, yGas + rowHeight / 2);
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+
+      ctx.beginPath();
+      ctx.moveTo(col1Width, yGas);
+      ctx.lineTo(width, yGas);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, yStart + rowHeight * 2);
+      ctx.lineTo(width, yStart + rowHeight * 2);
+      ctx.stroke();
+    });
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, 0, width, height);
+
+    ctx.beginPath();
+    ctx.moveTo(col1Width, 0);
+    ctx.lineTo(col1Width, height);
+    ctx.moveTo(col1Width + col2Width, 0);
+    ctx.lineTo(col1Width + col2Width, height);
+    ctx.stroke();
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = outputFileName;
+    link.click();
+
+    setImageToast(`Imagen PNG generada: ${outputFileName}`);
+    setTimeout(() => setImageToast(null), 3500);
+  };
+
+  const MADRID_GROUP = ['VALLECAS', 'GANESHA MADRID', 'TORREJON', 'VALDEMORO'];
+  const SUR_GROUP = ['BENAMEJI', 'HUMILLADERO'];
+
   return (
     <div className="space-y-8">
-      {/* Banner Principal */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-1.5">
             <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold uppercase tracking-wider">
               <Layers className="h-4 w-4" />
-              <span>Gestión de Postes Públicos & Productos Especiales</span>
+              <span>Gestion de Postes Publicos y Descargas en Imagen PNG</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Precios en Postes de Estaciones Propias
             </h2>
             <p className="text-slate-400 text-sm">
-              Acepta punto (<code className="text-amber-300 font-bold">.</code>) o coma (<code className="text-amber-300 font-bold">,</code>). Resalta en <strong>amarillo</strong> cualquier precio actualizado hoy.
+              Descarga imagenes PNG oficiales por estacion o por grupos (Madrid y Sur). El HVO de Valdemoro se auto-calcula con el Gasoleo de Valdemoro (+0.07 EUR).
             </p>
           </div>
 
-          <button
-            onClick={handleSave}
-            className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95 ${
-              isSaved
-                ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'
-                : 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 hover:from-amber-400 hover:to-amber-300 shadow-amber-500/20'
-            }`}
-          >
-            {isSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-            <span>{isSaved ? '¡Postes Guardados!' : 'Guardar Precios de Postes'}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => downloadPostesAsPng(MADRID_GROUP, 'Grupo Madrid', 'POSTES_MADRID_VALLECAS_TORREJON_VALDEMORO.png')}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded-xl text-xs font-bold border border-blue-500/30 shadow-md transition-all active:scale-95"
+              title="Descargar imagen PNG combinada de Vallecas, Madrid, Torrejon y Valdemoro"
+            >
+              <ImageIcon className="h-4 w-4 text-blue-400" />
+              <span>PNG Conjunto Madrid (4 EESS)</span>
+            </button>
+
+            <button
+              onClick={() => downloadPostesAsPng(SUR_GROUP, 'Grupo Sur', 'POSTES_SUR_BENAMEJI_HUMILLADERO.png')}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-xl text-xs font-bold border border-emerald-500/30 shadow-md transition-all active:scale-95"
+              title="Descargar imagen PNG combinada de Benameji y Humilladero"
+            >
+              <ImageIcon className="h-4 w-4 text-emerald-400" />
+              <span>PNG Conjunto Sur (2 EESS)</span>
+            </button>
+
+            <button
+              onClick={handleSave}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95 ${
+                isSaved
+                  ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 hover:from-amber-400 hover:to-amber-300 shadow-amber-500/20'
+              }`}
+            >
+              {isSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+              <span>{isSaved ? 'Postes Guardados' : 'Guardar Precios'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 1. Tabla Postes Estaciones Propias (14 Estaciones) */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
         <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-3">
@@ -189,11 +311,11 @@ export function PostesManager() {
             </div>
             <div>
               <h3 className="font-bold text-white text-base">Postes de Estaciones Propias</h3>
-              <p className="text-xs text-slate-400">Precios visibles al público en los surtidores de las 14 estaciones principales</p>
+              <p className="text-xs text-slate-400">Precios en surtidor con descargas en formato de imagen PNG</p>
             </div>
           </div>
           <span className="text-xs text-amber-400/90 font-mono bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20 font-bold">
-            Fórmula Automática: GOA Premium = GOA + 0.04€
+            Formula: GOA Premium = GOA + 0.04 EUR
           </span>
         </div>
 
@@ -201,11 +323,12 @@ export function PostesManager() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
-                <th className="py-3.5 px-5 sticky left-0 bg-slate-950 z-10">Estación</th>
-                <th className="py-3.5 px-4 text-amber-300">Gasóleo A (€/L)</th>
-                <th className="py-3.5 px-4 text-amber-400 bg-amber-500/5">GOA Premium (GOA + 0.04€)</th>
-                <th className="py-3.5 px-4 text-blue-300">Gasolina 95 (€/L)</th>
-                <th className="py-3.5 px-4 text-emerald-400">Margen / Ganancia Gasolina (€)</th>
+                <th className="py-3.5 px-5 sticky left-0 bg-slate-950 z-10">Estacion</th>
+                <th className="py-3.5 px-4 text-amber-300">Gasoleo A (EUR/L)</th>
+                <th className="py-3.5 px-4 text-amber-400 bg-amber-500/5">GOA Premium (GOA + 0.04 EUR)</th>
+                <th className="py-3.5 px-4 text-blue-300">Gasolina 95 (EUR/L)</th>
+                <th className="py-3.5 px-4 text-emerald-400">Margen Gasolina (EUR)</th>
+                <th className="py-3.5 px-4 text-center">Descargar PNG</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
@@ -218,13 +341,28 @@ export function PostesManager() {
                 const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
                 const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`);
 
+                const isMadridGroup = MADRID_GROUP.includes(st.name);
+                const isSurGroup = SUR_GROUP.includes(st.name);
+
                 return (
                   <tr key={st.name} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-5 font-bold text-white sticky left-0 bg-slate-900 z-10 border-r border-slate-800">
-                      {st.name}
+                      <div className="flex items-center space-x-2">
+                        <span>{st.name}</span>
+                        {isMadridGroup && (
+                          <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30">
+                            Madrid
+                          </span>
+                        )}
+                        {isSurGroup && (
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                            Sur
+                          </span>
+                        )}
+                      </div>
                     </td>
                     
-                    {/* Gasóleo A */}
+                    {/* Gasoleo A */}
                     <td className={`py-3 px-4 transition-all ${isGoaMod ? 'bg-amber-400/20' : ''}`}>
                       <div className="relative inline-flex items-center">
                         <input
@@ -246,9 +384,9 @@ export function PostesManager() {
                       </div>
                     </td>
 
-                    {/* GOA Premium (Auto-calculado) */}
+                    {/* GOA Premium */}
                     <td className="py-3 px-4 bg-amber-500/5 font-mono font-bold text-amber-300 text-sm">
-                      {premiumPrice.toFixed(3)} €
+                      {premiumPrice.toFixed(3)} EUR
                     </td>
 
                     {/* Gasolina 95 */}
@@ -287,12 +425,39 @@ export function PostesManager() {
                               : 'bg-slate-950 border border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
                           }`}
                         />
-                        {isGainMod && (
-                          <span className="ml-2 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
-                            HOY
-                          </span>
-                        )}
                       </div>
+                    </td>
+
+                    {/* Boton Descargar PNG */}
+                    <td className="py-3 px-4 text-center">
+                      {isMadridGroup ? (
+                        <button
+                          onClick={() => downloadPostesAsPng(MADRID_GROUP, 'Madrid', 'POSTES_MADRID_CONJUNTO.png')}
+                          className="px-2.5 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 rounded-lg text-[11px] font-bold border border-blue-500/40 transition-colors inline-flex items-center space-x-1"
+                          title="Descarga el grupo Madrid completo en una imagen PNG"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5 text-blue-300" />
+                          <span>PNG Madrid</span>
+                        </button>
+                      ) : isSurGroup ? (
+                        <button
+                          onClick={() => downloadPostesAsPng(SUR_GROUP, 'Sur', 'POSTES_SUR_CONJUNTO.png')}
+                          className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded-lg text-[11px] font-bold border border-emerald-500/40 transition-colors inline-flex items-center space-x-1"
+                          title="Descarga el grupo Sur completo en una imagen PNG"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5 text-emerald-300" />
+                          <span>PNG Sur</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => downloadPostesAsPng([st.name], st.name, `POSTES_${st.name.replace(/\s+/g, '_')}.png`)}
+                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold border border-slate-700 transition-colors inline-flex items-center space-x-1"
+                          title={`Descargar imagen PNG de ${st.name}`}
+                        >
+                          <Download className="h-3.5 w-3.5 text-amber-400" />
+                          <span>PNG</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -302,7 +467,7 @@ export function PostesManager() {
         </div>
       </div>
 
-      {/* 2. Sección HVO (Hidrobiodiésel) con Estaciones Específicas */}
+      {/* 2. Seccion HVO */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-3">
@@ -310,19 +475,18 @@ export function PostesManager() {
               <Zap className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">HVO (Hidrobiodiésel 100% Renovable)</h3>
-              <p className="text-xs text-slate-400">Precios generales de poste y asignaciones específicas por estación</p>
+              <h3 className="font-bold text-white text-base">HVO (Hidrobiodiesel 100% Renovable)</h3>
+              <p className="text-xs text-slate-400">Precios de poste y calculo automatico: HVO Valdemoro = GOA Valdemoro + 0.07 EUR</p>
             </div>
           </div>
-          <span className="text-xs text-slate-400 font-mono">IVA: 21% Automático</span>
+          <span className="text-xs text-slate-400 font-mono">IVA: 21% Automatico</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* HVO General */}
           <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
             <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">HVO Poste General</span>
             <div className="space-y-2">
-              <label className="text-xs text-slate-400 block">Precio Sin IVA (€/L):</label>
+              <label className="text-xs text-slate-400 block">Precio Sin IVA (EUR/L):</label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -342,19 +506,18 @@ export function PostesManager() {
             <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
               <span className="text-slate-400">Precio Con IVA (21%):</span>
               <span className="font-bold text-emerald-400 text-sm">
-                {formatNum(parseNum(hvoGeneralSinIva) * 1.21)} €/L
+                {formatNum(parseNum(hvoGeneralSinIva) * 1.21)} EUR/L
               </span>
             </div>
           </div>
 
-          {/* HVO ALFAJARIN */}
           <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white">HVO ALFAJARIN</span>
-              <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold">Específica</span>
+              <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold">Especifica</span>
             </div>
             <div className="space-y-2">
-              <label className="text-xs text-slate-400 block">Precio Sin IVA (€/L):</label>
+              <label className="text-xs text-slate-400 block">Precio Sin IVA (EUR/L):</label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -374,19 +537,20 @@ export function PostesManager() {
             <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
               <span className="text-slate-400">Precio Con IVA (21%):</span>
               <span className="font-bold text-emerald-400 text-sm">
-                {formatNum(parseNum(hvoAlfajarinSinIva) * 1.21)} €/L
+                {formatNum(parseNum(hvoAlfajarinSinIva) * 1.21)} EUR/L
               </span>
             </div>
           </div>
 
-          {/* HVO VALDEMORO */}
           <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white">HVO VALDEMORO</span>
-              <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold">Específica</span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30">
+                GOA + 0.07 EUR
+              </span>
             </div>
             <div className="space-y-2">
-              <label className="text-xs text-slate-400 block">Precio Sin IVA (€/L):</label>
+              <label className="text-xs text-slate-400 block">Precio Sin IVA (EUR/L):</label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -406,14 +570,14 @@ export function PostesManager() {
             <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
               <span className="text-slate-400">Precio Con IVA (21%):</span>
               <span className="font-bold text-emerald-400 text-sm">
-                {formatNum(parseNum(hvoValdemoroSinIva) * 1.21)} €/L
+                {formatNum(parseNum(hvoValdemoroSinIva) * 1.21)} EUR/L
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 3. Sección Gasóleo B (3 Estaciones Asignadas: UCLES, TORREMOCHA, ARCOS) */}
+      {/* 3. Seccion Gasoleo B */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-3">
@@ -421,8 +585,8 @@ export function PostesManager() {
               <Flame className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">Gasóleo B (Agrícola y Calefacción)</h3>
-              <p className="text-xs text-slate-400">Precios asignados a las 3 estaciones con suministro de Gasóleo B</p>
+              <h3 className="font-bold text-white text-base">Gasoleo B (Agricola y Calefaccion)</h3>
+              <p className="text-xs text-slate-400">Precios asignados a las 3 estaciones con suministro de Gasoleo B</p>
             </div>
           </div>
           <span className="text-xs text-slate-400 font-mono">3 Estaciones Clave</span>
@@ -432,11 +596,11 @@ export function PostesManager() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 font-bold">
-                <th className="py-3 px-4">Estación</th>
-                <th className="py-3 px-4 text-amber-300">Precio Compra Sin IVA (€)</th>
-                <th className="py-3 px-4 text-blue-300">Precio Transfer Red (€)</th>
-                <th className="py-3 px-4 text-emerald-400">Precio Con IVA 21% (€)</th>
-                <th className="py-3 px-4 text-rose-300">Precio GOB Final (€)</th>
+                <th className="py-3 px-4">Estacion</th>
+                <th className="py-3 px-4 text-amber-300">Precio Compra Sin IVA (EUR)</th>
+                <th className="py-3 px-4 text-blue-300">Precio Transfer Red (EUR)</th>
+                <th className="py-3 px-4 text-emerald-400">Precio Con IVA 21% (EUR)</th>
+                <th className="py-3 px-4 text-rose-300">Precio GOB Final (EUR)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-medium">
@@ -450,7 +614,6 @@ export function PostesManager() {
                   <tr key={stName} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-4 font-bold text-white">{stName}</td>
                     
-                    {/* Compra */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
@@ -471,7 +634,6 @@ export function PostesManager() {
                       />
                     </td>
 
-                    {/* Transfer */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
@@ -490,12 +652,10 @@ export function PostesManager() {
                       />
                     </td>
 
-                    {/* Con IVA */}
                     <td className="py-3 px-4 font-mono font-bold text-emerald-400 text-sm">
-                      {conIva.toFixed(4)} €
+                      {conIva.toFixed(4)} EUR
                     </td>
 
-                    {/* GOB Final */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
@@ -521,7 +681,7 @@ export function PostesManager() {
         </div>
       </div>
 
-      {/* 4. Sección AdBlue (10 Estaciones del Excel) */}
+      {/* 4. Seccion AdBlue */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-3">
@@ -530,7 +690,7 @@ export function PostesManager() {
             </div>
             <div>
               <h3 className="font-bold text-white text-base">AdBlue (10 Estaciones Habilitadas)</h3>
-              <p className="text-xs text-slate-400">Precios de adquisición, cálculo con IVA y precios en surtidor/poste</p>
+              <p className="text-xs text-slate-400">Precios de adquisicion, calculo con IVA y precios en surtidor/poste</p>
             </div>
           </div>
           <span className="text-xs text-slate-400 font-mono">10 Estaciones Clave</span>
@@ -554,7 +714,7 @@ export function PostesManager() {
                 </div>
                 
                 <div>
-                  <span className="text-[10px] text-slate-400 block mb-0.5">Compra Sin IVA (€):</span>
+                  <span className="text-[10px] text-slate-400 block mb-0.5">Compra Sin IVA (EUR):</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -576,11 +736,11 @@ export function PostesManager() {
 
                 <div className="flex justify-between text-[11px] font-mono">
                   <span className="text-slate-500">Con IVA 21%:</span>
-                  <span className="text-emerald-400 font-bold">{conIva.toFixed(4)} €</span>
+                  <span className="text-emerald-400 font-bold">{conIva.toFixed(4)} EUR</span>
                 </div>
 
                 <div className="pt-2 border-t border-slate-800">
-                  <span className="text-[10px] text-slate-400 block mb-0.5">Poste / Venta (€):</span>
+                  <span className="text-[10px] text-slate-400 block mb-0.5">Poste / Venta (EUR):</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -603,7 +763,7 @@ export function PostesManager() {
         </div>
       </div>
 
-      {/* 5. Nueva Sección: Gases & Energías Alternativas (GLP / GNC / GNL) */}
+      {/* 5. Seccion Gases */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-3">
@@ -611,12 +771,12 @@ export function PostesManager() {
               <Fuel className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">Gases & Energías Alternativas (GLP, GNC, GNL)</h3>
-              <p className="text-xs text-slate-400">Precios sin IVA y cálculo con IVA para combustibles a gas y nuevas tecnologías</p>
+              <h3 className="font-bold text-white text-base">Gases y Energias Alternativas (GLP, GNC, GNL)</h3>
+              <p className="text-xs text-slate-400">Precios sin IVA y calculo con IVA para combustibles a gas</p>
             </div>
           </div>
           <span className="text-xs text-teal-400 font-mono font-bold bg-teal-500/10 px-3 py-1 rounded-full border border-teal-500/20">
-            Módulo de Gases Activo
+            Modulo Gases
           </span>
         </div>
 
@@ -638,7 +798,7 @@ export function PostesManager() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs text-slate-400 block">Precio Adquisición Sin IVA (€):</label>
+                  <label className="text-xs text-slate-400 block">Precio Adquisicion Sin IVA (EUR):</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -662,11 +822,11 @@ export function PostesManager() {
 
                 <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-400">Precio Con IVA (21%):</span>
-                  <span className="font-bold text-emerald-400 text-sm">{conIva.toFixed(4)} €</span>
+                  <span className="font-bold text-emerald-400 text-sm">{conIva.toFixed(4)} EUR</span>
                 </div>
 
                 <div className="space-y-1 pt-1">
-                  <label className="text-xs text-slate-400 block">Precio Poste / Surtidor (€):</label>
+                  <label className="text-xs text-slate-400 block">Precio Poste / Surtidor (EUR):</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -688,6 +848,13 @@ export function PostesManager() {
           })}
         </div>
       </div>
+
+      {imageToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-5">
+          <Check className="h-5 w-5" />
+          <span>{imageToast}</span>
+        </div>
+      )}
     </div>
   );
 }
