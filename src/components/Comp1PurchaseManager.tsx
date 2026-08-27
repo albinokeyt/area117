@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
+import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye, ShieldCheck, Droplet
@@ -84,34 +84,53 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return products;
   };
 
-  // Estado local para los datos de compra (almacenados como texto para aceptar coma y punto libremente)
+  // Estado local para los datos de compra inicializados con los datos EXACTOS del Excel (Cols Q, R, S, T)
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
     const initial: Record<string, PurchaseRowValues> = {};
     
     [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS].forEach((st) => {
-      // GOA
+      const costs = STATION_EXCEL_COSTS[st.name] || {
+        porte: 0.0050,
+        pase: 0.0100,
+        fin: 0.0100,
+        defaultPrev: 1.2000,
+        defaultCurr: 1.2000,
+        clhName: 'TORREJON',
+      };
+
+      const goaPrev = costs.defaultPrev;
+      const goaCurr = costs.defaultCurr;
+      const totalCostGoa = goaCurr + costs.porte + costs.pase + costs.fin;
+      const saleGoa = totalCostGoa + 0.0380;
+
+      const gasPrev = costs.defaultPrev + 0.1200;
+      const gasCurr = costs.defaultCurr + 0.1200;
+      const totalCostGas = gasCurr + costs.porte + costs.pase + costs.fin;
+      const saleGas = totalCostGas + 0.0450;
+
+      // GOA (Con Porte, Pase y Financiación exactos del Excel)
       initial[`${st.name}_GOA`] = {
-        prev: '1.1500',
-        curr: '1.1550',
-        clh: '0.0050',
-        porte: '0.0080',
-        pase: '0.0000',
-        fin: '0.0020',
-        sale: '1.1950',
+        prev: formatNum(goaPrev),
+        curr: formatNum(goaCurr),
+        clh: '0.0000',
+        porte: formatNum(costs.porte),
+        pase: formatNum(costs.pase),
+        fin: formatNum(costs.fin),
+        sale: formatNum(saleGoa),
       };
 
-      // GASOLINA
+      // GASOLINA 95 (Con Porte, Pase y Financiación exactos del Excel)
       initial[`${st.name}_GASOLINA`] = {
-        prev: '1.2800',
-        curr: '1.2850',
-        clh: '0.0050',
-        porte: '0.0080',
-        pase: '0.0000',
-        fin: '0.0020',
-        sale: '1.3450',
+        prev: formatNum(gasPrev),
+        curr: formatNum(gasCurr),
+        clh: '0.0000',
+        porte: formatNum(costs.porte),
+        pase: formatNum(costs.pase),
+        fin: formatNum(costs.fin),
+        sale: formatNum(saleGas),
       };
 
-      // ADBLUE (Solo para las estaciones del recuadro H62:K73)
+      // ADBLUE (Solo para las estaciones del recuadro H62:K73, sin porte/pase/fin)
       if (ADBLUE_STATIONS_CONFIG[st.name]) {
         const adblueData = ADBLUE_STATIONS_CONFIG[st.name];
         initial[`${st.name}_ADBLUE`] = {
@@ -306,10 +325,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
                   Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
                 </th>
-                <th className="py-3.5 px-2">CLH (€)</th>
-                <th className="py-3.5 px-2">Porte (€)</th>
-                <th className="py-3.5 px-2">Pase (€)</th>
-                <th className="py-3.5 px-2">Financ. (€)</th>
+                <th className="py-3.5 px-2">CLH (Depósito)</th>
+                <th className="py-3.5 px-2 text-amber-300">Porte (R)</th>
+                <th className="py-3.5 px-2 text-blue-300">Pase (S)</th>
+                <th className="py-3.5 px-2 text-purple-300">Financ. (T)</th>
                 <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/60">Costo Total (€)</th>
                 <th className="py-3.5 px-3 text-blue-400 bg-slate-900/80">P. Venta Sugerido (€)</th>
                 <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
@@ -321,6 +340,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   st.name.toUpperCase().includes(name.toUpperCase())
                 );
                 const stationProds = getProductsForStation(st.name);
+                const excelCosts = STATION_EXCEL_COSTS[st.name];
 
                 return stationProds.map((prod, pIdx) => {
                   const key = `${st.name}_${prod.code}`;
@@ -438,20 +458,27 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* CLH */}
+                      {/* CLH (Depósito de origen / Costo) */}
                       <td className="py-2.5 px-2">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={item.clh}
-                          onChange={(e) =>
-                            handleInputChange(st.name, prod.code, 'clh', e.target.value)
-                          }
-                          className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-300 text-xs font-mono focus:border-amber-400 focus:outline-none"
-                        />
+                        <div className="flex flex-col">
+                          {prod.code !== 'ADBLUE' && excelCosts?.clhName && (
+                            <span className="text-[10px] text-slate-400 font-mono font-semibold truncate max-w-[80px]" title={excelCosts.clhName}>
+                              {excelCosts.clhName}
+                            </span>
+                          )}
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.clh}
+                            onChange={(e) =>
+                              handleInputChange(st.name, prod.code, 'clh', e.target.value)
+                            }
+                            className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-slate-300 text-[11px] font-mono focus:border-amber-400 focus:outline-none mt-0.5"
+                          />
+                        </div>
                       </td>
 
-                      {/* Porte */}
+                      {/* Porte (Columna R del Excel) */}
                       <td className="py-2.5 px-2">
                         <input
                           type="text"
@@ -460,11 +487,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'porte', e.target.value)
                           }
-                          className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-300 text-xs font-mono focus:border-amber-400 focus:outline-none"
+                          className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-amber-300 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none"
                         />
                       </td>
 
-                      {/* Pase */}
+                      {/* Pase (Columna S del Excel) */}
                       <td className="py-2.5 px-2">
                         <input
                           type="text"
@@ -473,11 +500,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'pase', e.target.value)
                           }
-                          className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-300 text-xs font-mono focus:border-amber-400 focus:outline-none"
+                          className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-blue-300 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none"
                         />
                       </td>
 
-                      {/* Financiación */}
+                      {/* Financiación (Columna T del Excel) */}
                       <td className="py-2.5 px-2">
                         <input
                           type="text"
@@ -486,7 +513,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           onChange={(e) =>
                             handleInputChange(st.name, prod.code, 'fin', e.target.value)
                           }
-                          className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-300 text-xs font-mono focus:border-amber-400 focus:outline-none"
+                          className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-purple-300 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none"
                         />
                       </td>
 
@@ -541,7 +568,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               Ingreso Diario de Precios de Compra
             </h2>
             <p className="text-slate-400 text-sm">
-              Gestión de <strong>Gasóleo A</strong>, <strong>Gasolina 95</strong> y <strong>AdBlue</strong> (en las 10 estaciones habilitadas). Acepta punto (<code className="text-amber-300 font-bold">.</code>) o coma (<code className="text-amber-300 font-bold">,</code>).
+              Columnas de <strong>Porte (Col R)</strong>, <strong>Pase (Col S)</strong> y <strong>Financiación (Col T)</strong> configuradas con los valores fijos exactos de cada estación en <strong>Gasóleo A</strong> y <strong>Gasolina 95</strong>.
             </p>
           </div>
 
@@ -582,7 +609,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       {/* Bloque 1: Estaciones Propias (19 Estaciones) */}
       {renderStationTable(
         'Estaciones Propias',
-        'Precios de compra y costes de las 19 estaciones propias',
+        'Precios de compra y costes fijos (Porte, Pase, Financiación) de las 19 estaciones propias',
         Building2,
         propiasStations,
         false
