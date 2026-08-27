@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
-  TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye, ShieldCheck, Droplet
+  TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
+  ShieldCheck, Droplet, Fuel, Flame, Layers
 } from 'lucide-react';
 
 interface Comp1Props {
@@ -43,6 +44,8 @@ const ADBLUE_STATIONS_CONFIG: Record<string, { defaultBuy: number; defaultSale: 
   'SORIA ALCUBILLAS': { defaultBuy: 0.2550, defaultSale: 0.8490 },
 };
 
+type ProductSubTab = 'GOA' | 'GASOLINA' | 'ADBLUE' | 'ALL';
+
 interface PurchaseRowValues {
   prev: string;
   curr: string;
@@ -54,6 +57,9 @@ interface PurchaseRowValues {
 }
 
 export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
+  // Sub-ventana activa seleccionada por el usuario
+  const [activeProductTab, setActiveProductTab] = useState<ProductSubTab>('GOA');
+
   // 19 estaciones Propias y 34 estaciones Colaboradoras completas del Excel
   const propiasStations = PROPIAS_STATIONS;
   const colaboradorasStations = COLABORADORA_STATIONS;
@@ -72,16 +78,20 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return num.toFixed(decimals);
   };
 
-  // Obtener la lista de productos correspondiente a una estación
-  const getProductsForStation = (stationName: string) => {
-    const products = [
+  // Obtener la lista de productos filtrada por la sub-ventana seleccionada
+  const getFilteredProductsForStation = (stationName: string) => {
+    const allForStation: { code: string; name: string }[] = [
       { code: 'GOA', name: 'Gasóleo A (GOA)' },
       { code: 'GASOLINA', name: 'Gasolina 95' },
     ];
     if (ADBLUE_STATIONS_CONFIG[stationName]) {
-      products.push({ code: 'ADBLUE', name: 'AdBlue' });
+      allForStation.push({ code: 'ADBLUE', name: 'AdBlue' });
     }
-    return products;
+
+    if (activeProductTab === 'ALL') {
+      return allForStation;
+    }
+    return allForStation.filter((p) => p.code === activeProductTab);
   };
 
   // Estado local para los datos de compra inicializados con los datos EXACTOS del Excel (Cols Q, R, S, T)
@@ -243,7 +253,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   // Calcular métricas de comparativa para el informe
   const allComparisons = [...propiasStations, ...colaboradorasStations].flatMap((st) => {
-    const prods = getProductsForStation(st.name);
+    const prods = [
+      { code: 'GOA', name: 'Gasóleo A (GOA)' },
+      { code: 'GASOLINA', name: 'Gasolina 95' },
+    ];
+    if (ADBLUE_STATIONS_CONFIG[st.name]) {
+      prods.push({ code: 'ADBLUE', name: 'AdBlue' });
+    }
+
     return prods.map((prod) => {
       const key = `${st.name}_${prod.code}`;
       const item = purchases[key] || { prev: '0', curr: '0', clh: '0', porte: '0', pase: '0', fin: '0', sale: '0' };
@@ -278,6 +295,15 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     isCollaboratorBlock: boolean = false
   ) => {
     const Icon = icon;
+    // Si estamos en AdBlue y no hay estaciones en este bloque con AdBlue, filtrar
+    const filteredStationsForAdBlue = activeProductTab === 'ADBLUE'
+      ? stations.filter((st) => ADBLUE_STATIONS_CONFIG[st.name])
+      : stations;
+
+    if (filteredStationsForAdBlue.length === 0) {
+      return null;
+    }
+
     return (
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
         <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -293,7 +319,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-white text-base tracking-tight">{title}</h3>
                 <span className="text-xs font-mono font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
-                  {stations.length} Estaciones
+                  {filteredStationsForAdBlue.length} Estaciones
                 </span>
               </div>
               <p className="text-xs text-slate-400">{subtitle}</p>
@@ -335,11 +361,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
-              {stations.map((st) => {
+              {filteredStationsForAdBlue.map((st) => {
                 const isFixedOrange = FIXED_ORANGE_STATIONS.some((name) =>
                   st.name.toUpperCase().includes(name.toUpperCase())
                 );
-                const stationProds = getProductsForStation(st.name);
+                const stationProds = getFilteredProductsForStation(st.name);
                 const excelCosts = STATION_EXCEL_COSTS[st.name];
 
                 return stationProds.map((prod, pIdx) => {
@@ -568,7 +594,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               Ingreso Diario de Precios de Compra
             </h2>
             <p className="text-slate-400 text-sm">
-              Columnas de <strong>Porte (Col R)</strong>, <strong>Pase (Col S)</strong> y <strong>Financiación (Col T)</strong> configuradas con los valores fijos exactos de cada estación en <strong>Gasóleo A</strong> y <strong>Gasolina 95</strong>.
+              Selecciona la sub-ventana superior para gestionar <strong>Gasóleo A</strong>, <strong>Gasolina 95</strong> o <strong>AdBlue</strong> de forma limpia e individual.
             </p>
           </div>
 
@@ -606,18 +632,75 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         </div>
       </div>
 
-      {/* Bloque 1: Estaciones Propias (19 Estaciones) */}
+      {/* SUB-VENTANAS / SUB-MENÚS POR COMBUSTIBLE (EN LA PARTE SUPERIOR) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-lg">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {/* Sub-ventana 1: Gasóleo A */}
+          <button
+            onClick={() => setActiveProductTab('GOA')}
+            className={`flex items-center justify-center space-x-2.5 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
+              activeProductTab === 'GOA'
+                ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 font-black'
+                : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Fuel className="h-4 w-4" />
+            <span>Gasóleo A (GOA)</span>
+          </button>
+
+          {/* Sub-ventana 2: Gasolina 95 */}
+          <button
+            onClick={() => setActiveProductTab('GASOLINA')}
+            className={`flex items-center justify-center space-x-2.5 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
+              activeProductTab === 'GASOLINA'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 font-black'
+                : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Flame className="h-4 w-4" />
+            <span>Gasolina 95</span>
+          </button>
+
+          {/* Sub-ventana 3: AdBlue */}
+          <button
+            onClick={() => setActiveProductTab('ADBLUE')}
+            className={`flex items-center justify-center space-x-2.5 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
+              activeProductTab === 'ADBLUE'
+                ? 'bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20 font-black'
+                : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Droplet className="h-4 w-4" />
+            <span>AdBlue (10 EESS)</span>
+          </button>
+
+          {/* Sub-ventana 4: Todos los Productos */}
+          <button
+            onClick={() => setActiveProductTab('ALL')}
+            className={`flex items-center justify-center space-x-2.5 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
+              activeProductTab === 'ALL'
+                ? 'bg-slate-700 text-white shadow-md font-black'
+                : 'bg-slate-950/80 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            <span>Ver Todos</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Bloque 1: Estaciones Propias */}
       {renderStationTable(
-        'Estaciones Propias',
+        `Estaciones Propias — ${activeProductTab === 'GOA' ? 'Gasóleo A' : activeProductTab === 'GASOLINA' ? 'Gasolina 95' : activeProductTab === 'ADBLUE' ? 'AdBlue' : 'Todos los Productos'}`,
         'Precios de compra y costes fijos (Porte, Pase, Financiación) de las 19 estaciones propias',
         Building2,
         propiasStations,
         false
       )}
 
-      {/* Bloque 2: Estaciones Colaboradoras (34 Estaciones con 13 Fijas en Anaranjado) */}
+      {/* Bloque 2: Estaciones Colaboradoras */}
       {renderStationTable(
-        'Estaciones Colaboradoras',
+        `Estaciones Colaboradoras — ${activeProductTab === 'GOA' ? 'Gasóleo A' : activeProductTab === 'GASOLINA' ? 'Gasolina 95' : activeProductTab === 'ADBLUE' ? 'AdBlue' : 'Todos los Productos'}`,
         'Precios acordados y costes de red de las 34 estaciones colaboradoras',
         Store,
         colaboradorasStations,
