@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import {
-  FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Building2, Store
+  FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Building2, Store, Check
 } from 'lucide-react';
 
 interface SabanaProps {
@@ -23,41 +23,96 @@ const STANDARD_TARIFFS = [
   { id: '60', name: 'Tarifa 60 (80)', markup: 0.170 },
 ];
 
-// Tarifas Especiales (Bloque inferior en el Excel)
-const SPECIAL_TARIFF_GROUPS = [
+// Estructura Exacta de Tarifas Especiales del Excel (Columnas V a BF)
+interface SpecialTariffGroupDef {
+  id: string;
+  title: string;
+  description: string;
+  columnsRange: string;
+  tariffs: { name: string; markup: number }[];
+  borderTheme: string;
+  badgeTheme: string;
+}
+
+const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
   {
-    id: 'javi',
-    name: 'Tarifa Especial Los Javi',
-    description: 'Precios preferenciales asignados para la flota Los Javi (Cols V:W)',
-    markup: 0.116,
-    color: 'border-blue-500/30 bg-blue-500/5 text-blue-300',
+    id: 'los_javi',
+    title: 'Tarifa Especial Los Javi & Carreras',
+    description: 'Tarifas preferenciales asignadas para flotas Los Javi y Carreras',
+    columnsRange: 'Cols V:AA',
+    tariffs: [
+      { name: 'Especial Javi', markup: 0.116 },
+      { name: 'Especial Carreras', markup: 0.116 },
+    ],
+    borderTheme: 'border-blue-500/30',
+    badgeTheme: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
   },
   {
-    id: 'c0_ror',
-    name: 'Tarifa Especial C-0 & ROR / Esteban / Miki',
-    description: 'Tarifas especiales para grupos de transporte internacional y ROR (Cols AI:AK)',
-    markup: 0.112,
-    color: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-300',
+    id: 'transfrired_benito',
+    title: 'Tarifa Especial Transfrired & Benito',
+    description: 'Tarifas especiales para grupos de transporte Transfrired y Benito',
+    columnsRange: 'Cols AC:AH',
+    tariffs: [
+      { name: 'Especial Transfrired', markup: 0.116 },
+      { name: 'Especial Benito', markup: 0.120 },
+    ],
+    borderTheme: 'border-indigo-500/30',
+    badgeTheme: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
   },
   {
-    id: 'eco_trans',
-    name: 'Tarifa ECO Trans & AMAEXO / NORIEGA / E100',
-    description: 'Tarifas corporativas ECO y convenios con tarjetas profesionales',
-    markup: 0.118,
-    color: 'border-amber-500/30 bg-amber-500/5 text-amber-300',
+    id: 'c0_general',
+    title: 'Tarifa C-0 (Especial General)',
+    description: 'Tarifa matriz general de convenio C-0 para transporte de carga',
+    columnsRange: 'Cols AI:AK',
+    tariffs: [
+      { name: 'Especial General C-0', markup: 0.116 },
+    ],
+    borderTheme: 'border-emerald-500/30',
+    badgeTheme: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   },
   {
-    id: 'tarifa_30',
-    name: 'Tarifa 30 / Especial Completo',
-    description: 'Condiciones generales de descuento de 30 céntimos por pase de red',
-    markup: 0.138,
-    color: 'border-purple-500/30 bg-purple-500/5 text-purple-300',
+    id: 'ror_esteban',
+    title: 'Tarifa Especial ROR & Esteban',
+    description: 'Tarifas especiales para transporte internacional ROR y flota Esteban',
+    columnsRange: 'Cols AM:AQ',
+    tariffs: [
+      { name: 'Especial ROR', markup: 0.132 },
+      { name: 'Especial Esteban', markup: 0.132 },
+    ],
+    borderTheme: 'border-cyan-500/30',
+    badgeTheme: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  },
+  {
+    id: 'miki_ecotrans',
+    title: 'Tarifa 90 Miki & ECOTRANS',
+    description: 'Tarifas corporativas ECOTRANS y flota 90 Miki',
+    columnsRange: 'Cols AS:AW',
+    tariffs: [
+      { name: 'Tarifa 90 Miki', markup: 0.198 },
+      { name: 'Tarifa ECOTRANS', markup: 0.158 },
+    ],
+    borderTheme: 'border-amber-500/30',
+    badgeTheme: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  },
+  {
+    id: 'tarifa_30_sur',
+    title: 'Tarifa 30 & Tarifas Sur (Benito)',
+    description: 'Tarifas con descuento de red y convenios específicos zona Sur',
+    columnsRange: 'Cols AY:BF',
+    tariffs: [
+      { name: 'Tarifa 30', markup: 0.138 },
+      { name: 'Tarifa 27 Sur', markup: 0.127 },
+      { name: 'Tarifa 15 Sur', markup: 0.115 },
+    ],
+    borderTheme: 'border-purple-500/30',
+    badgeTheme: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
   },
 ];
 
 export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [searchFilter, setSearchFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
+  const [downloadToast, setDownloadToast] = useState<string | null>(null);
 
   const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
   
@@ -74,10 +129,21 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     return isPropia ? 1.1520 + offset : 1.1560 + offset;
   };
 
-  const handleExportCsv = () => {
+  const triggerDownload = (fileName: string, csvContent: string) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    setDownloadToast(fileName);
+    setTimeout(() => setDownloadToast(null), 3500);
+  };
+
+  // Descarga de la tabla de Tarifas Estándar (12 a 60)
+  const handleExportStandardCsv = () => {
     let csv = 'Tipo;Estacion;';
     STANDARD_TARIFFS.forEach((t) => {
-      csv += `${t.name} Sin IVA;${t.name} Con IVA;`;
+      csv += `${t.name} Sin IVA;${t.name} Con IVA (+21%);`;
     });
     csv += '\n';
 
@@ -93,11 +159,31 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       csv += '\n';
     });
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `SABANA_PRECIOS_${selectedDate}.csv`;
-    link.click();
+    triggerDownload(`SABANA_TARIFAS_ESTANDAR_12_60_${selectedDate}.csv`, csv);
+  };
+
+  // Descarga de un bloque de Tarifa Especial individual
+  const handleExportSpecialBlockCsv = (block: SpecialTariffGroupDef) => {
+    let csv = `Tipo;Estacion;`;
+    block.tariffs.forEach((t) => {
+      csv += `${t.name} Sin IVA;${t.name} Con IVA (+21%);`;
+    });
+    csv += '\n';
+
+    filteredStations.forEach((st) => {
+      const isPropia = st.type === 'PROPIA';
+      const base = getStationBasePrice(st.name, isPropia);
+      csv += `${st.type};${st.name};`;
+      block.tariffs.forEach((t) => {
+        const sinIva = Number((base + t.markup).toFixed(4));
+        const conIva = Number((sinIva * 1.21).toFixed(4));
+        csv += `${sinIva.toFixed(4).replace('.', ',')};${conIva.toFixed(4).replace('.', ',')};`;
+      });
+      csv += '\n';
+    });
+
+    const cleanName = block.title.replace(/\s+/g, '_').toUpperCase();
+    triggerDownload(`${cleanName}_${selectedDate}.csv`, csv);
   };
 
   return (
@@ -108,22 +194,22 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
           <div className="space-y-1">
             <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold uppercase tracking-wider">
               <FileSpreadsheet className="h-4 w-4" />
-              <span>Sábana de Precios — Vista Matricial</span>
+              <span>Sábana de Precios — Estructura Completa del Excel</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Sábana General de Precios y Tarifas
             </h2>
             <p className="text-slate-400 text-sm">
-              Columna de estaciones identificada con <strong className="text-blue-400">Azul para Propias</strong> y <strong className="text-purple-400">Morado para Colaboradoras</strong>. Tarifas estándar arriba y tarifas especiales abajo.
+              Columna de estaciones identificada con <strong className="text-blue-400">Azul para Propias</strong> y <strong className="text-purple-400">Morado para Colaboradoras</strong>. Cada recuadro cuenta con su botón de descarga individual en Excel.
             </p>
           </div>
 
           <button
-            onClick={handleExportCsv}
-            className="flex items-center space-x-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow-md transition-all active:scale-95"
+            onClick={handleExportStandardCsv}
+            className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 hover:from-amber-400 hover:to-amber-300 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all active:scale-95"
           >
-            <Download className="h-4 w-4 text-emerald-400" />
-            <span>Descargar Excel / CSV</span>
+            <Download className="h-4 w-4" />
+            <span>Descargar Sábana Estándar Completa</span>
           </button>
         </div>
       </div>
@@ -195,21 +281,31 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         </div>
       </div>
 
-      {/* BLOQUE 1: RECUADRO SUPERIOR — TARIFAS ESTÁNDAR (12 A 60) */}
+      {/* BLOQUE 1: RECUADRO SUPERIOR — TARIFAS ESTÁNDAR (12 A 60) CON BOTÓN DE DESCARGA */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
-        <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <Table className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">Tarifas Estándar (Tarifas 12 a 60)</h3>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-white text-base">Tarifas Estándar (Tarifas 12 a 60)</h3>
+                <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold border border-slate-700">
+                  Cols B:T
+                </span>
+              </div>
               <p className="text-xs text-slate-400">Precios sin IVA y con IVA (+21%) para toda la red de estaciones</p>
             </div>
           </div>
-          <span className="text-xs font-mono text-slate-400">
-            {filteredStations.length} Estaciones Mostradas
-          </span>
+
+          <button
+            onClick={handleExportStandardCsv}
+            className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow-md transition-all active:scale-95"
+          >
+            <Download className="h-4 w-4 text-emerald-400" />
+            <span>Descargar Este Recuadro (Excel)</span>
+          </button>
         </div>
 
         <div className="overflow-x-auto max-h-[65vh]">
@@ -296,68 +392,109 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         </div>
       </div>
 
-      {/* BLOQUE 2: RECUADROS INFERIORES — TARIFAS ESPECIALES SEPARADAS */}
-      <div className="space-y-4">
+      {/* BLOQUE 2: RECUADROS INFERIORES — TARIFAS ESPECIALES SEPARADAS CON DESCARGA INDIVIDUAL */}
+      <div className="space-y-6">
         <div className="flex items-center space-x-2 text-white">
           <Sparkles className="h-5 w-5 text-amber-400" />
-          <h3 className="text-xl font-extrabold tracking-tight">Tarifas Especiales por Convenio y Cliente</h3>
+          <h3 className="text-xl font-extrabold tracking-tight">Tarifas Especiales por Convenio y Cliente (Excel Cols V a BF)</h3>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {SPECIAL_TARIFF_GROUPS.map((grp) => (
+          {SPECIAL_TARIFF_BLOCKS.map((block) => (
             <div
-              key={grp.id}
-              className={`bg-slate-900 border ${grp.color.split(' ')[0]} rounded-3xl p-6 shadow-xl space-y-4`}
+              key={block.id}
+              className={`bg-slate-900 border ${block.borderTheme} rounded-3xl p-6 shadow-xl space-y-4 flex flex-col justify-between`}
             >
-              <div className="flex items-start justify-between border-b border-slate-800 pb-3">
-                <div>
-                  <h4 className="font-extrabold text-white text-base">{grp.name}</h4>
-                  <p className="text-xs text-slate-400">{grp.description}</p>
+              <div>
+                {/* Header with Title and Individual Download Button */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-extrabold text-white text-base">{block.title}</h4>
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${block.badgeTheme}`}>
+                        {block.columnsRange}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">{block.description}</p>
+                  </div>
+
+                  <button
+                    onClick={() => handleExportSpecialBlockCsv(block)}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow transition-all active:scale-95 shrink-0"
+                    title={`Descargar ${block.title} en formato Excel`}
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Descargar Excel</span>
+                  </button>
                 </div>
-                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full border bg-slate-950 text-amber-300">
-                  +{grp.markup.toFixed(3)} €
-                </span>
-              </div>
 
-              <div className="overflow-x-auto max-h-60">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-950 text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-800 font-bold">
-                      <th className="py-2 px-3">Estación</th>
-                      <th className="py-2 px-3 text-right">Sin IVA</th>
-                      <th className="py-2 px-3 text-right text-emerald-400">Con IVA (21%)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 font-mono">
-                    {filteredStations.slice(0, 10).map((st) => {
-                      const isPropia = st.type === 'PROPIA';
-                      const base = getStationBasePrice(st.name, isPropia);
-                      const sinIva = Number((base + grp.markup).toFixed(4));
-                      const conIva = Number((sinIva * 1.21).toFixed(4));
+                {/* Table for this Special Tariff */}
+                <div className="overflow-x-auto max-h-64 mt-4">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="sticky top-0 bg-slate-950 z-10">
+                      <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
+                        <th className="py-2.5 px-3" rowSpan={2}>Estación</th>
+                        {block.tariffs.map((t, idx) => (
+                          <th key={idx} colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
+                            {t.name}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
+                        {block.tariffs.map((t, idx) => (
+                          <React.Fragment key={idx}>
+                            <th className="py-1 px-2 text-right border-l border-slate-800 text-slate-400">Sin IVA</th>
+                            <th className="py-1 px-2 text-right text-emerald-400">Con IVA</th>
+                          </React.Fragment>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                      {filteredStations.map((st) => {
+                        const isPropia = st.type === 'PROPIA';
+                        const base = getStationBasePrice(st.name, isPropia);
 
-                      return (
-                        <tr key={st.name} className="hover:bg-slate-800/40">
-                          <td className={`py-2 px-3 font-sans font-bold ${
-                            isPropia ? 'text-blue-300' : 'text-purple-300'
-                          }`}>
-                            {st.name}
-                          </td>
-                          <td className="py-2 px-3 text-right text-slate-300">
-                            {sinIva.toFixed(3)} €
-                          </td>
-                          <td className="py-2 px-3 text-right font-bold text-emerald-400">
-                            {conIva.toFixed(3)} €
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        return (
+                          <tr key={st.name} className="hover:bg-slate-800/40">
+                            <td className={`py-2 px-3 font-sans font-bold ${
+                              isPropia ? 'text-blue-300' : 'text-purple-300'
+                            }`}>
+                              {st.name}
+                            </td>
+                            {block.tariffs.map((t, idx) => {
+                              const sinIva = Number((base + t.markup).toFixed(4));
+                              const conIva = Number((sinIva * 1.21).toFixed(4));
+
+                              return (
+                                <React.Fragment key={idx}>
+                                  <td className="py-2 px-2 text-right text-slate-300 border-l border-slate-800/50">
+                                    {sinIva.toFixed(3)} €
+                                  </td>
+                                  <td className="py-2 px-2 text-right font-bold text-emerald-400">
+                                    {conIva.toFixed(3)} €
+                                  </td>
+                                </React.Fragment>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Confirmation Toast */}
+      {downloadToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-5">
+          <Check className="h-5 w-5" />
+          <span>Archivo descargado correctamente: {downloadToast}</span>
+        </div>
+      )}
     </div>
   );
 }
