@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import {
-  FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Building2, Store, Check
+  FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check
 } from 'lucide-react';
 
 interface SabanaProps {
@@ -23,7 +23,7 @@ const STANDARD_TARIFFS = [
   { id: '60', name: '60 (80)', colTitle: '60 (80) SIN IVA', markup: 0.170 },
 ];
 
-// Estructura Exacta de Tarifas Especiales del Excel (Columnas V a BF)
+// Estructura de Tarifas Especiales Solicitadas
 interface SpecialTariffGroupDef {
   id: string;
   title: string;
@@ -46,18 +46,6 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     ],
     borderTheme: 'border-blue-500/30',
     badgeTheme: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-  },
-  {
-    id: 'transfrired_benito',
-    title: 'Tarifa Especial Transfrired & Benito',
-    description: 'Tarifas especiales para grupos de transporte Transfrired y Benito',
-    columnsRange: 'Cols AC:AH',
-    tariffs: [
-      { name: 'Especial Transfrired', markup: 0.116 },
-      { name: 'Especial Benito', markup: 0.120 },
-    ],
-    borderTheme: 'border-indigo-500/30',
-    badgeTheme: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
   },
   {
     id: 'c0_general',
@@ -83,24 +71,24 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     badgeTheme: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
   },
   {
-    id: 'miki_ecotrans',
-    title: 'Tarifa 90 Miki & ECOTRANS',
-    description: 'Tarifas corporativas ECOTRANS y flota 90 Miki',
-    columnsRange: 'Cols AS:AW',
+    id: 'miki_ecotrans_tarifa30',
+    title: 'Tarifa 90 Miki / Milo, ECOTRANS & Tarifa 30',
+    description: 'Tarifas corporativas ECOTRANS, flota 90 Miki / Milo y Tarifa 30',
+    columnsRange: 'Cols AS:BA',
     tariffs: [
       { name: 'Tarifa 90 Miki', markup: 0.198 },
       { name: 'Tarifa ECOTRANS', markup: 0.158 },
+      { name: 'Tarifa 30', markup: 0.138 },
     ],
     borderTheme: 'border-amber-500/30',
     badgeTheme: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
   },
   {
-    id: 'tarifa_30_sur',
-    title: 'Tarifa 30 & Tarifas Sur (Benito)',
-    description: 'Tarifas con descuento de red y convenios específicos zona Sur',
-    columnsRange: 'Cols AY:BF',
+    id: 'sur_benito',
+    title: 'Tarifas Sur (Benito: 27 Sur & 15 Sur)',
+    description: 'Convenios específicos zona Sur: Tarifa 27 Sur y Tarifa 15 Sur',
+    columnsRange: 'Cols BC:BF',
     tariffs: [
-      { name: 'Tarifa 30', markup: 0.138 },
       { name: 'Tarifa 27 Sur', markup: 0.127 },
       { name: 'Tarifa 15 Sur', markup: 0.115 },
     ],
@@ -108,6 +96,20 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     badgeTheme: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
   },
 ];
+
+// Helper para identificar estaciones que deben colorearse de morado
+const isPurpleHighlightedStation = (stName: string): boolean => {
+  const upper = stName.toUpperCase();
+  return (
+    upper.includes('RIBA-ROJA') ||
+    upper.includes('PISTA DE SILLA') ||
+    upper.includes('REAL DE GANDIA') ||
+    upper.includes('CHIVA') ||
+    upper.includes('ALBERIC') ||
+    upper.includes('CATARROJA') ||
+    upper.includes('MANISES')
+  );
+};
 
 export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [searchFilter, setSearchFilter] = useState('');
@@ -130,7 +132,6 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   };
 
   const triggerDownload = (fileName: string, csvContent: string) => {
-    // Añadimos UTF-8 BOM (\uFEFF) para que Excel abra acentos y formatos automáticamente sin problemas
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -142,7 +143,6 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   // Descarga de la tabla de Tarifas Estándar con el formato EXACTO del Excel (media_1787840120442.png)
   const handleExportStandardCsv = () => {
-    // Fila 1: Cabecera idéntica a la imagen del usuario
     let csv = 'EESS DE SERVICIO;';
     STANDARD_TARIFFS.forEach((t) => {
       csv += `${t.colTitle};CON IVA;`;
@@ -240,7 +240,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               Sábana General de Precios y Tarifas
             </h2>
             <p className="text-slate-400 text-sm">
-              Columna de estaciones identificada con <strong className="text-blue-400">Azul para Propias</strong> y <strong className="text-purple-400">Morado para Colaboradoras</strong>. Cada recuadro cuenta con su botón de descarga individual en formato exacto Excel.
+              Columna de estaciones identificada con <strong className="text-blue-400">Azul para Propias</strong> y <strong className="text-purple-400">Morado para Colaboradoras y Estaciones Destacadas</strong> (Riba-roja, Pista de Silla, Gandia, Chiva, Alberic, Catarroja, Manises en 18, 36 y 60 con IVA).
             </p>
           </div>
 
@@ -316,12 +316,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
           </span>
           <span className="inline-flex items-center space-x-1.5 bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-full font-bold">
             <span className="w-2 h-2 rounded-full bg-purple-400" />
-            <span>Morado = Colaboradoras</span>
+            <span>Morado = Colab / Destacadas</span>
           </span>
         </div>
       </div>
 
-      {/* BLOQUE 1: RECUADRO SUPERIOR — TARIFAS ESTÁNDAR (12 A 60) CON BOTÓN DE DESCARGA */}
+      {/* BLOQUE 1: RECUADRO SUPERIOR — TARIFAS ESTÁNDAR (12 A 60) */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
         <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
@@ -335,7 +335,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                   Cols B:T
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Precios sin IVA y con IVA (+21%) con formato idéntico al Excel oficial</p>
+              <p className="text-xs text-slate-400">Precios sin IVA y con IVA (+21%) — Destacadas en morado: Riba-roja, Pista Silla, Gandia, Chiva, Alberic, Catarroja, Manises (18, 36 y 60 con IVA)</p>
             </div>
           </div>
 
@@ -384,26 +384,31 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               {filteredStations.map((st) => {
                 const isPropia = st.type === 'PROPIA';
                 const base = getStationBasePrice(st.name, isPropia);
+                const isPurple = isPurpleHighlightedStation(st.name);
 
-                // Colores EXCLUSIVAMENTE en la celda del nombre de la estación
-                const stationCellClass = isPropia
+                // Colores en la celda del nombre de la estación (Morado para destacadas o colaboradoras, Azul para propias)
+                const stationCellClass = isPurple
+                  ? 'bg-purple-950/60 text-purple-200 border-l-4 border-l-purple-500 font-extrabold ring-1 ring-purple-500/30'
+                  : isPropia
                   ? 'bg-blue-950/40 text-blue-200 border-l-4 border-l-blue-500 font-bold'
                   : 'bg-purple-950/40 text-purple-200 border-l-4 border-l-purple-500 font-bold';
 
-                const badgeClass = isPropia
+                const badgeClass = isPurple
+                  ? 'bg-purple-500/30 text-purple-200 border-purple-400/40 font-black'
+                  : isPropia
                   ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
                   : 'bg-purple-500/20 text-purple-300 border-purple-500/30';
 
                 return (
                   <tr key={st.name} className="hover:bg-slate-800/40 transition-colors">
-                    {/* Columna Estación con Color Azul (Propia) o Morado (Colaboradora) */}
+                    {/* Columna Estación */}
                     <td
                       className={`py-2.5 px-4 sticky left-0 z-20 border-r border-slate-800 ${stationCellClass}`}
                     >
                       <div className="flex items-center justify-between space-x-2 font-sans">
                         <span className="font-extrabold tracking-tight">{st.name}</span>
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${badgeClass}`}>
-                          {isPropia ? 'PROPIA' : 'COLAB'}
+                          {isPurple ? (isPropia ? 'PROPIA ★' : 'COLAB ★') : isPropia ? 'PROPIA' : 'COLAB'}
                         </span>
                       </div>
                     </td>
@@ -412,13 +417,22 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                     {STANDARD_TARIFFS.map((tariff) => {
                       const sinIva = Number((base + tariff.markup).toFixed(3));
                       const conIva = Number((sinIva * 1.21).toFixed(3));
+                      const isPurplePrice = isPurple && ['18', '36', '60'].includes(tariff.id);
 
                       return (
                         <React.Fragment key={`${st.name}_${tariff.id}`}>
-                          <td className="py-2.5 px-2.5 text-right text-slate-300 bg-slate-900/10">
+                          <td className={`py-2.5 px-2.5 text-right font-mono ${
+                            isPurplePrice
+                              ? 'bg-purple-950/40 text-purple-300 font-semibold'
+                              : 'text-slate-300 bg-slate-900/10'
+                          }`}>
                             {sinIva.toFixed(3).replace('.', ',')}
                           </td>
-                          <td className="py-2.5 px-2.5 text-right font-bold text-emerald-400 bg-emerald-500/5 border-r border-slate-800/80">
+                          <td className={`py-2.5 px-2.5 text-right font-bold font-mono border-r ${
+                            isPurplePrice
+                              ? 'bg-purple-600/30 text-purple-200 font-black border-purple-500/40 shadow-inner'
+                              : 'text-emerald-400 bg-emerald-500/5 border-slate-800/80'
+                          }`}>
                             {conIva.toFixed(3).replace('.', ',')}
                           </td>
                         </React.Fragment>
