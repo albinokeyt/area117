@@ -5,7 +5,7 @@ import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
-  ShieldCheck, Droplet, Fuel, Flame, Layers, Download, RefreshCw, Star
+  ShieldCheck, Droplet, Fuel, Flame, Layers, Download, RefreshCw, Star, Calendar
 } from 'lucide-react';
 
 interface Comp1Props {
@@ -100,6 +100,13 @@ interface PurchaseRowValues {
 
 export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   const [activeProductTab, setActiveProductTab] = useState<ProductSubTab>('GOA');
+  const [validFromDate, setValidFromDate] = useState<string>(() => {
+    try {
+      return localStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
+    } catch (e) {
+      return selectedDate;
+    }
+  });
 
   // Separación en 3 Bloques Estructurales
   const propiasStations = PROPIAS_STATIONS;
@@ -215,6 +222,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
       const savedGlobal = localStorage.getItem('efi_compras_data');
       const savedSpecial = localStorage.getItem('efi_special_tariffs_b50_f82');
+      const savedValidDate = localStorage.getItem('efi_compras_valid_from');
+
+      if (savedValidDate) {
+        setValidFromDate(savedValidDate);
+      }
 
       if (savedDate) {
         const parsed = JSON.parse(savedDate);
@@ -233,6 +245,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       console.error(e);
     }
   }, [selectedDate]);
+
+  // Actualizar fecha de validez
+  const handleValidDateChange = (newDate: string) => {
+    setValidFromDate(newDate);
+    try {
+      localStorage.setItem('efi_compras_valid_from', newDate);
+    } catch (e) {}
+  };
 
   // Manejador de cambios con auto-guardado en localStorage y actualización de fórmulas
   const handleInputChange = (
@@ -258,12 +278,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       const updated = { ...currentItem, [field]: rawVal };
 
-      // Si el usuario modifica manualmente el campo de venta sugerido
       if (field === 'sale') {
         updated.isCustomSale = true;
       }
 
-      // Si el usuario cambia curr, porte, pase o fin, y NO tiene sale personalizado, sincronizar sale = totalCost
       if (['curr', 'porte', 'pase', 'fin'].includes(field)) {
         const currN = parseNum(field === 'curr' ? rawVal : updated.curr);
         const porteN = parseNum(field === 'porte' ? rawVal : updated.porte);
@@ -278,7 +296,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       const nextPurchases = { ...prev, [key]: updated };
 
-      // Auto-guardado en localStorage para persistencia al cambiar de ventana
       try {
         localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
           data: nextPurchases,
@@ -339,6 +356,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         updatedAt: new Date().toISOString(),
       }));
       localStorage.setItem('efi_special_tariffs_b50_f82', JSON.stringify(specialTariffs));
+      localStorage.setItem('efi_compras_valid_from', validFromDate);
     } catch (e) {}
 
     setIsSaved(true);
@@ -356,7 +374,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       Object.entries(prev).forEach(([key, item]) => {
         nextPurchases[key] = {
           ...item,
-          prev: item.sale, // Copiar precio de venta a precio anterior
+          prev: item.sale,
         };
       });
 
@@ -383,7 +401,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   // DESCARGAR RESUMEN DIARIO EN EXCEL
   const handleExportDailyExcel = () => {
-    let csv = 'ESTACION;TIPO;PRODUCTO;PRECIO ANTERIOR (EUR);PRECIO COMPRA HOY (EUR);CLH (TERMINAL);PORTE (R);PASE (S);FINANCIACION (T);COSTO TOTAL (EUR);P. VENTA SUGERIDO (EUR);MARGEN (EUR)\\n';
+    let csv = `INFORME DIARIO DE COMPRAS Y COSTES\nFECHA EMISION:;${selectedDate};VALIDO A PARTIR DE:;${validFromDate}\n\n`;
+    csv += 'ESTACION;TIPO;PRODUCTO;PRECIO ANTERIOR (EUR);PRECIO COMPRA HOY (EUR);CLH (TERMINAL);PORTE (R);PASE (S);FINANCIACION (T);COSTO TOTAL (EUR);P. VENTA SUGERIDO (EUR);MARGEN (EUR)\n';
 
     const exportSection = (stationList: typeof propiasStations, typeLabel: string) => {
       stationList.forEach((st) => {
@@ -409,7 +428,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           const margin = Number((saleNum - totalCost).toFixed(4));
           const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
 
-          csv += `${st.name};${typeLabel};${prod.name};${item.prev.replace('.', ',')};${item.curr.replace('.', ',')};${clhName};${item.porte.replace('.', ',')};${item.pase.replace('.', ',')};${item.fin.replace('.', ',')};${totalCost.toFixed(4).replace('.', ',')};${saleNum.toFixed(4).replace('.', ',')};${margin.toFixed(4).replace('.', ',')}\\n`;
+          csv += `${st.name};${typeLabel};${prod.name};${item.prev.replace('.', ',')};${item.curr.replace('.', ',')};${clhName};${item.porte.replace('.', ',')};${item.pase.replace('.', ',')};${item.fin.replace('.', ',')};${totalCost.toFixed(4).replace('.', ',')};${saleNum.toFixed(4).replace('.', ',')};${margin.toFixed(4).replace('.', ',')}\n`;
         });
       });
     };
@@ -419,13 +438,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     exportSection(remainingCollaborators, 'COLABORADORA RESTANTE');
 
     // Tarifas Especiales
-    csv += '\\nTARIFAS ESPECIALES (B50:F82);;;;;;;;;;;\\n';
-    csv += 'TARIFA / CLIENTE;AMBITO;PRODUCTO;PRECIO BASE (EUR);AJUSTE (EUR);;;;PRECIO FINAL (EUR);;\\n';
+    csv += '\nTARIFAS ESPECIALES (B50:F82);;;;;;;;;;;\n';
+    csv += 'TARIFA / CLIENTE;AMBITO;PRODUCTO;PRECIO BASE (EUR);AJUSTE (EUR);;;;PRECIO FINAL (EUR);;\n';
     specialTariffs.forEach((row) => {
-      csv += `${row.name};${row.scope};${row.product};${row.basePrice.replace('.', ',')};${row.adjustment.replace('.', ',')};;;;${row.salePrice.replace('.', ',')};;\\n`;
+      csv += `${row.name};${row.scope};${row.product};${row.basePrice.replace('.', ',')};${row.adjustment.replace('.', ',')};;;;${row.salePrice.replace('.', ',')};;\n`;
     });
 
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `EFI_COMPRAS_DIARIO_${selectedDate}.csv`;
@@ -610,7 +629,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         />
                       </td>
 
-                      {/* 4. Precio Compra Hoy (Resaltado en AMARILLO cuando se modifica) */}
+                      {/* 4. Precio Compra Hoy */}
                       <td className={`py-2.5 px-3 transition-all ${isCurrMod ? 'bg-amber-400/25' : 'bg-slate-900/30'}`}>
                         <div className="relative inline-flex items-center">
                           <input
@@ -633,7 +652,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* 5. CLH (ÚNICAMENTE NOMBRE DEL LUGAR DE COMPRA - SIN NINGÚN CUADRO/INPUT) */}
+                      {/* 5. CLH (Lugar Compra - Badge sin ningún input) */}
                       <td className="py-2.5 px-3">
                         {prod.code !== 'ADBLUE' ? (
                           <span
@@ -697,7 +716,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         {totalCost.toFixed(4)} €
                       </td>
 
-                      {/* 10. P. Venta Sugerido (€) - Por defecto igual a Costo Total, editable y resaltado si se modifica */}
+                      {/* 10. P. Venta Sugerido (€) */}
                       <td className={`py-2.5 px-3 bg-blue-500/5 ${isSaleMod ? 'bg-amber-400/20' : ''}`}>
                         <div className="relative inline-flex items-center">
                           <input
@@ -757,6 +776,20 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Selector de Fecha de Validez */}
+            <div className="bg-slate-950 border border-slate-700 rounded-xl p-2 flex items-center space-x-2">
+              <Calendar className="h-4 w-4 text-amber-400" />
+              <div className="flex flex-col">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Válido A Partir De:</span>
+                <input
+                  type="date"
+                  value={validFromDate}
+                  onChange={(e) => handleValidDateChange(e.target.value)}
+                  className="bg-transparent text-xs text-white font-mono font-bold focus:outline-none"
+                />
+              </div>
+            </div>
+
             <button
               onClick={handleExportDailyExcel}
               className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-xl text-xs font-bold border border-emerald-500/30 shadow-md transition-all active:scale-95"
@@ -772,7 +805,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               title="Copiar P. Venta Sugerido a Precio Anterior para cerrar el día"
             >
               <RefreshCw className="h-4 w-4 text-indigo-400" />
-              <span>Cierre de Día (Copiar Venta a Anterior)</span>
+              <span>Cierre de Día</span>
             </button>
 
             <button
@@ -784,7 +817,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               }`}
             >
               {isSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              <span>{isSaved ? '¡Guardado con Éxito!' : 'Guardar Precios'}</span>
+              <span>{isSaved ? '¡Guardado!' : 'Guardar Precios'}</span>
             </button>
           </div>
         </div>
