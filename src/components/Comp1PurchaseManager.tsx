@@ -52,6 +52,8 @@ export interface SpecialStationRateRow {
   actualPrice: string;
   refPrice: string;
   basePrice: string;
+  isCustomActual?: boolean;
+  isCustomRef?: boolean;
 }
 
 const DEFAULT_SPECIAL_RATES_B50_F82: SpecialStationRateRow[] = [
@@ -448,7 +450,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     exportSection(remainingCollaborators, 'COLABORADORA RESTANTE');
 
     // Tarifas Especiales B50:F82
-    csv += '\nTARIFAS ESPECIALES CUADRO B50:F82;;;;;;;;;;;\n';
+    csv += '\nTARIFAS ESPECIALES;;;;;;;;;;;\n';
     csv += 'ESTACION;PRECIO ACTUAL / ESPECIAL (EUR);PRECIO REFERENCIA (EUR);PRECIO BASE (EUR);;;;;;;;\n';
     specialRates.forEach((row) => {
       csv += `${row.name};${row.actualPrice.replace('.', ',')};${row.refPrice.replace('.', ',')};${row.basePrice.replace('.', ',')};;;;;;;;\n`;
@@ -897,7 +899,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           <div className="space-y-1.5">
             <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold uppercase tracking-wider">
               <Layers className="h-4 w-4" />
-              <span>Gestión de Compras, Costes Fijos y Tarifas Especiales (B50:F82)</span>
+              <span>Gestión de Compras, Costes Fijos y Tarifas Especiales</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Compras de Combustibles y Red de Estaciones
@@ -1007,7 +1009,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             }`}
           >
             <Star className="h-4 w-4" />
-            <span>Tarifas Especiales (B50:F82)</span>
+            <span>Tarifas Especiales</span>
           </button>
 
           <button
@@ -1053,7 +1055,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         </div>
       )}
 
-      {/* SUB-VENTANA: TARIFAS ESPECIALES CUADRO B50:F82 EXACTO */}
+      {/* SUB-VENTANA: TARIFAS ESPECIALES EXACTO */}
       {(activeProductTab === 'SPECIAL' || activeProductTab === 'ALL') && (
         <div className="bg-slate-900 border border-emerald-500/30 rounded-3xl overflow-hidden shadow-2xl space-y-0">
           <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1064,14 +1066,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               <div>
                 <div className="flex items-center space-x-2">
                   <h3 className="font-bold text-white text-base tracking-tight">
-                    Tarifas Especiales — Cuadro B50:F82 del Excel Oficial
+                    Tarifas Especiales
                   </h3>
                   <span className="text-xs font-mono font-bold bg-slate-800 text-emerald-300 px-2.5 py-0.5 rounded-full border border-slate-700">
                     31 Estaciones
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Precios exactos del cuadro B50:F82 con estaciones resaltadas en azul y precios de referencia en rojo
+                  Precios especiales vinculados al P. Venta Sugerido de Gasóleo (+0.008) y precio de referencia editable
                 </p>
               </div>
             </div>
