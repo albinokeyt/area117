@@ -5,7 +5,7 @@ import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
-  Plus, CheckSquare, Square, Trash2, X
+  Plus, CheckSquare, Square, Trash2, X, Flame
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
