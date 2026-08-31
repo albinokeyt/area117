@@ -527,21 +527,36 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
-                <th className="py-3.5 px-4 sticky left-0 bg-slate-950 z-20">Estación</th>
-                <th className="py-3.5 px-3">Producto</th>
-                <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">Precio Anterior (€)</th>
-                <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
-                  Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
-                </th>
-                <th className="py-3.5 px-3 text-slate-300">CLH (Lugar Compra)</th>
-                <th className="py-3.5 px-2 text-amber-300">Porte (R)</th>
-                <th className="py-3.5 px-2 text-blue-300">Pase (S)</th>
-                <th className="py-3.5 px-2 text-purple-300">Financ. (T)</th>
-                <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/60">Costo Total (€)</th>
-                <th className="py-3.5 px-3 text-blue-400 bg-slate-900/80">P. Venta Sugerido (€)</th>
-                <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
-              </tr>
+              {activeProductTab === 'ADBLUE' ? (
+                <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-cyan-500/30 font-bold">
+                  <th className="py-3.5 px-4 sticky left-0 bg-slate-950 z-20">Estación</th>
+                  <th className="py-3.5 px-3 text-cyan-300">Producto</th>
+                  <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">Precio Anterior (€)</th>
+                  <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
+                    Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
+                  </th>
+                  <th className="py-3.5 px-3 text-amber-400 bg-slate-900/50">Precio Sin IVA (€)</th>
+                  <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/80">Precio Con IVA 21% (€)</th>
+                  <th className="py-3.5 px-3 text-blue-400 bg-slate-900/60">P. Venta Sugerido (€)</th>
+                  <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
+                </tr>
+              ) : (
+                <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
+                  <th className="py-3.5 px-4 sticky left-0 bg-slate-950 z-20">Estación</th>
+                  <th className="py-3.5 px-3">Producto</th>
+                  <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">Precio Anterior (€)</th>
+                  <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
+                    Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
+                  </th>
+                  <th className="py-3.5 px-3 text-slate-300">CLH (Lugar Compra)</th>
+                  <th className="py-3.5 px-2 text-amber-300">Porte (R)</th>
+                  <th className="py-3.5 px-2 text-blue-300">Pase (S)</th>
+                  <th className="py-3.5 px-2 text-purple-300">Financ. (T)</th>
+                  <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/60">Costo Total (€)</th>
+                  <th className="py-3.5 px-3 text-blue-400 bg-slate-900/80">P. Venta Sugerido (€)</th>
+                  <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
+                </tr>
+              )}
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
               {filteredStationsForAdBlue.map((st) => {
@@ -580,6 +595,114 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   const clhDisplayName = excelCosts?.clhName && excelCosts.clhName !== '0' && excelCosts.clhName !== 'n/a'
                     ? excelCosts.clhName
                     : 'TORREJON';
+
+                  if (activeProductTab === 'ADBLUE') {
+                    const adblueSinIva = currNum;
+                    const adblueConIva = Number((currNum * 1.21).toFixed(4));
+                    const adblueMargin = Number((saleNum - currNum).toFixed(4));
+
+                    return (
+                      <tr
+                        key={key}
+                        className="hover:bg-slate-800/40 transition-colors border-b border-slate-800/60"
+                      >
+                        {/* 1. Estación */}
+                        <td className={`py-2.5 px-4 font-bold sticky left-0 z-10 border-r border-slate-800 transition-colors ${themeStyles.stationBg}`}>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 font-sans">
+                            <span className="font-extrabold tracking-tight">{st.name}</span>
+                            {themeColor === 'orange' && (
+                              <span className="text-[9px] bg-orange-500/25 text-orange-300 border border-orange-500/40 px-2 py-0.5 rounded-full font-black tracking-wider uppercase inline-flex items-center space-x-1 shadow-sm">
+                                <ShieldCheck className="h-3 w-3 text-orange-400" />
+                                <span>FIJA</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 2. Producto */}
+                        <td className="py-2.5 px-3 font-semibold">
+                          <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center space-x-1.5 bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                            <Droplet className="h-3.5 w-3.5 text-cyan-400" />
+                            <span>AdBlue</span>
+                          </span>
+                        </td>
+
+                        {/* 3. Precio Anterior */}
+                        <td className={`py-2.5 px-3 bg-slate-900/40 ${isPrevMod ? 'bg-amber-400/20' : ''}`}>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.prev}
+                            onChange={(e) => handleInputChange(st.name, prod.code, 'prev', e.target.value)}
+                            className={`w-20 rounded px-2 py-1 text-xs font-mono transition-all focus:outline-none ${
+                              isPrevMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md font-bold'
+                                : 'bg-slate-950 border border-slate-800 text-slate-400 focus:border-amber-400'
+                            }`}
+                          />
+                        </td>
+
+                        {/* 4. Precio Compra Hoy */}
+                        <td className={`py-2.5 px-3 transition-all ${isCurrMod ? 'bg-amber-400/25' : 'bg-slate-900/30'}`}>
+                          <div className="relative inline-flex items-center">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={item.curr}
+                              onChange={(e) => handleInputChange(st.name, prod.code, 'curr', e.target.value)}
+                              placeholder="0,0000"
+                              className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
+                                isCurrMod
+                                  ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40'
+                                  : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
+                              }`}
+                            />
+                            {isCurrMod && (
+                              <span className="ml-2 text-[9px] bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 font-black px-1.5 py-0.5 rounded shadow tracking-tighter uppercase animate-in fade-in">
+                                HOY
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 5. Precio Sin IVA (= Precio Compra Hoy) */}
+                        <td className="py-2.5 px-3 font-mono font-bold text-amber-300 bg-slate-900/40 text-center">
+                          {adblueSinIva.toFixed(4)} €
+                        </td>
+
+                        {/* 6. Precio Con IVA 21% (= Precio Sin IVA * 1.21) */}
+                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 bg-slate-900/60 text-center">
+                          {adblueConIva.toFixed(4)} €
+                        </td>
+
+                        {/* 7. P. Venta Sugerido */}
+                        <td className={`py-2.5 px-3 bg-blue-500/5 ${isSaleMod ? 'bg-amber-400/20' : ''}`}>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.sale}
+                            onChange={(e) => handleInputChange(st.name, prod.code, 'sale', e.target.value)}
+                            className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                              isSaleMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30'
+                                : 'bg-slate-950 border border-blue-500/40 text-blue-300 focus:border-blue-400'
+                            }`}
+                          />
+                        </td>
+
+                        {/* 8. Margen */}
+                        <td className="py-2.5 px-3 font-mono font-bold">
+                          <span
+                            className={`px-2 py-0.5 rounded ${
+                              adblueMargin >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
+                            }`}
+                          >
+                            {adblueMargin.toFixed(4)} €
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
 
                   return (
                     <tr
