@@ -259,7 +259,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl print:hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-1">
             <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold uppercase tracking-wider">
@@ -295,7 +295,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       </div>
 
       {/* Control Panel: Select Tariff & Date */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5 print:hidden">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
@@ -381,7 +381,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       </div>
 
       {/* DOCUMENT PREVIEW & PDF CONTAINER */}
-      <div className="bg-white text-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-300 space-y-6 print:p-0 print:border-none print:shadow-none print:m-0">
+      <div className="printable-document bg-white text-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-300 space-y-6 print:p-0 print:border-none print:shadow-none print:m-0">
         
         {/* Document Header */}
         <div className="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

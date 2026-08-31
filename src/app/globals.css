@@ -12,3 +12,64 @@ body {
   background: var(--background);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
+
+@media print {
+  /* Ocultar TODO elemento que no pertenezca al documento oficial */
+  header, footer, nav, aside, .no-print, .print\:hidden,
+  .bg-slate-900, .bg-slate-950, .shadow-xl, .shadow-2xl, .backdrop-blur-sm,
+  button, input, select, textarea {
+    box-shadow: none !important;
+  }
+  
+  header, footer, nav, aside, .no-print, .print\:hidden, .print-hide {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body, html, main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  @page {
+    margin: 10mm 8mm;
+    size: A4 portrait;
+  }
+
+  .printable-document {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}

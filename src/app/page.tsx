@@ -57,7 +57,7 @@ function AppContent() {
         {activeTab === 'users' && <UserManager />}
         {activeTab === 'instructions' && <InstructionsManager />}
       </main>
-      <footer className="border-t border-slate-800/80 py-5 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 print:hidden">
         <div className="max-w-[1600px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span><strong className="text-slate-400">EFI DATA OIL App</strong> &bull; Sistema de Gestión de Compras y Precios</span>
           <div className="flex items-center space-x-4">
