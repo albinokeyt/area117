@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
+import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
@@ -69,50 +69,66 @@ const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> 
 
 // Lista Oficial Limpia (Sin Noriega, Sin Tarifa 15, Sin Tarifa 27, Sin Tarifa Soya)
 const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
-  { name: 'TARIFA 12', markup: 0.120 },
-  { name: 'TARIFA 18', markup: 0.126 },
-  { name: 'T18 - PISTA DE SILLA', markup: 0.126 },
-  { name: 'TARIFA 24', markup: 0.132 },
-  { name: 'TARIFA 36', markup: 0.144 },
-  { name: 'T36 - PISTA DE SILLA', markup: 0.144 },
-  { name: 'ESPECIAL COMPLETO', markup: 0.116 },
-  { name: 'TARIFA 40', markup: 0.148 },
-  { name: 'TARIFA 42', markup: 0.150 },
-  { name: 'TARIFA 45', markup: 0.155 },
-  { name: 'TARIFA 50', markup: 0.160 },
-  { name: 'TARIFA 60', markup: 0.170 },
-  { name: 'T60 - PISTA DE SILLA', markup: 0.170 },
-  { name: 'AMAEXO', markup: 0.118 },
-  { name: 'E100', markup: 0.124 },
-  { name: 'TARIFA ECO', markup: 0.110 },
-  { name: 'DORADO', markup: 0.135 },
-  { name: 'HIQI', markup: 0.128 },
-  { name: 'NORPETROL 24', markup: 0.132 },
-  { name: 'ROR', markup: 0.132 },
-  { name: 'TARJETERA', markup: 0.140 },
-  { name: 'TAX MOVING 24', markup: 0.132 },
-  { name: 'TORTUGA', markup: 0.125 },
-  { name: 'EXOIL', markup: 0.110 },
-  { name: 'NORPETROL', markup: 0.110 },
-  { name: 'LOS JAVI', markup: 0.116 },
-  { name: 'CARRERAS', markup: 0.116 },
-  { name: 'TRANSFRIRED', markup: 0.116 },
-  { name: 'BENITO', markup: 0.120 },
-  { name: 'C-0 GENERAL', markup: 0.116 },
-  { name: 'ESTEBAN', markup: 0.132 },
-  { name: 'MIKI 90', markup: 0.198 },
-  { name: 'ECOTRANS', markup: 0.158 },
-  { name: 'TARIFA 30', markup: 0.138 },
+  { name: 'TARIFA 12', markup: 0.0120 },
+  { name: 'TARIFA 18', markup: 0.0180 },
+  { name: 'T18 - PISTA DE SILLA', markup: 0.0180 },
+  { name: 'TARIFA 24', markup: 0.0240 },
+  { name: 'TARIFA 36', markup: 0.0360 },
+  { name: 'T36 - PISTA DE SILLA', markup: 0.0360 },
+  { name: 'ESPECIAL COMPLETO', markup: 0.0116 },
+  { name: 'TARIFA 40', markup: 0.0400 },
+  { name: 'TARIFA 42', markup: 0.0420 },
+  { name: 'TARIFA 45', markup: 0.0450 },
+  { name: 'TARIFA 47', markup: 0.0470 },
+  { name: 'TARIFA 50', markup: 0.0600 },
+  { name: 'TARIFA 60', markup: 0.0800 },
+  { name: 'T60 - PISTA DE SILLA', markup: 0.0800 },
+  { name: 'AMAEXO', markup: 0.0120 },
+  { name: 'E100', markup: 0.0130 },
+  { name: 'TARIFA ECO', markup: 0.0158 },
+  { name: 'DORADO', markup: 0.0135 },
+  { name: 'HIQI', markup: 0.0128 },
+  { name: 'NORPETROL 24', markup: 0.0132 },
+  { name: 'ROR', markup: 0.0132 },
+  { name: 'TARJETERA', markup: 0.0140 },
+  { name: 'TAX MOVING 24', markup: 0.0132 },
+  { name: 'TORTUGA', markup: 0.0125 },
+  { name: 'EXOIL', markup: 0.0110 },
+  { name: 'NORPETROL', markup: 0.0110 },
+  { name: 'LOS JAVI', markup: 0.0116 },
+  { name: 'CARRERAS', markup: 0.0116 },
+  { name: 'TRANSFRIRED', markup: 0.0116 },
+  { name: 'BENITO', markup: 0.0120 },
+  { name: 'C-0 GENERAL', markup: 0.0116 },
+  { name: 'ESTEBAN', markup: 0.0132 },
+  { name: 'MIKI 90', markup: 0.0198 },
+  { name: 'ECOTRANS', markup: 0.0158 },
+  { name: 'TARIFA 30', markup: 0.0138 },
 ];
 
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
       const saved = localStorage.getItem('efi_custom_tariffs_list');
-      return saved ? JSON.parse(saved) : INITIAL_TARIFFS_LIST;
-    } catch (e) {
-      return INITIAL_TARIFFS_LIST;
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Reconciliar con INITIAL_TARIFFS_LIST para asegurar markups oficiales exactos
+          const merged = INITIAL_TARIFFS_LIST.map((initT) => {
+            const found = parsed.find((p) => p.name === initT.name);
+            return found && found.markup < 0.1 ? found : initT;
+          });
+          // Añadir tarifas personalizadas creadas por el usuario
+          parsed.forEach((p) => {
+            if (!merged.some((m) => m.name === p.name)) {
+              merged.push(p);
+            }
+          });
+          return merged;
+        }
+      }
+    } catch (e) {}
+    return INITIAL_TARIFFS_LIST;
   });
 
   const [selectedTariff, setSelectedTariff] = useState('TARIFA 12');
@@ -252,12 +268,46 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const currentTariffObj = tariffsList.find((t) => t.name === selectedTariff);
   const currentMarkup = currentTariffObj ? currentTariffObj.markup : 0.125;
 
+  // Obtener precios exactos de la Sábana de Precios / Compras para cada estación
   const getStationPrice = (stName: string, isPropia: boolean) => {
-    const hash = stName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const offset = (hash % 10) * 0.002;
-    const base = isPropia ? 1.1520 + offset : 1.1560 + offset;
-    const sinIva = Number((base + currentMarkup).toFixed(4));
-    const conIva = Number((sinIva * 1.21).toFixed(4));
+    let basePrice = 0;
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+
+    try {
+      const savedDate = localStorage.getItem(`efi_purchases_${targetDate}`);
+      const savedGlobal = localStorage.getItem('efi_compras_data');
+      const pData = savedDate ? JSON.parse(savedDate).data : savedGlobal ? JSON.parse(savedGlobal).data : null;
+
+      if (pData) {
+        const key = `${stName}_GOA`;
+        if (pData[key]?.sale) {
+          basePrice = parseFloat(pData[key].sale.toString().replace(',', '.'));
+        } else {
+          const matchedKey = Object.keys(pData).find((k) => {
+            if (!k.endsWith('_GOA')) return false;
+            const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+            return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+          });
+          if (matchedKey && pData[matchedKey]?.sale) {
+            basePrice = parseFloat(pData[matchedKey].sale.toString().replace(',', '.'));
+          }
+        }
+      }
+    } catch (e) {}
+
+    // Fallback de Costo Total si aún no se ha guardado en compras
+    if (!basePrice || isNaN(basePrice) || basePrice <= 0) {
+      const costs = STATION_EXCEL_COSTS[stName] || {
+        porte: 0.0050,
+        pase: 0.0100,
+        fin: 0.0100,
+        defaultCurr: 1.2000,
+      };
+      basePrice = Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+    }
+
+    const sinIva = Number((basePrice + currentMarkup).toFixed(3));
+    const conIva = Number((sinIva * 1.21).toFixed(3));
     return { sinIva, conIva };
   };
 
