@@ -943,12 +943,24 @@ export function PostesManager() {
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => {
+                downloadGasoleoBCompraPng();
+                setTimeout(() => downloadGasoleoBTransferPng(), 600);
+              }}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-rose-500 to-blue-500 hover:from-rose-400 hover:to-blue-400 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95"
+              title="Descarga automática de ambos archivos PNG (Compra y Transfer)"
+            >
+              <Download className="h-4 w-4" />
+              <span>Descargar Ambos PNGs (Compra + Transfer)</span>
+            </button>
+
+            <button
               onClick={downloadGasoleoBCompraPng}
               className="flex items-center space-x-1.5 px-3 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 rounded-xl text-xs font-bold border border-rose-500/30 transition-all active:scale-95"
               title="Descarga PNG de las 3 estaciones con Precio Compra Sin IVA y Con IVA"
             >
               <Download className="h-4 w-4 text-rose-400" />
-              <span>PNG Compra GOB (Sin/Con IVA)</span>
+              <span>1. PNG Compra GOB (Sin/Con IVA)</span>
             </button>
 
             <button
@@ -957,7 +969,7 @@ export function PostesManager() {
               title="Descarga PNG de las 3 estaciones solo con la columna Transfer"
             >
               <Download className="h-4 w-4 text-blue-400" />
-              <span>PNG Transfer GOB (3 EESS)</span>
+              <span>2. PNG Transfer GOB (3 EESS)</span>
             </button>
           </div>
         </div>
