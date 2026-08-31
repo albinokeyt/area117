@@ -489,8 +489,8 @@ export function PostesManager() {
     setTimeout(() => setImageToast(null), 3500);
   };
 
-  // 4. Descarga PNG Gasóleo B: Solo Transfer Red para Uclés, Torremocha y Arcos
-  const downloadGasoleoBTransferPng = () => {
+  // 4. Descarga PNG Gasóleo B: Solo Precios Transfrired para Uclés, Torremocha y Arcos
+  const downloadPreciosTransfriredPng = () => {
     const canvas = document.createElement('canvas');
     const scale = 2;
     const rowHeight = 44;
@@ -498,7 +498,7 @@ export function PostesManager() {
     const totalRows = stationNames.length;
 
     const col1Width = 180;
-    const col2Width = 170;
+    const col2Width = 190;
     const col3Width = 140;
     const width = col1Width + col2Width + col3Width;
     const height = totalRows * rowHeight;
@@ -527,12 +527,12 @@ export function PostesManager() {
       ctx.textBaseline = 'middle';
       ctx.fillText(stName, col1Width / 2, yStart + rowHeight / 2);
 
-      // Columna 2: Producto / Concepto
+      // Columna 2: Concepto Transfrired
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(col1Width, yStart, col2Width, rowHeight);
       ctx.fillStyle = '#000000';
       ctx.font = '13px sans-serif';
-      ctx.fillText('TRANSFER RED GOB', col1Width + col2Width / 2, yStart + rowHeight / 2);
+      ctx.fillText('PRECIOS TRANSFRIRED', col1Width + col2Width / 2, yStart + rowHeight / 2);
 
       // Columna 3: Precio
       ctx.fillStyle = '#FFF000';
@@ -563,14 +563,14 @@ export function PostesManager() {
     const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.href = dataUrl;
-    link.download = 'POSTES_GASOLEO_B_TRANSFER_RED.png';
+    link.download = 'POSTES_PRECIOS_TRANSFRIRED.png';
     link.click();
 
-    setImageToast('Imagen PNG generada: POSTES_GASOLEO_B_TRANSFER_RED.png');
+    setImageToast('Imagen PNG generada: POSTES_PRECIOS_TRANSFRIRED.png');
     setTimeout(() => setImageToast(null), 3500);
   };
 
-    // 5. Descarga PNG Gasolina Bronco
+  // 5. Descarga PNG Gasolina Bronco
   const downloadGasolinaBroncoPng = () => {
     const canvas = document.createElement('canvas');
     const scale = 2;
@@ -1040,7 +1040,7 @@ export function PostesManager() {
             </div>
             <div>
               <h3 className="font-bold text-white text-base">Gasóleo B (Agrícola y Calefacción)</h3>
-              <p className="text-xs text-slate-400">Precios asignados a Uclés, Torremocha y Arcos con descargas PNG de Compra y Transfer Red</p>
+              <p className="text-xs text-slate-400">Precios asignados a Uclés, Torremocha y Arcos con descargas PNG de Compra y Precios Transfrired</p>
             </div>
           </div>
 
@@ -1048,13 +1048,13 @@ export function PostesManager() {
             <button
               onClick={() => {
                 downloadGasoleoBCompraPng();
-                setTimeout(() => downloadGasoleoBTransferPng(), 600);
+                setTimeout(() => downloadPreciosTransfriredPng(), 600);
               }}
               className="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-rose-500 to-blue-500 hover:from-rose-400 hover:to-blue-400 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95"
-              title="Descarga automática de ambos archivos PNG (Compra y Transfer)"
+              title="Descarga automática de ambos archivos PNG (Compra y Transfrired)"
             >
               <Download className="h-4 w-4" />
-              <span>Descargar Ambos PNGs (Compra + Transfer)</span>
+              <span>Descargar Ambos PNGs (Compra + Transfrired)</span>
             </button>
 
             <button
@@ -1067,12 +1067,12 @@ export function PostesManager() {
             </button>
 
             <button
-              onClick={downloadGasoleoBTransferPng}
+              onClick={downloadPreciosTransfriredPng}
               className="flex items-center space-x-1.5 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded-xl text-xs font-bold border border-blue-500/30 transition-all active:scale-95"
-              title="Descarga PNG de las 3 estaciones solo con la columna Transfer"
+              title="Descarga PNG de las 3 estaciones solo con la columna Precios Transfrired"
             >
               <Download className="h-4 w-4 text-blue-400" />
-              <span>2. PNG Transfer GOB (3 EESS)</span>
+              <span>2. PNG Precios Transfrired (3 EESS)</span>
             </button>
           </div>
         </div>
@@ -1084,7 +1084,7 @@ export function PostesManager() {
                 <th className="py-3 px-4">Estación</th>
                 <th className="py-3 px-4 text-amber-300">Precio Compra Sin IVA (€)</th>
                 <th className="py-3 px-4 text-emerald-400">Precio Compra Con IVA 21% (€)</th>
-                <th className="py-3 px-4 text-blue-300">Precio Transfer Red (€)</th>
+                <th className="py-3 px-4 text-blue-300">Precios Transfrired (€)</th>
                 <th className="py-3 px-4 text-rose-300">Precio GOB Final (€)</th>
                 <th className="py-3 px-4 text-amber-400 bg-slate-900">Precio Poste Gasóleo B (€)</th>
               </tr>
