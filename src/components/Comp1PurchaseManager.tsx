@@ -305,6 +305,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           modified: Array.from(new Set(modifiedKeys).add(fieldKey)),
           updatedAt: new Date().toISOString(),
         }));
+        window.dispatchEvent(new Event('efi_compras_updated'));
       } catch (e) {}
 
       return nextPurchases;

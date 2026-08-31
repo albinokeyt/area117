@@ -116,7 +116,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
   const [comprasPurchases, setComprasPurchases] = useState<Record<string, { sale: string }>>({});
 
-  React.useEffect(() => {
+  const loadComprasData = () => {
     try {
       const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
       const savedGlobal = localStorage.getItem('efi_compras_data');
@@ -128,16 +128,42 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         if (parsed.data) setComprasPurchases(parsed.data);
       }
     } catch (e) {}
+  };
+
+  React.useEffect(() => {
+    loadComprasData();
+    window.addEventListener('efi_compras_updated', loadComprasData);
+    window.addEventListener('storage', loadComprasData);
+    return () => {
+      window.removeEventListener('efi_compras_updated', loadComprasData);
+      window.removeEventListener('storage', loadComprasData);
+    };
   }, [selectedDate]);
 
-  // Obtener P. Venta Sugerido de Compras para cada estación
+  // Obtener P. Venta Sugerido de Compras para cada estación con resolución exacta
   const getStationBasePrice = (stName: string, isPropia?: boolean): number => {
-    const key = `${stName}_GOA`;
-    if (comprasPurchases[key]?.sale) {
-      const val = parseFloat(comprasPurchases[key].sale.toString().replace(',', '.'));
+    // 1. Coincidencia directa
+    let item = comprasPurchases[`${stName}_GOA`];
+
+    // 2. Coincidencia normalizada sin prefijos 'ES '
+    if (!item?.sale) {
+      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+      const matchedKey = Object.keys(comprasPurchases).find((k) => {
+        if (!k.endsWith('_GOA')) return false;
+        const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+      });
+      if (matchedKey) {
+        item = comprasPurchases[matchedKey];
+      }
+    }
+
+    if (item?.sale) {
+      const val = parseFloat(item.sale.toString().replace(',', '.'));
       if (!isNaN(val) && val > 0) return val;
     }
 
+    // 3. Fallback con Costo Total del Excel
     const costs = STATION_EXCEL_COSTS[stName] || {
       porte: 0.0050,
       pase: 0.0100,
