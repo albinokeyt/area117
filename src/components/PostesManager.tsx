@@ -49,14 +49,18 @@ export function PostesManager() {
     return init;
   });
 
-  const [hvoGeneralSinIva, setHvoGeneralSinIva] = useState('1.5280');
+  // HVO Configuration
+  const [hvoGeneralBase, setHvoGeneralBase] = useState('1.2000');
+  const [hvoGeneralAddition, setHvoGeneralAddition] = useState('0.3280');
   const [hvoAlfajarinSinIva, setHvoAlfajarinSinIva] = useState('1.2560');
-  const [hvoValdemoroSinIva, setHvoValdemoroSinIva] = useState('1.5590');
+  const [hvoValdemoroAddition, setHvoValdemoroAddition] = useState('0.0700');
 
-  const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string }>>({
-    'UCLES': { compra: '1.0045', transfer: '1.0240', gob: '1.2886' },
-    'TORREMOCHA': { compra: '1.0045', transfer: '1.0240', gob: '1.2886' },
-    'ARCOS': { compra: '1.0045', transfer: '1.0240', gob: '1.2886' },
+  // Gasóleo B Configuration
+  const [gasoleoBPosteGlobal, setGasoleoBPosteGlobal] = useState('1.2890');
+  const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string; poste: string }>>({
+    'UCLES': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
+    'TORREMOCHA': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
+    'ARCOS': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
   });
 
   const [adblueRows, setAdblueRows] = useState<Record<string, { compra: string; poste: string }>>({
@@ -82,16 +86,29 @@ export function PostesManager() {
   const [isSaved, setIsSaved] = useState(false);
   const [imageToast, setImageToast] = useState<string | null>(null);
 
+  // Cálculos dinámicos de HVO
+  const computedHvoGeneralSinIva = Number((parseNum(hvoGeneralBase) + parseNum(hvoGeneralAddition)).toFixed(4));
+  const computedHvoGeneralConIva = Number((computedHvoGeneralSinIva * 1.21).toFixed(4));
+
+  const computedHvoAlfajarinSinIva = parseNum(hvoAlfajarinSinIva);
+  const computedHvoAlfajarinConIva = Number((computedHvoAlfajarinSinIva * 1.21).toFixed(4));
+
+  const goaValdemoroPrice = parseNum(postes['VALDEMORO']?.goa || '1.489');
+  const computedHvoValdemoroSinIva = Number((goaValdemoroPrice + parseNum(hvoValdemoroAddition)).toFixed(4));
+  const computedHvoValdemoroConIva = Number((computedHvoValdemoroSinIva * 1.21).toFixed(4));
+
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('efi_postes_data');
+      const saved = localStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.postes) setPostes(parsed.postes);
-        if (parsed.hvoGeneral) setHvoGeneralSinIva(parsed.hvoGeneral);
-        if (parsed.hvoAlfajarin) setHvoAlfajarinSinIva(parsed.hvoAlfajarin);
-        if (parsed.hvoValdemoro) setHvoValdemoroSinIva(parsed.hvoValdemoro);
-        if (parsed.gasoleoB) setGasoleoBRows(parsed.gasoleoB);
+        if (parsed.hvoGeneralBase) setHvoGeneralBase(parsed.hvoGeneralBase);
+        if (parsed.hvoGeneralAddition) setHvoGeneralAddition(parsed.hvoGeneralAddition);
+        if (parsed.hvoAlfajarinSinIva) setHvoAlfajarinSinIva(parsed.hvoAlfajarinSinIva);
+        if (parsed.hvoValdemoroAddition) setHvoValdemoroAddition(parsed.hvoValdemoroAddition);
+        if (parsed.gasoleoBRows) setGasoleoBRows(parsed.gasoleoBRows);
+        if (parsed.gasoleoBPosteGlobal) setGasoleoBPosteGlobal(parsed.gasoleoBPosteGlobal);
         if (parsed.adblue) setAdblueRows(parsed.adblue);
         if (parsed.gases) setGasesRows(parsed.gases);
         if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
@@ -110,14 +127,6 @@ export function PostesManager() {
       },
     }));
 
-    if (stName === 'VALDEMORO' && field === 'goa') {
-      const numValdemoro = parseNum(val);
-      if (numValdemoro > 0) {
-        setHvoValdemoroSinIva(formatNum(numValdemoro + 0.0700));
-        setModifiedKeys((prev) => new Set(prev).add('hvo_valdemoro'));
-      }
-    }
-
     setModifiedKeys((prev) => {
       const next = new Set(prev);
       next.add(`poste_${stName}_${field}`);
@@ -129,13 +138,15 @@ export function PostesManager() {
   const handleSave = () => {
     try {
       localStorage.setItem(
-        'efi_postes_data',
+        'efi_postes_data_v2',
         JSON.stringify({
           postes,
-          hvoGeneral: hvoGeneralSinIva,
-          hvoAlfajarin: hvoAlfajarinSinIva,
-          hvoValdemoro: hvoValdemoroSinIva,
-          gasoleoB: gasoleoBRows,
+          hvoGeneralBase,
+          hvoGeneralAddition,
+          hvoAlfajarinSinIva,
+          hvoValdemoroAddition,
+          gasoleoBRows,
+          gasoleoBPosteGlobal,
           adblue: adblueRows,
           gases: gasesRows,
           modified: Array.from(modifiedKeys),
@@ -147,7 +158,7 @@ export function PostesManager() {
     setTimeout(() => setIsSaved(false), 3500);
   };
 
-  // Generador de Imagen PNG para Estaciones Multi-Producto (GOA + GASOLINA)
+  // 1. Descarga PNG Estaciones Propias (GOA + GASOLINA)
   const downloadPostesAsPng = (
     stationNames: string[],
     groupTitle: string,
@@ -188,6 +199,7 @@ export function PostesManager() {
       ctx.textBaseline = 'middle';
       ctx.fillText(stName, col1Width / 2, yStart + rowHeight);
 
+      // GOA
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(col1Width, yStart, col2Width, rowHeight);
       ctx.fillStyle = '#000000';
@@ -201,6 +213,7 @@ export function PostesManager() {
       const goaPriceStr = parseNum(item.goa).toFixed(3).replace('.', ',');
       ctx.fillText(goaPriceStr, col1Width + col2Width + col3Width / 2, yStart + rowHeight / 2);
 
+      // GASOLINA
       const yGas = yStart + rowHeight;
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(col1Width, yGas, col2Width, rowHeight);
@@ -217,7 +230,6 @@ export function PostesManager() {
 
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1.5;
-
       ctx.beginPath();
       ctx.moveTo(col1Width, yGas);
       ctx.lineTo(width, yGas);
@@ -250,21 +262,18 @@ export function PostesManager() {
     setTimeout(() => setImageToast(null), 3500);
   };
 
-  // Generador de Imagen PNG para Producto Individual (HVO o Gasóleo B)
-  const downloadSingleProductPng = (
-    stationTitle: string,
-    productName: string,
-    priceStr: string,
-    outputFileName: string
-  ) => {
+  // 2. Descarga PNG Combinada HVO (Alfajarín y Valdemoro Sin IVA y Con IVA)
+  const downloadHvoReportPng = () => {
     const canvas = document.createElement('canvas');
     const scale = 2;
-    const rowHeight = 48;
-    const col1Width = 190;
-    const col2Width = 160;
+    const rowHeight = 44;
+    const totalRows = 4; // 2 estaciones x 2 filas (Sin IVA y Con IVA)
+
+    const col1Width = 180;
+    const col2Width = 170;
     const col3Width = 140;
     const width = col1Width + col2Width + col3Width;
-    const height = rowHeight;
+    const height = totalRows * rowHeight;
 
     canvas.width = width * scale;
     canvas.height = height * scale;
@@ -276,31 +285,71 @@ export function PostesManager() {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
 
-    // Columna 1: Estación
-    ctx.fillStyle = '#FBE8DB';
-    ctx.fillRect(0, 0, col1Width, rowHeight);
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(stationTitle, col1Width / 2, rowHeight / 2);
+    const hvoStations = [
+      {
+        name: 'ALFAJARIN',
+        sinIva: computedHvoAlfajarinSinIva.toFixed(3).replace('.', ','),
+        conIva: computedHvoAlfajarinConIva.toFixed(3).replace('.', ','),
+      },
+      {
+        name: 'VALDEMORO',
+        sinIva: computedHvoValdemoroSinIva.toFixed(3).replace('.', ','),
+        conIva: computedHvoValdemoroConIva.toFixed(3).replace('.', ','),
+      },
+    ];
 
-    // Columna 2: Producto
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(col1Width, 0, col2Width, rowHeight);
-    ctx.fillStyle = '#000000';
-    ctx.font = '14px sans-serif';
-    ctx.fillText(productName, col1Width + col2Width / 2, rowHeight / 2);
+    hvoStations.forEach((st, idx) => {
+      const yStart = idx * 2 * rowHeight;
 
-    // Columna 3: Precio
-    ctx.fillStyle = '#FFF000';
-    ctx.fillRect(col1Width + col2Width, 0, col3Width, rowHeight);
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 16px sans-serif';
-    const formattedPrice = parseNum(priceStr).toFixed(3).replace('.', ',');
-    ctx.fillText(formattedPrice, col1Width + col2Width + col3Width / 2, rowHeight / 2);
+      // Columna 1: Estación
+      ctx.fillStyle = '#FBE8DB';
+      ctx.fillRect(0, yStart, col1Width, rowHeight * 2);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(st.name, col1Width / 2, yStart + rowHeight);
 
-    // Bordes
+      // Fila 1: HVO SIN IVA
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(col1Width, yStart, col2Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('HVO SIN IVA', col1Width + col2Width / 2, yStart + rowHeight / 2);
+
+      ctx.fillStyle = '#FFF000';
+      ctx.fillRect(col1Width + col2Width, yStart, col3Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(st.sinIva, col1Width + col2Width + col3Width / 2, yStart + rowHeight / 2);
+
+      // Fila 2: HVO CON IVA
+      const y2 = yStart + rowHeight;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(col1Width, y2, col2Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('HVO CON IVA (21%)', col1Width + col2Width / 2, y2 + rowHeight / 2);
+
+      ctx.fillStyle = '#FFF000';
+      ctx.fillRect(col1Width + col2Width, y2, col3Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(st.conIva, col1Width + col2Width + col3Width / 2, y2 + rowHeight / 2);
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(col1Width, y2);
+      ctx.lineTo(width, y2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, yStart + rowHeight * 2);
+      ctx.lineTo(width, yStart + rowHeight * 2);
+      ctx.stroke();
+    });
+
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(0, 0, width, height);
@@ -315,10 +364,191 @@ export function PostesManager() {
     const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.href = dataUrl;
-    link.download = outputFileName;
+    link.download = 'POSTES_HVO_ALFAJARIN_VALDEMORO.png';
     link.click();
 
-    setImageToast(`Imagen PNG generada: ${outputFileName}`);
+    setImageToast('Imagen PNG generada: POSTES_HVO_ALFAJARIN_VALDEMORO.png');
+    setTimeout(() => setImageToast(null), 3500);
+  };
+
+  // 3. Descarga PNG Gasóleo B: Compra (Sin IVA y Con IVA para Uclés, Torremocha y Arcos)
+  const downloadGasoleoBCompraPng = () => {
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    const rowHeight = 44;
+    const stationNames = ['UCLES', 'TORREMOCHA', 'ARCOS'];
+    const totalRows = stationNames.length * 2;
+
+    const col1Width = 180;
+    const col2Width = 170;
+    const col3Width = 140;
+    const width = col1Width + col2Width + col3Width;
+    const height = totalRows * rowHeight;
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    stationNames.forEach((stName, idx) => {
+      const item = gasoleoBRows[stName] || { compra: '1.0045' };
+      const compraNum = parseNum(item.compra);
+      const conIvaNum = Number((compraNum * 1.21).toFixed(4));
+      const yStart = idx * 2 * rowHeight;
+
+      // Columna 1: Estación
+      ctx.fillStyle = '#FBE8DB';
+      ctx.fillRect(0, yStart, col1Width, rowHeight * 2);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(stName, col1Width / 2, yStart + rowHeight);
+
+      // Fila 1: GOB COMPRA SIN IVA
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(col1Width, yStart, col2Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('GOB COMPRA SIN IVA', col1Width + col2Width / 2, yStart + rowHeight / 2);
+
+      ctx.fillStyle = '#FFF000';
+      ctx.fillRect(col1Width + col2Width, yStart, col3Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(compraNum.toFixed(3).replace('.', ','), col1Width + col2Width + col3Width / 2, yStart + rowHeight / 2);
+
+      // Fila 2: GOB COMPRA CON IVA
+      const y2 = yStart + rowHeight;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(col1Width, y2, col2Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('GOB CON IVA (21%)', col1Width + col2Width / 2, y2 + rowHeight / 2);
+
+      ctx.fillStyle = '#FFF000';
+      ctx.fillRect(col1Width + col2Width, y2, col3Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(conIvaNum.toFixed(3).replace('.', ','), col1Width + col2Width + col3Width / 2, y2 + rowHeight / 2);
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(col1Width, y2);
+      ctx.lineTo(width, y2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, yStart + rowHeight * 2);
+      ctx.lineTo(width, yStart + rowHeight * 2);
+      ctx.stroke();
+    });
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, 0, width, height);
+
+    ctx.beginPath();
+    ctx.moveTo(col1Width, 0);
+    ctx.lineTo(col1Width, height);
+    ctx.moveTo(col1Width + col2Width, 0);
+    ctx.lineTo(col1Width + col2Width, height);
+    ctx.stroke();
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'POSTES_GASOLEO_B_COMPRA_SIN_CON_IVA.png';
+    link.click();
+
+    setImageToast('Imagen PNG generada: POSTES_GASOLEO_B_COMPRA_SIN_CON_IVA.png');
+    setTimeout(() => setImageToast(null), 3500);
+  };
+
+  // 4. Descarga PNG Gasóleo B: Solo Transfer Red para Uclés, Torremocha y Arcos
+  const downloadGasoleoBTransferPng = () => {
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    const rowHeight = 44;
+    const stationNames = ['UCLES', 'TORREMOCHA', 'ARCOS'];
+    const totalRows = stationNames.length;
+
+    const col1Width = 180;
+    const col2Width = 170;
+    const col3Width = 140;
+    const width = col1Width + col2Width + col3Width;
+    const height = totalRows * rowHeight;
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    stationNames.forEach((stName, idx) => {
+      const item = gasoleoBRows[stName] || { transfer: '1.0240' };
+      const transferNum = parseNum(item.transfer);
+      const yStart = idx * rowHeight;
+
+      // Columna 1: Estación
+      ctx.fillStyle = '#FBE8DB';
+      ctx.fillRect(0, yStart, col1Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(stName, col1Width / 2, yStart + rowHeight / 2);
+
+      // Columna 2: Producto / Concepto
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(col1Width, yStart, col2Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('TRANSFER RED GOB', col1Width + col2Width / 2, yStart + rowHeight / 2);
+
+      // Columna 3: Precio
+      ctx.fillStyle = '#FFF000';
+      ctx.fillRect(col1Width + col2Width, yStart, col3Width, rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(transferNum.toFixed(3).replace('.', ','), col1Width + col2Width + col3Width / 2, yStart + rowHeight / 2);
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, yStart + rowHeight);
+      ctx.lineTo(width, yStart + rowHeight);
+      ctx.stroke();
+    });
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, 0, width, height);
+
+    ctx.beginPath();
+    ctx.moveTo(col1Width, 0);
+    ctx.lineTo(col1Width, height);
+    ctx.moveTo(col1Width + col2Width, 0);
+    ctx.lineTo(col1Width + col2Width, height);
+    ctx.stroke();
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'POSTES_GASOLEO_B_TRANSFER_RED.png';
+    link.click();
+
+    setImageToast('Imagen PNG generada: POSTES_GASOLEO_B_TRANSFER_RED.png');
     setTimeout(() => setImageToast(null), 3500);
   };
 
@@ -339,7 +569,7 @@ export function PostesManager() {
               Precios en Postes de Estaciones Propias
             </h2>
             <p className="text-slate-400 text-sm">
-              Descarga imágenes PNG oficiales por estación, por grupos (Madrid y Sur), para HVO y para Gasóleo B. El HVO de Valdemoro se auto-calcula con el Gasóleo de Valdemoro (+0.07 EUR).
+              Descarga imágenes PNG oficiales por estación, por grupos (Madrid y Sur), para HVO (Alfajarín y Valdemoro con Sin/Con IVA) y Gasóleo B (Compra y Transfer).
             </p>
           </div>
 
@@ -503,7 +733,7 @@ export function PostesManager() {
                       </div>
                     </td>
 
-                    {/* Botón Descargar PNG */}
+                    {/* Descargar PNG */}
                     <td className="py-3 px-4 text-center">
                       {isMadridGroup ? (
                         <button
@@ -542,73 +772,91 @@ export function PostesManager() {
         </div>
       </div>
 
-      {/* 2. Sección HVO con Botón de Descarga PNG para Cada Uno */}
+      {/* 2. Sección HVO con Suma de Montos y Reporte Combinado PNG */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-3">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <Zap className="h-5 w-5" />
             </div>
             <div>
               <h3 className="font-bold text-white text-base">HVO (Hidrobiodiésel 100% Renovable)</h3>
-              <p className="text-xs text-slate-400">Precios de poste, cálculo automático (HVO Valdemoro = GOA + 0.07€) y descarga en PNG</p>
+              <p className="text-xs text-slate-400">Configuración de montos sumados al coste de compra y descargas PNG con precios Sin y Con IVA</p>
             </div>
           </div>
-          <span className="text-xs text-slate-400 font-mono">IVA: 21% Automático</span>
+          
+          <button
+            onClick={downloadHvoReportPng}
+            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+            title="Descargar imagen PNG de HVO Alfajarín y Valdemoro con precios Sin IVA y Con IVA"
+          >
+            <ImageIcon className="h-4 w-4" />
+            <span>Descargar PNG Reporte HVO (Alfajarín y Valdemoro)</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* HVO General */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">HVO Poste General</span>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono font-bold">100% Bio</span>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400 block">Precio Sin IVA (€/L):</label>
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">HVO Poste General</span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono font-bold">100% Bio</span>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <label className="text-[11px] text-slate-400 block font-medium">Precio Compra Base Sin IVA (€):</label>
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={hvoGeneralSinIva}
+                  value={hvoGeneralBase}
                   onChange={(e) => {
-                    setHvoGeneralSinIva(e.target.value);
-                    setModifiedKeys((prev) => new Set(prev).add('hvo_general'));
+                    setHvoGeneralBase(e.target.value);
+                    setModifiedKeys((prev) => new Set(prev).add('hvo_gen_base'));
                     setIsSaved(false);
                   }}
-                  className={`w-full rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none ${
-                    modifiedKeys.has('hvo_general')
-                      ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                      : 'bg-slate-900 border border-slate-700'
-                  }`}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-amber-400"
                 />
               </div>
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">Precio Con IVA (21%):</span>
-                <span className="font-bold text-emerald-400 text-sm">
-                  {formatNum(parseNum(hvoGeneralSinIva) * 1.21)} €/L
-                </span>
+
+              <div>
+                <label className="text-[11px] text-amber-300 block font-medium">Monto a Sumar al HVO General (€):</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={hvoGeneralAddition}
+                  onChange={(e) => {
+                    setHvoGeneralAddition(e.target.value);
+                    setModifiedKeys((prev) => new Set(prev).add('hvo_gen_add'));
+                    setIsSaved(false);
+                  }}
+                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-1.5 text-amber-300 font-mono font-bold text-xs focus:outline-none focus:border-amber-400"
+                />
               </div>
             </div>
 
-            <button
-              onClick={() => downloadSingleProductPng('HVO GENERAL', 'HVO 100%', formatNum(parseNum(hvoGeneralSinIva) * 1.21), 'POSTE_HVO_GENERAL.png')}
-              className="mt-3 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center justify-center space-x-1.5"
-            >
-              <Download className="h-3.5 w-3.5 text-amber-400" />
-              <span>Descargar PNG HVO General</span>
-            </button>
+            <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Precio Final Sin IVA:</span>
+                <span className="font-bold text-white">{computedHvoGeneralSinIva.toFixed(4)} €/L</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Precio Con IVA (21%):</span>
+                <span className="font-bold text-emerald-400">{computedHvoGeneralConIva.toFixed(4)} €/L</span>
+              </div>
+            </div>
           </div>
 
           {/* HVO ALFAJARIN */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white">HVO ALFAJARIN</span>
-                <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold">Específica</span>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400 block">Precio Sin IVA (€/L):</label>
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white">HVO ALFAJARIN</span>
+              <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold">Específica</span>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <label className="text-[11px] text-slate-400 block font-medium">Precio Sin IVA (€/L):</label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -618,89 +866,100 @@ export function PostesManager() {
                     setModifiedKeys((prev) => new Set(prev).add('hvo_alfajarin'));
                     setIsSaved(false);
                   }}
-                  className={`w-full rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none ${
-                    modifiedKeys.has('hvo_alfajarin')
-                      ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                      : 'bg-slate-900 border border-slate-700'
-                  }`}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-amber-400"
                 />
-              </div>
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">Precio Con IVA (21%):</span>
-                <span className="font-bold text-emerald-400 text-sm">
-                  {formatNum(parseNum(hvoAlfajarinSinIva) * 1.21)} €/L
-                </span>
               </div>
             </div>
 
-            <button
-              onClick={() => downloadSingleProductPng('ALFAJARIN', 'HVO 100%', formatNum(parseNum(hvoAlfajarinSinIva) * 1.21), 'POSTE_HVO_ALFAJARIN.png')}
-              className="mt-3 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center justify-center space-x-1.5"
-            >
-              <Download className="h-3.5 w-3.5 text-blue-400" />
-              <span>Descargar PNG HVO Alfajarín</span>
-            </button>
+            <div className="pt-8 border-t border-slate-800/80 space-y-1 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Precio Final Sin IVA:</span>
+                <span className="font-bold text-white">{computedHvoAlfajarinSinIva.toFixed(4)} €/L</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Precio Con IVA (21%):</span>
+                <span className="font-bold text-emerald-400">{computedHvoAlfajarinConIva.toFixed(4)} €/L</span>
+              </div>
+            </div>
           </div>
 
           {/* HVO VALDEMORO */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white">HVO VALDEMORO</span>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30">
-                  GOA + 0.07€
-                </span>
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white">HVO VALDEMORO</span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30">
+                GOA Valdemoro + Suma
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-slate-400">GOA Poste Valdemoro:</span>
+                <span className="text-amber-300 font-bold">{goaValdemoroPrice.toFixed(3)} €/L</span>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400 block">Precio Sin IVA (€/L):</label>
+
+              <div>
+                <label className="text-[11px] text-emerald-300 block font-medium">Monto a Sumar al GOA Valdemoro (€):</label>
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={hvoValdemoroSinIva}
+                  value={hvoValdemoroAddition}
                   onChange={(e) => {
-                    setHvoValdemoroSinIva(e.target.value);
-                    setModifiedKeys((prev) => new Set(prev).add('hvo_valdemoro'));
+                    setHvoValdemoroAddition(e.target.value);
+                    setModifiedKeys((prev) => new Set(prev).add('hvo_valdemoro_add'));
                     setIsSaved(false);
                   }}
-                  className={`w-full rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none ${
-                    modifiedKeys.has('hvo_valdemoro')
-                      ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                      : 'bg-slate-900 border border-slate-700'
-                  }`}
+                  className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl px-3 py-1.5 text-emerald-300 font-mono font-bold text-xs focus:outline-none focus:border-emerald-400"
                 />
-              </div>
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">Precio Con IVA (21%):</span>
-                <span className="font-bold text-emerald-400 text-sm">
-                  {formatNum(parseNum(hvoValdemoroSinIva) * 1.21)} €/L
-                </span>
               </div>
             </div>
 
-            <button
-              onClick={() => downloadSingleProductPng('VALDEMORO', 'HVO 100%', formatNum(parseNum(hvoValdemoroSinIva) * 1.21), 'POSTE_HVO_VALDEMORO.png')}
-              className="mt-3 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center justify-center space-x-1.5"
-            >
-              <Download className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Descargar PNG HVO Valdemoro</span>
-            </button>
+            <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Precio Final Sin IVA:</span>
+                <span className="font-bold text-white">{computedHvoValdemoroSinIva.toFixed(4)} €/L</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Precio Con IVA (21%):</span>
+                <span className="font-bold text-emerald-400">{computedHvoValdemoroConIva.toFixed(4)} €/L</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 3. Sección Gasóleo B con Botón de Descarga PNG para Cada Estación */}
+      {/* 3. Sección Gasóleo B con Nueva Columna Precio Poste y 2 Botones PNG Oficiales */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-3">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
               <Flame className="h-5 w-5" />
             </div>
             <div>
               <h3 className="font-bold text-white text-base">Gasóleo B (Agrícola y Calefacción)</h3>
-              <p className="text-xs text-slate-400">Precios asignados a Uclés, Torremocha y Arcos con descargas en imagen PNG</p>
+              <p className="text-xs text-slate-400">Precios asignados a Uclés, Torremocha y Arcos con descargas PNG de Compra y Transfer Red</p>
             </div>
           </div>
-          <span className="text-xs text-slate-400 font-mono">3 Estaciones Clave</span>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={downloadGasoleoBCompraPng}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 rounded-xl text-xs font-bold border border-rose-500/30 transition-all active:scale-95"
+              title="Descarga PNG de las 3 estaciones con Precio Compra Sin IVA y Con IVA"
+            >
+              <Download className="h-4 w-4 text-rose-400" />
+              <span>PNG Compra GOB (Sin/Con IVA)</span>
+            </button>
+
+            <button
+              onClick={downloadGasoleoBTransferPng}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded-xl text-xs font-bold border border-blue-500/30 transition-all active:scale-95"
+              title="Descarga PNG de las 3 estaciones solo con la columna Transfer"
+            >
+              <Download className="h-4 w-4 text-blue-400" />
+              <span>PNG Transfer GOB (3 EESS)</span>
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -709,23 +968,24 @@ export function PostesManager() {
               <tr className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 font-bold">
                 <th className="py-3 px-4">Estación</th>
                 <th className="py-3 px-4 text-amber-300">Precio Compra Sin IVA (€)</th>
+                <th className="py-3 px-4 text-emerald-400">Precio Compra Con IVA 21% (€)</th>
                 <th className="py-3 px-4 text-blue-300">Precio Transfer Red (€)</th>
-                <th className="py-3 px-4 text-emerald-400">Precio Con IVA 21% (€)</th>
                 <th className="py-3 px-4 text-rose-300">Precio GOB Final (€)</th>
-                <th className="py-3 px-4 text-center">Descargar PNG</th>
+                <th className="py-3 px-4 text-amber-400 bg-slate-900">Precio Poste Gasóleo B (€)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-medium">
               {['UCLES', 'TORREMOCHA', 'ARCOS'].map((stName) => {
-                const item = gasoleoBRows[stName] || { compra: '1.0045', transfer: '1.0240', gob: '1.2886' };
-                const transferNum = parseNum(item.transfer);
-                const conIva = Number((transferNum * 1.21).toFixed(4));
+                const item = gasoleoBRows[stName] || { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: gasoleoBPosteGlobal };
+                const compraNum = parseNum(item.compra);
+                const conIva = Number((compraNum * 1.21).toFixed(4));
                 const isMod = modifiedKeys.has(`gasb_${stName}`);
 
                 return (
                   <tr key={stName} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-4 font-bold text-white">{stName}</td>
                     
+                    {/* Compra Sin IVA */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
@@ -746,6 +1006,12 @@ export function PostesManager() {
                       />
                     </td>
 
+                    {/* Compra Con IVA 21% */}
+                    <td className="py-3 px-4 font-mono font-bold text-emerald-400 text-sm">
+                      {conIva.toFixed(4)} €
+                    </td>
+
+                    {/* Transfer Red */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
@@ -764,10 +1030,7 @@ export function PostesManager() {
                       />
                     </td>
 
-                    <td className="py-3 px-4 font-mono font-bold text-emerald-400 text-sm">
-                      {conIva.toFixed(4)} €
-                    </td>
-
+                    {/* GOB Final */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
@@ -786,16 +1049,23 @@ export function PostesManager() {
                       />
                     </td>
 
-                    {/* Botón Descargar PNG Gasóleo B */}
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => downloadSingleProductPng(stName, 'GASÓLEO B', item.gob, `POSTES_GOB_${stName}.png`)}
-                        className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 rounded-lg text-[11px] font-bold border border-rose-500/30 transition-colors inline-flex items-center space-x-1"
-                        title={`Descargar imagen PNG de Gasóleo B en ${stName}`}
-                      >
-                        <Download className="h-3.5 w-3.5 text-rose-400" />
-                        <span>PNG GOB</span>
-                      </button>
+                    {/* NUEVA COLUMNA: Precio Poste Gasóleo B */}
+                    <td className="py-3 px-4 bg-slate-900/50">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={item.poste || gasoleoBPosteGlobal}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setGasoleoBRows((prev) => ({
+                            ...prev,
+                            [stName]: { ...prev[stName], poste: val },
+                          }));
+                          setModifiedKeys((prev) => new Set(prev).add(`gasb_poste_${stName}`));
+                          setIsSaved(false);
+                        }}
+                        className="w-28 bg-slate-950 border border-amber-500/40 rounded px-2 py-1 text-xs font-mono text-amber-300 font-black"
+                      />
                     </td>
                   </tr>
                 );

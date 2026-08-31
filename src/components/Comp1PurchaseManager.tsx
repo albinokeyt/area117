@@ -29,7 +29,7 @@ const FIXED_COLLABORATOR_NAMES = [
   'PETREM FIGUERES',
 ];
 
-// Estaciones específicas con AdBlue según el recuadro del Excel (Celdas H62:K73)
+// Estaciones con AdBlue según celdas H62:K73
 const ADBLUE_STATIONS_CONFIG: Record<string, { defaultBuy: number; defaultSale: number }> = {
   'TORREJON': { defaultBuy: 0.5360, defaultSale: 0.8490 },
   'ARCOS JALON': { defaultBuy: 0.2650, defaultSale: 0.7490 },
@@ -43,46 +43,50 @@ const ADBLUE_STATIONS_CONFIG: Record<string, { defaultBuy: number; defaultSale: 
   'SORIA ALCUBILLAS': { defaultBuy: 0.2550, defaultSale: 0.8490 },
 };
 
-// Tarifas Especiales del cuadro B50:F82 de la hoja de cálculo inicial
-interface SpecialTariffRow {
+// Datos EXACTOS de la Hoja de Cálculo Inicial B50:F82 (Imagen proporcionada por el usuario)
+export interface SpecialStationRateRow {
   id: string;
   name: string;
-  scope: string;
-  product: string;
+  isBlueBg?: boolean;
+  isYellowPrice?: boolean;
+  isRedRef?: boolean;
+  actualPrice: string;
+  refPrice: string;
   basePrice: string;
-  adjustment: string;
-  salePrice: string;
 }
 
-const DEFAULT_SPECIAL_TARIFFS_B50_F82: SpecialTariffRow[] = [
-  { id: 'esp_completo', name: 'ESPECIAL COMPLETO', scope: 'Red General', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0150', salePrice: '1.2500' },
-  { id: 'amaexo', name: 'AMAEXO', scope: 'Extremadura / Centro', product: 'Gasóleo A', basePrice: '1.2280', adjustment: '0.0120', salePrice: '1.2400' },
-  { id: 'noriega', name: 'NORIEGA', scope: 'Zona Sur / Córdoba', product: 'Gasóleo A', basePrice: '1.2300', adjustment: '0.0140', salePrice: '1.2440' },
-  { id: 'e100', name: 'E100', scope: 'Internacional Flotas', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0180', salePrice: '1.2530' },
-  { id: 'tarifa_eco', name: 'TARIFA ECO', scope: 'Red Propia Eco', product: 'Gasóleo A', basePrice: '1.2250', adjustment: '0.0100', salePrice: '1.2350' },
-  { id: 'dorado', name: 'DORADO', scope: 'Castilla / Madrid', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0160', salePrice: '1.2510' },
-  { id: 'hiqi', name: 'HIQI', scope: 'Cataluña / Levante', product: 'Gasóleo A', basePrice: '1.2290', adjustment: '0.0130', salePrice: '1.2420' },
-  { id: 'norpetrol_24', name: 'NORPETROL 24', scope: 'Norte / Álava', product: 'Gasóleo A', basePrice: '1.1950', adjustment: '0.0120', salePrice: '1.2070' },
-  { id: 'ror', name: 'ROR', scope: 'Internacional / ROR', product: 'Gasóleo A', basePrice: '1.2320', adjustment: '0.0150', salePrice: '1.2470' },
-  { id: 'tarjetera', name: 'TARJETERA', scope: 'Convenio Tarjetas', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0200', salePrice: '1.2550' },
-  { id: 'tax_moving_24', name: 'TAX MOVING 24', scope: 'Flotas Urbanas', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0140', salePrice: '1.2490' },
-  { id: 'tortuga', name: 'TORTUGA', scope: 'Rutas Pesadas', product: 'Gasóleo A', basePrice: '1.2280', adjustment: '0.0150', salePrice: '1.2430' },
-  { id: 'tarifa_15', name: 'TARIFA 15', scope: 'Zona Sur / Humilladero', product: 'Gasóleo A', basePrice: '1.2300', adjustment: '0.0115', salePrice: '1.2415' },
-  { id: 'tarifa_27', name: 'TARIFA 27', scope: 'Zona Sur / Benamejí', product: 'Gasóleo A', basePrice: '1.2300', adjustment: '0.0127', salePrice: '1.2427' },
-  { id: 'exoil', name: 'EXOIL', scope: 'Manises / Levante', product: 'Gasóleo A', basePrice: '1.2290', adjustment: '0.0110', salePrice: '1.2400' },
-  { id: 'norpetrol', name: 'NORPETROL', scope: 'Bilbao / Miranda', product: 'Gasóleo A', basePrice: '1.1950', adjustment: '0.0110', salePrice: '1.2060' },
-  { id: 'los_javi', name: 'LOS JAVI', scope: 'Flota Los Javi', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0116', salePrice: '1.2466' },
-  { id: 'carreras', name: 'CARRERAS', scope: 'Logística Carreras', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0116', salePrice: '1.2466' },
-  { id: 'transfrired', name: 'TRANSFRIRED', scope: 'Frigoríficos Transfrired', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0116', salePrice: '1.2466' },
-  { id: 'benito', name: 'BENITO', scope: 'Transportes Benito', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0120', salePrice: '1.2470' },
-  { id: 'c0_general', name: 'C-0 GENERAL', scope: 'Convenio Marco C-0', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0116', salePrice: '1.2466' },
-  { id: 'esteban', name: 'ESTEBAN', scope: 'Flota Esteban', product: 'Gasóleo A', basePrice: '1.2320', adjustment: '0.0132', salePrice: '1.2452' },
-  { id: 'miki_90', name: 'MIKI 90', scope: 'Flota 90 Miki', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0198', salePrice: '1.2548' },
-  { id: 'ecotrans', name: 'ECOTRANS', scope: 'ECOTRANS Nacional', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0158', salePrice: '1.2508' },
-  { id: 'tarifa_30', name: 'TARIFA 30', scope: 'Red Descuento 30', product: 'Gasóleo A', basePrice: '1.2350', adjustment: '0.0138', salePrice: '1.2488' },
-  { id: 't18_pista_silla', name: 'T18 - PISTA DE SILLA', scope: 'Pista de Silla', product: 'Gasóleo A', basePrice: '1.2290', adjustment: '0.0126', salePrice: '1.2416' },
-  { id: 't36_pista_silla', name: 'T36 - PISTA DE SILLA', scope: 'Pista de Silla', product: 'Gasóleo A', basePrice: '1.2290', adjustment: '0.0144', salePrice: '1.2434' },
-  { id: 't60_pista_silla', name: 'T60 - PISTA DE SILLA', scope: 'Pista de Silla', product: 'Gasóleo A', basePrice: '1.2290', adjustment: '0.0170', salePrice: '1.2460' },
+const DEFAULT_SPECIAL_RATES_B50_F82: SpecialStationRateRow[] = [
+  { id: 'torrejon', name: 'TORREJON', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.324' },
+  { id: 'arcos_jalon', name: 'ARCOS JALON', isRedRef: true, actualPrice: '1.335', refPrice: '1.335', basePrice: '1.312' },
+  { id: 'alfajarin', name: 'ALFAJARIN', isBlueBg: true, isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.323', basePrice: '1.323' },
+  { id: 'torremocha', name: 'TORREMOCHA', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.320' },
+  { id: 'madrid', name: 'MADRID', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.324' },
+  { id: 'valdemoro', name: 'VALDEMORO', isYellowPrice: true, isRedRef: true, actualPrice: '1.329', refPrice: '1.334', basePrice: '1.324' },
+  { id: 'el_casar', name: 'EL CASAR', isRedRef: true, actualPrice: '1.349', refPrice: '1.349', basePrice: '1.339' },
+  { id: 'pamplona', name: 'PAMPLONA', isRedRef: true, actualPrice: '1.319', refPrice: '1.319', basePrice: '1.273' },
+  { id: 'humilladero', name: 'HUMILLADERO', isRedRef: true, actualPrice: '1.334', refPrice: '1.334', basePrice: '1.324' },
+  { id: 'ucles', name: 'UCLES', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.320' },
+  { id: 'benameji', name: 'BENAMEJI', isBlueBg: true, isRedRef: true, actualPrice: '1.344', refPrice: '1.344', basePrice: '1.344' },
+  { id: 'soria_alcubillas', name: 'SORIA ALCUBILLAS', isRedRef: true, actualPrice: '1.335', refPrice: '1.335', basePrice: '1.324' },
+  { id: 'riba_roja', name: 'RIBA-ROJA', isBlueBg: true, isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
+  { id: 'pista_silla', name: 'PISTA DE SILLA', isBlueBg: true, isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
+  { id: 'real_gandia', name: 'ES REAL DE GANDIA', isRedRef: true, actualPrice: '1.343', refPrice: '1.343', basePrice: '1.343' },
+  { id: 'chiva', name: 'ES CHIVA', isRedRef: true, actualPrice: '1.388', refPrice: '1.388', basePrice: '1.396' },
+  { id: 'alberic', name: 'ES ALBERIC', isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
+  { id: 'catarroja', name: 'CATARROJA', isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
+  { id: 'manises', name: 'MANISES - EXOIL', isRedRef: true, actualPrice: '1.353', refPrice: '1.353', basePrice: '1.375' },
+  { id: 'jundiz', name: 'JUNDIZ NORPETROL', isRedRef: true, actualPrice: '1.309', refPrice: '1.309', basePrice: '1.294' },
+  { id: 'oliveral', name: 'OLIVERAL', isRedRef: true, actualPrice: '1.424', refPrice: '1.424', basePrice: '1.298' },
+  { id: 'llers', name: 'LLERS', isRedRef: true, actualPrice: '1.378', refPrice: '1.378', basePrice: '1.387' },
+  { id: 'guarroman', name: 'GUARROMAN', isRedRef: true, actualPrice: '1.363', refPrice: '1.363', basePrice: '1.362' },
+  { id: 'valdepenas', name: 'VALDEPEÑAS', isRedRef: true, actualPrice: '1.383', refPrice: '1.383', basePrice: '1.386' },
+  { id: 'bera', name: 'BERA', isRedRef: true, actualPrice: '1.268', refPrice: '1.268', basePrice: '1.267' },
+  { id: 'abrera', name: 'ABRERA', isRedRef: true, actualPrice: '1.367', refPrice: '1.367', basePrice: '1.372' },
+  { id: 'la_campana', name: 'LA CAMPANA', isRedRef: true, actualPrice: '1.378', refPrice: '1.378', basePrice: '1.412' },
+  { id: 'irun', name: 'IRUN', isRedRef: true, actualPrice: '1.320', refPrice: '1.320', basePrice: '1.320' },
+  { id: 'girona_calsina', name: 'GIRONA-CALSINA', isRedRef: true, actualPrice: '1.343', refPrice: '1.343', basePrice: '0.009' },
+  { id: 'open', name: 'OPEN', isRedRef: true, actualPrice: '1.388', refPrice: '1.388', basePrice: '1.402' },
+  { id: 'figueres', name: 'FIGUERES', isRedRef: true, actualPrice: '1.370', refPrice: '1.370', basePrice: '1.370' },
 ];
 
 type ProductSubTab = 'GOA' | 'GASOLINA' | 'ADBLUE' | 'SPECIAL' | 'ALL';
@@ -108,7 +112,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     }
   });
 
-  // Separación en 3 Bloques Estructurales
+  // 3 Bloques Estructurales
   const propiasStations = PROPIAS_STATIONS;
   const fixedCollaborators = COLABORADORA_STATIONS.filter((st) =>
     FIXED_COLLABORATOR_NAMES.some((fname) => st.name.toUpperCase().includes(fname.toUpperCase()))
@@ -129,7 +133,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return num.toFixed(decimals);
   };
 
-  // Helper para obtener productos filtrados por sub-ventana
   const getFilteredProductsForStation = (stationName: string) => {
     const allForStation: { code: string; name: string }[] = [
       { code: 'GOA', name: 'Gasóleo A (GOA)' },
@@ -145,7 +148,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return allForStation.filter((p) => p.code === activeProductTab);
   };
 
-  // Inicialización de datos con persistencia
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
     const initial: Record<string, PurchaseRowValues> = {};
     
@@ -167,7 +169,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const gasCurr = costs.defaultCurr + 0.1200;
       const totalCostGas = Number((gasCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
 
-      // GOA (Por defecto sale = totalCost)
       initial[`${st.name}_GOA`] = {
         prev: formatNum(goaPrev),
         curr: formatNum(goaCurr),
@@ -179,7 +180,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         isCustomSale: false,
       };
 
-      // GASOLINA 95 (Por defecto sale = totalCost)
       initial[`${st.name}_GASOLINA`] = {
         prev: formatNum(gasPrev),
         curr: formatNum(gasCurr),
@@ -191,7 +191,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         isCustomSale: false,
       };
 
-      // ADBLUE (Solo para las estaciones del recuadro H62:K73)
       if (ADBLUE_STATIONS_CONFIG[st.name]) {
         const adblueData = ADBLUE_STATIONS_CONFIG[st.name];
         initial[`${st.name}_ADBLUE`] = {
@@ -209,19 +208,18 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return initial;
   });
 
-  // Estado de Tarifas Especiales B50:F82
-  const [specialTariffs, setSpecialTariffs] = useState<SpecialTariffRow[]>(DEFAULT_SPECIAL_TARIFFS_B50_F82);
+  // Estado de Tarifas Especiales B50:F82 EXACTAS
+  const [specialRates, setSpecialRates] = useState<SpecialStationRateRow[]>(DEFAULT_SPECIAL_RATES_B50_F82);
 
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
   const [isSaved, setIsSaved] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Cargar datos previos de localStorage al montar
   useEffect(() => {
     try {
       const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
       const savedGlobal = localStorage.getItem('efi_compras_data');
-      const savedSpecial = localStorage.getItem('efi_special_tariffs_b50_f82');
+      const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v2');
       const savedValidDate = localStorage.getItem('efi_compras_valid_from');
 
       if (savedValidDate) {
@@ -239,14 +237,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }
 
       if (savedSpecial) {
-        setSpecialTariffs(JSON.parse(savedSpecial));
+        setSpecialRates(JSON.parse(savedSpecial));
       }
     } catch (e) {
       console.error(e);
     }
   }, [selectedDate]);
 
-  // Actualizar fecha de validez
   const handleValidDateChange = (newDate: string) => {
     setValidFromDate(newDate);
     try {
@@ -254,7 +251,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     } catch (e) {}
   };
 
-  // Manejador de cambios con auto-guardado en localStorage y actualización de fórmulas
   const handleInputChange = (
     stationName: string,
     prodCode: string,
@@ -317,23 +313,16 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   };
 
   // Manejador para Tarifas Especiales B50:F82
-  const handleSpecialTariffChange = (id: string, field: keyof SpecialTariffRow, rawVal: string) => {
+  const handleSpecialRateChange = (id: string, field: 'actualPrice' | 'refPrice' | 'basePrice', rawVal: string) => {
     const fieldKey = `special_${id}_${field}`;
-    setSpecialTariffs((prev) => {
+    setSpecialRates((prev) => {
       const next = prev.map((row) => {
         if (row.id !== id) return row;
-        const updated = { ...row, [field]: rawVal };
-
-        if (field === 'basePrice' || field === 'adjustment') {
-          const bNum = parseNum(field === 'basePrice' ? rawVal : updated.basePrice);
-          const adjNum = parseNum(field === 'adjustment' ? rawVal : updated.adjustment);
-          updated.salePrice = formatNum(bNum + adjNum);
-        }
-        return updated;
+        return { ...row, [field]: rawVal };
       });
 
       try {
-        localStorage.setItem('efi_special_tariffs_b50_f82', JSON.stringify(next));
+        localStorage.setItem('efi_special_rates_b50_f82_v2', JSON.stringify(next));
       } catch (e) {}
 
       return next;
@@ -342,7 +331,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setModifiedKeys((prev) => new Set(prev).add(fieldKey));
   };
 
-  // Guardar explícito
   const handleSave = () => {
     try {
       localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
@@ -355,7 +343,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         modified: Array.from(modifiedKeys),
         updatedAt: new Date().toISOString(),
       }));
-      localStorage.setItem('efi_special_tariffs_b50_f82', JSON.stringify(specialTariffs));
+      localStorage.setItem('efi_special_rates_b50_f82_v2', JSON.stringify(specialRates));
       localStorage.setItem('efi_compras_valid_from', validFromDate);
     } catch (e) {}
 
@@ -367,7 +355,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     }, 3500);
   };
 
-  // CIERRE DE DÍA: Copiar P. Venta Sugerido a Precio Anterior
   const handleCierreDeDia = () => {
     setPurchases((prev) => {
       const nextPurchases: Record<string, PurchaseRowValues> = {};
@@ -399,7 +386,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // DESCARGAR RESUMEN DIARIO EN EXCEL
   const handleExportDailyExcel = () => {
     let csv = `INFORME DIARIO DE COMPRAS Y COSTES\nFECHA EMISION:;${selectedDate};VALIDO A PARTIR DE:;${validFromDate}\n\n`;
     csv += 'ESTACION;TIPO;PRODUCTO;PRECIO ANTERIOR (EUR);PRECIO COMPRA HOY (EUR);CLH (TERMINAL);PORTE (R);PASE (S);FINANCIACION (T);COSTO TOTAL (EUR);P. VENTA SUGERIDO (EUR);MARGEN (EUR)\n';
@@ -437,11 +423,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     exportSection(fixedCollaborators, 'COLABORADORA FIJA');
     exportSection(remainingCollaborators, 'COLABORADORA RESTANTE');
 
-    // Tarifas Especiales
-    csv += '\nTARIFAS ESPECIALES (B50:F82);;;;;;;;;;;\n';
-    csv += 'TARIFA / CLIENTE;AMBITO;PRODUCTO;PRECIO BASE (EUR);AJUSTE (EUR);;;;PRECIO FINAL (EUR);;\n';
-    specialTariffs.forEach((row) => {
-      csv += `${row.name};${row.scope};${row.product};${row.basePrice.replace('.', ',')};${row.adjustment.replace('.', ',')};;;;${row.salePrice.replace('.', ',')};;\n`;
+    // Tarifas Especiales B50:F82
+    csv += '\nTARIFAS ESPECIALES CUADRO B50:F82;;;;;;;;;;;\n';
+    csv += 'ESTACION;PRECIO ACTUAL / ESPECIAL (EUR);PRECIO REFERENCIA (EUR);PRECIO BASE (EUR);;;;;;;;\n';
+    specialRates.forEach((row) => {
+      csv += `${row.name};${row.actualPrice.replace('.', ',')};${row.refPrice.replace('.', ',')};${row.basePrice.replace('.', ',')};;;;;;;;\n`;
     });
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -454,7 +440,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Renderizador de Tabla de Estaciones (Zero Inputs en CLH, Resaltado Amarillo en Celdas Modificadas)
   const renderStationTable = (
     title: string,
     subtitle: string,
@@ -652,7 +637,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* 5. CLH (Lugar Compra - Badge sin ningún input) */}
+                      {/* 5. CLH (Badge sin ningún input) */}
                       <td className="py-2.5 px-3">
                         {prod.code !== 'ADBLUE' ? (
                           <span
@@ -771,12 +756,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               Compras de Combustibles y Red de Estaciones
             </h2>
             <p className="text-slate-400 text-sm">
-              Cálculo automático de Costo Total = Compra + Porte (R) + Pase (S) + Financiación (T). P. Venta Sugerido sincronizado por defecto con Costo Total.
+              Cálculo automático de Costo Total = Compra + Porte + Pase + Financiación. P. Venta Sugerido sincronizado por defecto.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Selector de Fecha de Validez */}
             <div className="bg-slate-950 border border-slate-700 rounded-xl p-2 flex items-center space-x-2">
               <Calendar className="h-4 w-4 text-amber-400" />
               <div className="flex flex-col">
@@ -896,7 +880,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       {/* 3. Renderizado de las Tablas */}
       {activeProductTab !== 'SPECIAL' && (
         <div className="space-y-8">
-          {/* CUADRO 1: ESTACIONES PROPIAS (19 EESS) */}
           {renderStationTable(
             '1. Estaciones Propias',
             'Precios de compra y costes fijos (Porte, Pase, Financiación) de las 19 estaciones propias',
@@ -905,7 +888,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             'blue'
           )}
 
-          {/* CUADRO 2 (NUEVO EN SEGUNDO LUGAR): ESTACIONES COLABORADORAS FIJAS (13 EESS FIJAS) */}
           {renderStationTable(
             '2. Estaciones Colaboradoras Fijas',
             'Convenios fijos prioritarios de la red colaboradora con terminales y costes asignados',
@@ -914,7 +896,6 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             'orange'
           )}
 
-          {/* CUADRO 3: ESTACIONES COLABORADORAS RESTANTES (21 EESS) */}
           {renderStationTable(
             '3. Estaciones Colaboradoras Restantes',
             'Red complementaria de estaciones colaboradoras y depósitos de suministro',
@@ -925,7 +906,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         </div>
       )}
 
-      {/* SUB-VENTANA: TARIFAS ESPECIALES (B50:F82) */}
+      {/* SUB-VENTANA: TARIFAS ESPECIALES CUADRO B50:F82 EXACTO */}
       {(activeProductTab === 'SPECIAL' || activeProductTab === 'ALL') && (
         <div className="bg-slate-900 border border-emerald-500/30 rounded-3xl overflow-hidden shadow-2xl space-y-0">
           <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -936,20 +917,20 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               <div>
                 <div className="flex items-center space-x-2">
                   <h3 className="font-bold text-white text-base tracking-tight">
-                    Tarifas Especiales de Compra y Convenios (Hoja Cálculo Inicial B50:F82)
+                    Tarifas Especiales — Cuadro B50:F82 del Excel Oficial
                   </h3>
                   <span className="text-xs font-mono font-bold bg-slate-800 text-emerald-300 px-2.5 py-0.5 rounded-full border border-slate-700">
-                    {specialTariffs.length} Convenios
+                    31 Estaciones
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Precios base, condiciones y márgenes especiales de clientes y grupos logísticos
+                  Precios exactos del cuadro B50:F82 con estaciones resaltadas en azul y precios de referencia en rojo
                 </p>
               </div>
             </div>
 
             <div className="text-xs text-slate-400 font-mono">
-              Fórmula: P. Venta Especial = Precio Base + Ajuste
+              Valores editables con auto-guardado en tiempo real
             </div>
           </div>
 
@@ -957,81 +938,94 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             <table className="w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 bg-slate-950 z-20">
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
-                  <th className="py-3 px-4 sticky left-0 bg-slate-950 z-30">Tarifa / Convenio (B50:F82)</th>
-                  <th className="py-3 px-3">Ámbito / Estación</th>
-                  <th className="py-3 px-3">Producto</th>
-                  <th className="py-3 px-3 text-amber-300">Precio Base (€)</th>
-                  <th className="py-3 px-3 text-blue-300">Ajuste / Condición (€)</th>
-                  <th className="py-3 px-3 text-emerald-400 bg-slate-900/60 font-bold">Precio Final Venta (€)</th>
+                  <th className="py-3 px-4 w-12 text-center">Nº</th>
+                  <th className="py-3 px-6 sticky left-0 bg-slate-950 z-30">Estación</th>
+                  <th className="py-3 px-6 text-center text-amber-300 bg-slate-900/80">
+                    Precio Actual / Especial (€)
+                  </th>
+                  <th className="py-3 px-6 text-center text-rose-400 bg-slate-900/60">
+                    Precio Referencia (€)
+                  </th>
+                  <th className="py-3 px-6 text-center text-slate-300">
+                    Precio Base / Coste (€)
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {specialTariffs.map((row) => {
+                {specialRates.map((row, idx) => {
+                  const isActMod = modifiedKeys.has(`special_${row.id}_actualPrice`);
+                  const isRefMod = modifiedKeys.has(`special_${row.id}_refPrice`);
                   const isBaseMod = modifiedKeys.has(`special_${row.id}_basePrice`);
-                  const isAdjMod = modifiedKeys.has(`special_${row.id}_adjustment`);
-                  const isSaleMod = modifiedKeys.has(`special_${row.id}_salePrice`);
 
                   return (
                     <tr key={row.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-4 font-bold text-white sticky left-0 bg-slate-900 z-10 border-r border-slate-800 font-sans">
-                        <span className="text-emerald-300">{row.name}</span>
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-300 font-sans">{row.scope}</td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/20 font-sans">
-                          {row.product}
-                        </span>
-                      </td>
-                      
-                      {/* Precio Base */}
-                      <td className={`py-2.5 px-3 ${isBaseMod ? 'bg-amber-400/20' : ''}`}>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={row.basePrice}
-                          onChange={(e) => handleSpecialTariffChange(row.id, 'basePrice', e.target.value)}
-                          className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                            isBaseMod
-                              ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
-                              : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
-                          }`}
-                        />
+                      <td className="py-2.5 px-4 text-center font-bold text-slate-500 font-mono">
+                        {idx + 1}
                       </td>
 
-                      {/* Ajuste */}
-                      <td className={`py-2.5 px-3 ${isAdjMod ? 'bg-amber-400/20' : ''}`}>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={row.adjustment}
-                          onChange={(e) => handleSpecialTariffChange(row.id, 'adjustment', e.target.value)}
-                          className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                            isAdjMod
-                              ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
-                              : 'bg-slate-950 border border-slate-700 text-blue-300 focus:border-blue-400'
-                          }`}
-                        />
+                      {/* Estación con fondo azul para estaciones específicas como Alfajarín, Benamejí, Riba-roja, Pista de Silla */}
+                      <td
+                        className={`py-2.5 px-6 font-bold sticky left-0 z-10 border-r border-slate-800 font-sans ${
+                          row.isBlueBg
+                            ? 'bg-blue-900/50 text-blue-200 border-l-4 border-l-blue-400 font-black'
+                            : 'bg-slate-900 text-white'
+                        }`}
+                      >
+                        {row.name}
                       </td>
 
-                      {/* Precio Final Venta */}
-                      <td className={`py-2.5 px-3 bg-emerald-500/5 ${isSaleMod ? 'bg-amber-400/20' : ''}`}>
-                        <div className="relative inline-flex items-center">
+                      {/* Precio Actual / Especial (Fondo Amarillo en las resaltadas) */}
+                      <td className="py-2.5 px-6 text-center">
+                        <div className="inline-flex items-center justify-center">
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={row.salePrice}
-                            onChange={(e) => handleSpecialTariffChange(row.id, 'salePrice', e.target.value)}
-                            className={`w-28 rounded px-2 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
-                              isSaleMod
-                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
-                                : 'bg-slate-950 border border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
+                            value={row.actualPrice}
+                            onChange={(e) => handleSpecialRateChange(row.id, 'actualPrice', e.target.value)}
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black text-center transition-all focus:outline-none ${
+                              isActMod
+                                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-md font-black'
+                                : row.isYellowPrice
+                                ? 'bg-amber-300 text-slate-950 font-black shadow-sm'
+                                : 'bg-slate-950 border border-slate-700 text-slate-100 focus:border-amber-400'
                             }`}
                           />
-                          {isSaleMod && (
-                            <span className="ml-1.5 text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded shadow">
-                              MOD
-                            </span>
-                          )}
+                        </div>
+                      </td>
+
+                      {/* Precio Referencia (Texto Rojo según el Excel) */}
+                      <td className="py-2.5 px-6 text-center">
+                        <div className="inline-flex items-center justify-center">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={row.refPrice}
+                            onChange={(e) => handleSpecialRateChange(row.id, 'refPrice', e.target.value)}
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all focus:outline-none ${
+                              isRefMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
+                                : row.isRedRef
+                                ? 'bg-slate-950 border border-rose-900/50 text-rose-400 font-bold focus:border-rose-400'
+                                : 'bg-slate-950 border border-slate-700 text-slate-300 focus:border-amber-400'
+                            }`}
+                          />
+                        </div>
+                      </td>
+
+                      {/* Precio Base / Coste */}
+                      <td className="py-2.5 px-6 text-center">
+                        <div className="inline-flex items-center justify-center">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={row.basePrice}
+                            onChange={(e) => handleSpecialRateChange(row.id, 'basePrice', e.target.value)}
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono text-center transition-all focus:outline-none ${
+                              isBaseMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
+                                : 'bg-slate-950 border border-slate-800 text-slate-400 focus:border-amber-400'
+                            }`}
+                          />
                         </div>
                       </td>
                     </tr>
