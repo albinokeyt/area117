@@ -78,7 +78,6 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'ESPECIAL COMPLETO', markup: 0.0116 },
   { name: 'TARIFA 40', markup: 0.0400 },
   { name: 'TARIFA 42', markup: 0.0420 },
-  { name: 'TARIFA 45', markup: 0.0450 },
   { name: 'TARIFA 47', markup: 0.0470 },
   { name: 'TARIFA 50', markup: 0.0600 },
   { name: 'TARIFA 60', markup: 0.0800 },
@@ -114,11 +113,8 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           // Reconciliar con INITIAL_TARIFFS_LIST para asegurar markups oficiales exactos
-          const merged = INITIAL_TARIFFS_LIST.map((initT) => {
-            const found = parsed.find((p) => p.name === initT.name);
-            return found && found.markup < 0.1 ? found : initT;
-          });
-          // Añadir tarifas personalizadas creadas por el usuario
+          // Asegurar siempre los markups oficiales de INITIAL_TARIFFS_LIST (ej. TARIFA 47 = +0.0470)
+          const merged = [...INITIAL_TARIFFS_LIST];
           parsed.forEach((p) => {
             if (!merged.some((m) => m.name === p.name)) {
               merged.push(p);
