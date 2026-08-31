@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
+import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import {
   FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check
 } from 'lucide-react';
@@ -12,15 +12,15 @@ interface SabanaProps {
 
 // Tarifas Estándar (Columnas B a T en el Excel)
 const STANDARD_TARIFFS = [
-  { id: '12', name: '12', colTitle: '12 SIN IVA', markup: 0.120 },
-  { id: '18', name: '18', colTitle: '18 SIN IVA', markup: 0.126 },
-  { id: '24', name: '24', colTitle: '24 SIN IVA', markup: 0.132 },
-  { id: '36', name: '36', colTitle: '36 SIN IVA', markup: 0.144 },
-  { id: '40', name: '40', colTitle: '40 SIN IVA', markup: 0.148 },
-  { id: '42', name: '42', colTitle: '42 SIN IVA', markup: 0.150 },
-  { id: '47', name: '47', colTitle: '47 SIN IVA', markup: 0.155 },
-  { id: '50', name: '50 (60)', colTitle: '50 (60) SIN IVA', markup: 0.160 },
-  { id: '60', name: '60 (80)', colTitle: '60 (80) SIN IVA', markup: 0.170 },
+  { id: '12', name: '12', colTitle: '12 SIN IVA', markup: 0.0120 },
+  { id: '18', name: '18', colTitle: '18 SIN IVA', markup: 0.0180 },
+  { id: '24', name: '24', colTitle: '24 SIN IVA', markup: 0.0240 },
+  { id: '36', name: '36', colTitle: '36 SIN IVA', markup: 0.0360 },
+  { id: '40', name: '40', colTitle: '40 SIN IVA', markup: 0.0400 },
+  { id: '42', name: '42', colTitle: '42 SIN IVA', markup: 0.0420 },
+  { id: '47', name: '47', colTitle: '47 SIN IVA', markup: 0.0470 },
+  { id: '50', name: '50', colTitle: '50 SIN IVA', markup: 0.0600 },
+  { id: '60', name: '60', colTitle: '60 SIN IVA', markup: 0.0800 },
 ];
 
 // Estructura de Tarifas Especiales Solicitadas
@@ -114,6 +114,38 @@ const isPurpleHighlightedStation = (stName: string): boolean => {
 export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [searchFilter, setSearchFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
+  const [comprasPurchases, setComprasPurchases] = useState<Record<string, { sale: string }>>({});
+
+  React.useEffect(() => {
+    try {
+      const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
+      const savedGlobal = localStorage.getItem('efi_compras_data');
+      if (savedDate) {
+        const parsed = JSON.parse(savedDate);
+        if (parsed.data) setComprasPurchases(parsed.data);
+      } else if (savedGlobal) {
+        const parsed = JSON.parse(savedGlobal);
+        if (parsed.data) setComprasPurchases(parsed.data);
+      }
+    } catch (e) {}
+  }, [selectedDate]);
+
+  // Obtener P. Venta Sugerido de Compras para cada estación
+  const getStationBasePrice = (stName: string, isPropia?: boolean): number => {
+    const key = `${stName}_GOA`;
+    if (comprasPurchases[key]?.sale) {
+      const val = parseFloat(comprasPurchases[key].sale.toString().replace(',', '.'));
+      if (!isNaN(val) && val > 0) return val;
+    }
+
+    const costs = STATION_EXCEL_COSTS[stName] || {
+      porte: 0.0050,
+      pase: 0.0100,
+      fin: 0.0100,
+      defaultCurr: 1.2000,
+    };
+    return Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+  };
   const [downloadToast, setDownloadToast] = useState<string | null>(null);
 
   const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
@@ -124,12 +156,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     return matchesSearch && matchesType;
   });
 
-  // Base price calculation per station
-  const getStationBasePrice = (stName: string, isPropia: boolean) => {
-    const hash = stName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const offset = (hash % 10) * 0.002;
-    return isPropia ? 1.1520 + offset : 1.1560 + offset;
-  };
+
 
   const triggerDownload = (fileName: string, csvContent: string) => {
     const validDate = (() => {
