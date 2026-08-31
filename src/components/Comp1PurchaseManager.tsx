@@ -148,6 +148,19 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   };
 
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
+    try {
+      const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
+      const savedGlobal = localStorage.getItem('efi_compras_data');
+      if (savedDate) {
+        const parsed = JSON.parse(savedDate);
+        if (parsed.data && Object.keys(parsed.data).length > 0) return parsed.data;
+      }
+      if (savedGlobal) {
+        const parsed = JSON.parse(savedGlobal);
+        if (parsed.data && Object.keys(parsed.data).length > 0) return parsed.data;
+      }
+    } catch (e) {}
+
     const initial: Record<string, PurchaseRowValues> = {};
     
     [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS].forEach((st) => {
@@ -208,7 +221,16 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   });
 
   // Estado de Tarifas Especiales B50:F82 EXACTAS
-  const [specialRates, setSpecialRates] = useState<SpecialStationRateRow[]>(DEFAULT_SPECIAL_RATES_B50_F82);
+  const [specialRates, setSpecialRates] = useState<SpecialStationRateRow[]>(() => {
+    try {
+      const saved = localStorage.getItem('efi_special_rates_b50_f82_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_SPECIAL_RATES_B50_F82;
+  });
 
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
   const [isSaved, setIsSaved] = useState(false);

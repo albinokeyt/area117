@@ -38,6 +38,13 @@ export function PostesManager() {
   };
 
   const [postes, setPostes] = useState<Record<string, { goa: string; gasolina: string; gasolinaGain: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('efi_postes_data_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.postes && Object.keys(parsed.postes).length > 0) return parsed.postes;
+      }
+    } catch (e) {}
     const init: Record<string, { goa: string; gasolina: string; gasolinaGain: string }> = {};
     POSTES_PROPIAS_STATIONS.forEach((st) => {
       init[st.name] = {
@@ -49,47 +56,90 @@ export function PostesManager() {
     return init;
   });
 
-  // HVO Configuration
-  const [hvoGeneralBase, setHvoGeneralBase] = useState('1.2000');
-  const [hvoGeneralAddition, setHvoGeneralAddition] = useState('0.3280');
-  const [hvoAlfajarinSinIva, setHvoAlfajarinSinIva] = useState('1.2560');
-  const [hvoValdemoroAddition, setHvoValdemoroAddition] = useState('0.0700');
-
-  // Gasóleo B Configuration
-  const [gasoleoBPosteGlobal, setGasoleoBPosteGlobal] = useState('1.2890');
-  const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string; poste: string }>>({
-    'UCLES': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
-    'TORREMOCHA': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
-    'ARCOS': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
+  // HVO Configuration con carga directa de localStorage
+  const [hvoGeneralBase, setHvoGeneralBase] = useState(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      return s ? JSON.parse(s).hvoGeneralBase || '1.2000' : '1.2000';
+    } catch (e) { return '1.2000'; }
+  });
+  const [hvoGeneralAddition, setHvoGeneralAddition] = useState(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      return s ? JSON.parse(s).hvoGeneralAddition || '0.3280' : '0.3280';
+    } catch (e) { return '0.3280'; }
+  });
+  const [hvoAlfajarinSinIva, setHvoAlfajarinSinIva] = useState(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      return s ? JSON.parse(s).hvoAlfajarinSinIva || '1.2560' : '1.2560';
+    } catch (e) { return '1.2560'; }
+  });
+  const [hvoValdemoroAddition, setHvoValdemoroAddition] = useState(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      return s ? JSON.parse(s).hvoValdemoroAddition || '0.0700' : '0.0700';
+    } catch (e) { return '0.0700'; }
   });
 
-  const [adblueRows, setAdblueRows] = useState<Record<string, { compra: string; poste: string }>>({
-    'TORREJON': { compra: '0.5360', poste: '0.8490' },
-    'ARCOS JALON': { compra: '0.2650', poste: '0.7490' },
-    'ALFAJARIN': { compra: '0.4000', poste: '0.8490' },
-    'TORREMOCHA': { compra: '0.2650', poste: '0.7490' },
-    'MADRID': { compra: '0.5360', poste: '0.8490' },
-    'VALLECAS': { compra: '0.6190', poste: '0.8490' },
-    'HUMILLADERO': { compra: '0.5770', poste: '0.7900' },
-    'UCLES': { compra: '0.3000', poste: '0.7990' },
-    'BENAMEJI': { compra: '0.5360', poste: '0.7990' },
-    'SORIA ALCUBILLAS': { compra: '0.2550', poste: '0.8490' },
+  // Gasóleo B Configuration con carga síncrona
+  const [gasoleoBPosteGlobal, setGasoleoBPosteGlobal] = useState(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      return s ? JSON.parse(s).gasoleoBPosteGlobal || '1.2890' : '1.2890';
+    } catch (e) { return '1.2890'; }
+  });
+  const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string; poste: string }>>(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      if (s && JSON.parse(s).gasoleoBRows) return JSON.parse(s).gasoleoBRows;
+    } catch (e) {}
+    return {
+      'UCLES': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
+      'TORREMOCHA': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
+      'ARCOS': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
+    };
   });
 
-    const [broncoRow, setBroncoRow] = useState<{
+  const [adblueRows, setAdblueRows] = useState<Record<string, { compra: string; poste: string }>>(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      if (s && JSON.parse(s).adblue) return JSON.parse(s).adblue;
+    } catch (e) {}
+    return {
+      'TORREJON': { compra: '0.5360', poste: '0.8490' },
+      'ARCOS JALON': { compra: '0.2650', poste: '0.7490' },
+      'ALFAJARIN': { compra: '0.4000', poste: '0.8490' },
+      'TORREMOCHA': { compra: '0.2650', poste: '0.7490' },
+      'MADRID': { compra: '0.5360', poste: '0.8490' },
+      'VALLECAS': { compra: '0.6190', poste: '0.8490' },
+      'HUMILLADERO': { compra: '0.5770', poste: '0.7900' },
+      'UCLES': { compra: '0.3000', poste: '0.7990' },
+      'BENAMEJI': { compra: '0.5360', poste: '0.7990' },
+      'SORIA ALCUBILLAS': { compra: '0.2550', poste: '0.8490' },
+    };
+  });
+
+  const [broncoRow, setBroncoRow] = useState<{
     name: string;
     sinIva: string;
     conIva: string;
     beneficio: string;
     compra: string;
     fecha: string;
-  }>({
-    name: 'GASOLINA BRONCO',
-    sinIva: '1.305',
-    conIva: '1.579',
-    beneficio: '0.048',
-    compra: '1.242',
-    fecha: '14/08/2026',
+  }>(() => {
+    try {
+      const s = localStorage.getItem('efi_postes_data_v2');
+      if (s && JSON.parse(s).bronco) return JSON.parse(s).bronco;
+    } catch (e) {}
+    return {
+      name: 'GASOLINA BRONCO',
+      sinIva: '1.305',
+      conIva: '1.579',
+      beneficio: '0.048',
+      compra: '1.242',
+      fecha: '14/08/2026',
+    };
   });
 
   const [gasesRows, setGasesRows] = useState<Record<string, { sinIva: string; poste: string }>>({
