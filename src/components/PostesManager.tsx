@@ -178,12 +178,16 @@ export function PostesManager() {
   const computedHvoGeneralSinIva = Number((parseNum(hvoGeneralBase) + parseNum(hvoGeneralAddition)).toFixed(4));
   const computedHvoGeneralConIva = Number((computedHvoGeneralSinIva * 1.21).toFixed(4));
 
-  const computedHvoAlfajarinSinIva = parseNum(hvoAlfajarinSinIva);
+  // HVO Alfajarín: Por defecto se copia exactamente del HVO Poste General
+  const computedHvoAlfajarinSinIva = hvoAlfajarinSinIva && modifiedKeys.has('hvo_alfajarin')
+    ? parseNum(hvoAlfajarinSinIva)
+    : computedHvoGeneralSinIva;
   const computedHvoAlfajarinConIva = Number((computedHvoAlfajarinSinIva * 1.21).toFixed(4));
 
+  // HVO Valdemoro: Se le suma el monto al GOA Poste Valdemoro (con IVA) y para calcular sin IVA se divide entre 1.21
   const goaValdemoroPrice = parseNum(postes['VALDEMORO']?.goa || '1.489');
-  const computedHvoValdemoroSinIva = Number((goaValdemoroPrice + parseNum(hvoValdemoroAddition)).toFixed(4));
-  const computedHvoValdemoroConIva = Number((computedHvoValdemoroSinIva * 1.21).toFixed(4));
+  const computedHvoValdemoroConIva = Number((goaValdemoroPrice + parseNum(hvoValdemoroAddition)).toFixed(4));
+  const computedHvoValdemoroSinIva = Number((computedHvoValdemoroConIva / 1.21).toFixed(4));
 
   useEffect(() => {
     try {
