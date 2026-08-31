@@ -54,6 +54,7 @@ export interface SpecialStationRateRow {
   basePrice: string;
   isCustomActual?: boolean;
   isCustomRef?: boolean;
+  isCustomBase?: boolean;
 }
 
 const DEFAULT_SPECIAL_RATES_B50_F82: SpecialStationRateRow[] = [
