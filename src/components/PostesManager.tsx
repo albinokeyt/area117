@@ -101,6 +101,28 @@ export function PostesManager() {
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
   const [isSaved, setIsSaved] = useState(false);
   const [imageToast, setImageToast] = useState<string | null>(null);
+  const [validFromDate, setValidFromDate] = useState<string>(() => {
+    try {
+      return localStorage.getItem('efi_compras_valid_from') || new Date().toISOString().split('T')[0];
+    } catch (e) {
+      return new Date().toISOString().split('T')[0];
+    }
+  });
+
+  useEffect(() => {
+    const updateValidDate = () => {
+      try {
+        const saved = localStorage.getItem('efi_compras_valid_from');
+        if (saved) setValidFromDate(saved);
+      } catch (e) {}
+    };
+    window.addEventListener('efi_valid_date_changed', updateValidDate);
+    window.addEventListener('storage', updateValidDate);
+    return () => {
+      window.removeEventListener('efi_valid_date_changed', updateValidDate);
+      window.removeEventListener('storage', updateValidDate);
+    };
+  }, []);
 
   // Cálculos dinámicos de HVO
   const computedHvoGeneralSinIva = Number((parseNum(hvoGeneralBase) + parseNum(hvoGeneralAddition)).toFixed(4));

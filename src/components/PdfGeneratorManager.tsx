@@ -117,7 +117,28 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   });
 
   const [selectedTariff, setSelectedTariff] = useState('TARIFA 12');
-  const [targetDate, setTargetDate] = useState(selectedDate);
+  const [targetDate, setTargetDate] = useState<string>(() => {
+    try {
+      return localStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
+    } catch (e) {
+      return selectedDate;
+    }
+  });
+
+  useEffect(() => {
+    const updateValidDate = () => {
+      try {
+        const saved = localStorage.getItem('efi_compras_valid_from');
+        if (saved) setTargetDate(saved);
+      } catch (e) {}
+    };
+    window.addEventListener('efi_valid_date_changed', updateValidDate);
+    window.addEventListener('storage', updateValidDate);
+    return () => {
+      window.removeEventListener('efi_valid_date_changed', updateValidDate);
+      window.removeEventListener('storage', updateValidDate);
+    };
+  }, []);
   const [searchFilter, setSearchFilter] = useState('');
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
 
@@ -224,7 +245,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
   const handlePrintPdf = () => {
     const cleanTariffName = selectedTariff.replace(/\s+/g, '_').toUpperCase();
-    const fileName = `${cleanTariffName}_${targetDate}.pdf`;
+    const fileName = `${cleanTariffName}_VALIDO_A_PARTIR_DE_${targetDate}.pdf`;
 
     const originalTitle = document.title;
     document.title = fileName.replace('.pdf', '');

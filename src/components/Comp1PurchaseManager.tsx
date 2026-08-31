@@ -248,6 +248,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setValidFromDate(newDate);
     try {
       localStorage.setItem('efi_compras_valid_from', newDate);
+      localStorage.setItem('efi_global_valid_from_date', newDate);
+      window.dispatchEvent(new Event('efi_valid_date_changed'));
     } catch (e) {}
   };
 
@@ -387,7 +389,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   };
 
   const handleExportDailyExcel = () => {
-    let csv = `INFORME DIARIO DE COMPRAS Y COSTES\nFECHA EMISION:;${selectedDate};VALIDO A PARTIR DE:;${validFromDate}\n\n`;
+    let csv = `INFORME DIARIO DE COMPRAS Y COSTES - AREA 117\nFECHA EMISION:;${selectedDate};PRECIOS VALIDOS A PARTIR DE:;${validFromDate}\nAVISO IMPORTANTE:;TODOS LOS PRECIOS Y COSTES TIENEN VALIDEZ OFICIAL A PARTIR DEL:;${validFromDate}\n\n`;
     csv += 'ESTACION;TIPO;PRODUCTO;PRECIO ANTERIOR (EUR);PRECIO COMPRA HOY (EUR);CLH (TERMINAL);PORTE (R);PASE (S);FINANCIACION (T);COSTO TOTAL (EUR);P. VENTA SUGERIDO (EUR);MARGEN (EUR)\n';
 
     const exportSection = (stationList: typeof propiasStations, typeLabel: string) => {
@@ -433,7 +435,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `EFI_COMPRAS_DIARIO_${selectedDate}.csv`;
+    link.download = `EFI_COMPRAS_VALIDO_A_PARTIR_DE_${validFromDate}.csv`;
     link.click();
 
     setToastMessage(`Descargando archivo Excel: EFI_COMPRAS_DIARIO_${selectedDate}.csv`);

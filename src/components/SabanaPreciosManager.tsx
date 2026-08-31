@@ -132,10 +132,18 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   };
 
   const triggerDownload = (fileName: string, csvContent: string) => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    const cleanFileName = fileName.replace('.csv', `_VALIDO_${validDate}.csv`);
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = fileName;
+    link.download = cleanFileName;
     link.click();
     setDownloadToast(fileName);
     setTimeout(() => setDownloadToast(null), 3500);
@@ -143,7 +151,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   // Descarga de la tabla de Tarifas Estándar con el formato EXACTO del Excel (media_1787840120442.png)
   const handleExportStandardCsv = () => {
-    let csv = 'EESS DE SERVICIO;';
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    let csv = `SABANA DE PRECIOS - AREA 117\nFECHA EMISION:;${selectedDate};PRECIOS VALIDOS A PARTIR DE:;${validDate}\nAVISO:;PRECIOS Y CONDICIONES APLICABLES A PARTIR DEL:;${validDate}\n\nEESS DE SERVICIO;`;
     STANDARD_TARIFFS.forEach((t) => {
       csv += `${t.colTitle};CON IVA;`;
     });
