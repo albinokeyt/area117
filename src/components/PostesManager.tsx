@@ -76,6 +76,22 @@ export function PostesManager() {
     'SORIA ALCUBILLAS': { compra: '0.2550', poste: '0.8490' },
   });
 
+    const [broncoRow, setBroncoRow] = useState<{
+    name: string;
+    sinIva: string;
+    conIva: string;
+    beneficio: string;
+    compra: string;
+    fecha: string;
+  }>({
+    name: 'GASOLINA BRONCO',
+    sinIva: '1.305',
+    conIva: '1.579',
+    beneficio: '0.048',
+    compra: '1.242',
+    fecha: '14/08/2026',
+  });
+
   const [gasesRows, setGasesRows] = useState<Record<string, { sinIva: string; poste: string }>>({
     'GLP / Autogas': { sinIva: '0.7850', poste: '0.9490' },
     'GNC (Gas Natural Comprimido)': { sinIva: '0.9500', poste: '1.1490' },
@@ -111,6 +127,7 @@ export function PostesManager() {
         if (parsed.gasoleoBPosteGlobal) setGasoleoBPosteGlobal(parsed.gasoleoBPosteGlobal);
         if (parsed.adblue) setAdblueRows(parsed.adblue);
         if (parsed.gases) setGasesRows(parsed.gases);
+        if (parsed.bronco) setBroncoRow(parsed.bronco);
         if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
       }
     } catch (e) {
@@ -149,6 +166,7 @@ export function PostesManager() {
           gasoleoBPosteGlobal,
           adblue: adblueRows,
           gases: gasesRows,
+          bronco: broncoRow,
           modified: Array.from(modifiedKeys),
           updatedAt: new Date().toISOString(),
         })
@@ -549,6 +567,91 @@ export function PostesManager() {
     link.click();
 
     setImageToast('Imagen PNG generada: POSTES_GASOLEO_B_TRANSFER_RED.png');
+    setTimeout(() => setImageToast(null), 3500);
+  };
+
+    // 5. Descarga PNG Gasolina Bronco
+  const downloadGasolinaBroncoPng = () => {
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    const rowHeight = 44;
+    const totalRows = 2; // Sin IVA y Con IVA
+
+    const col1Width = 180;
+    const col2Width = 170;
+    const col3Width = 140;
+    const width = col1Width + col2Width + col3Width;
+    const height = totalRows * rowHeight;
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    // Columna 1: Nombre
+    ctx.fillStyle = '#FBE8DB';
+    ctx.fillRect(0, 0, col1Width, rowHeight * 2);
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('GASOLINA BRONCO', col1Width / 2, rowHeight);
+
+    // Fila 1: SIN IVA
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(col1Width, 0, col2Width, rowHeight);
+    ctx.fillStyle = '#000000';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('SIN IVA', col1Width + col2Width / 2, rowHeight / 2);
+
+    ctx.fillStyle = '#FFF000';
+    ctx.fillRect(col1Width + col2Width, 0, col3Width, rowHeight);
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(parseNum(broncoRow.sinIva).toFixed(3).replace('.', ','), col1Width + col2Width + col3Width / 2, rowHeight / 2);
+
+    // Fila 2: CON IVA
+    const y2 = rowHeight;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(col1Width, y2, col2Width, rowHeight);
+    ctx.fillStyle = '#000000';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('CON IVA (21%)', col1Width + col2Width / 2, y2 + rowHeight / 2);
+
+    ctx.fillStyle = '#FFF000';
+    ctx.fillRect(col1Width + col2Width, y2, col3Width, rowHeight);
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(parseNum(broncoRow.conIva).toFixed(3).replace('.', ','), col1Width + col2Width + col3Width / 2, y2 + rowHeight / 2);
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(col1Width, y2);
+    ctx.lineTo(width, y2);
+    ctx.stroke();
+
+    ctx.strokeRect(0, 0, width, height);
+
+    ctx.beginPath();
+    ctx.moveTo(col1Width, 0);
+    ctx.lineTo(col1Width, height);
+    ctx.moveTo(col1Width + col2Width, 0);
+    ctx.lineTo(col1Width + col2Width, height);
+    ctx.stroke();
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'POSTES_GASOLINA_BRONCO.png';
+    link.click();
+
+    setImageToast('Imagen PNG generada: POSTES_GASOLINA_BRONCO.png');
     setTimeout(() => setImageToast(null), 3500);
   };
 
