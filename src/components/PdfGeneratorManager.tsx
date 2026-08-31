@@ -148,6 +148,30 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
   // Mapa de Estaciones Activas por Tarifa (TariffName -> Array de nombres de estaciones activas)
   const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+    // Mapa para Incluir/Quitar información de HVO por Tarifa (TariffName -> boolean)
+  const [includeHvoMap, setIncludeHvoMap] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('efi_pdf_include_hvo_map');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  });
+
+  const isHvoIncluded = includeHvoMap[selectedTariff] !== undefined
+    ? includeHvoMap[selectedTariff]
+    : true; // Por defecto incluido
+
+  const toggleIncludeHvo = () => {
+    setIncludeHvoMap((prev) => {
+      const nextVal = !isHvoIncluded;
+      const updated = { ...prev, [selectedTariff]: nextVal };
+      try {
+        localStorage.setItem('efi_pdf_include_hvo_map', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
   const [activeStationsMap, setActiveStationsMap] = useState<Record<string, string[]>>(() => {
     try {
       const saved = localStorage.getItem('efi_tariff_active_stations_map');
@@ -236,6 +260,38 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     const conIva = Number((sinIva * 1.21).toFixed(4));
     return { sinIva, conIva };
   };
+
+  // Precios dinámicos de HVO desde Postes
+  const hvoPrices = (() => {
+    try {
+      const saved = localStorage.getItem('efi_postes_data_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const base = parseFloat(parsed.hvoGeneralBase || '1.2000');
+        const add = parseFloat(parsed.hvoGeneralAddition || '0.3280');
+        const genSinIva = base + add;
+        const genConIva = genSinIva * 1.21;
+
+        const valAdd = parseFloat(parsed.hvoValdemoroAddition || '0.0700');
+        const valGoa = parseFloat(parsed.postes?.['VALDEMORO']?.goa || '1.489');
+        const valConIva = valGoa + valAdd;
+        const valSinIva = valConIva / 1.21;
+
+        return {
+          alfajarinSinIva: genSinIva.toFixed(3),
+          alfajarinConIva: genConIva.toFixed(3),
+          valdemoroSinIva: valSinIva.toFixed(3),
+          valdemoroConIva: valConIva.toFixed(3),
+        };
+      }
+    } catch (e) {}
+    return {
+      alfajarinSinIva: '1.256',
+      alfajarinConIva: '1.520',
+      valdemoroSinIva: '1.347',
+      valdemoroConIva: '1.630',
+    };
+  })();
 
   // Filtrado por búsqueda y por estación activa para el preview/impresión
   const filteredActiveStations = allStations
@@ -377,6 +433,36 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
             </button>
           </div>
         </div>
+
+        {/* Interruptor para Incluir o Quitar Banners de HVO en esta Tarifa */}
+        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-3">
+            <div className={`p-2.5 rounded-xl border ${isHvoIncluded ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+              <Flame className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white block">Información de HVO en este PDF</span>
+              <span className="text-[11px] text-slate-400">
+                {isHvoIncluded
+                  ? `Banners de HVO Alfajarín y Valdemoro ACTIVOS para ${selectedTariff}`
+                  : `Banners de HVO OCULTOS para ${selectedTariff}`}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleIncludeHvo}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 shadow-md active:scale-95 ${
+              isHvoIncluded
+                ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-amber-500/20'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+            }`}
+          >
+            {isHvoIncluded ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+            <span>{isHvoIncluded ? 'HVO Incluido en PDF [✓]' : 'HVO Oculto en PDF [✗]'}</span>
+          </button>
+        </div>
       </div>
 
       {/* DOCUMENT PREVIEW & PDF CONTAINER */}
@@ -399,34 +485,36 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
           </div>
         </div>
 
-        {/* HVO Banner Highlights */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
-            <div>
-              <span className="font-black text-amber-900 block text-[11px] uppercase">
-                GASÓLEO HVO EN ALFAJARÍN — ALFA ENERGÍA
-              </span>
-              <span className="text-slate-600 text-[10px]">Hidrobiodiésel Renovable</span>
+        {/* HVO Banner Highlights (Opcional por tarifa) */}
+        {isHvoIncluded && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="font-black text-amber-900 block text-[11px] uppercase">
+                  GASÓLEO HVO EN ALFAJARÍN — ALFA ENERGÍA
+                </span>
+                <span className="text-slate-600 text-[10px]">Hidrobiodiésel Renovable</span>
+              </div>
+              <div className="text-right font-mono">
+                <span className="text-xs font-bold text-amber-950 block">SIN IVA: {hvoPrices.alfajarinSinIva.replace('.', ',')} €/L</span>
+                <span className="text-[10px] text-amber-800">CON IVA: {hvoPrices.alfajarinConIva.replace('.', ',')} €/L</span>
+              </div>
             </div>
-            <div className="text-right font-mono">
-              <span className="text-xs font-bold text-amber-950 block">SIN IVA: 1,256 €/L</span>
-              <span className="text-[10px] text-amber-800">CON IVA: 1,520 €/L</span>
-            </div>
-          </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
-            <div>
-              <span className="font-black text-amber-900 block text-[11px] uppercase">
-                GASÓLEO HVO EN VALDEMORO — AREA 117
-              </span>
-              <span className="text-slate-600 text-[10px]">Hidrobiodiésel Renovable</span>
-            </div>
-            <div className="text-right font-mono">
-              <span className="text-xs font-bold text-amber-950 block">SIN IVA: 1,347 €/L</span>
-              <span className="text-[10px] text-amber-800">CON IVA: 1,630 €/L</span>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="font-black text-amber-900 block text-[11px] uppercase">
+                  GASÓLEO HVO EN VALDEMORO — AREA 117
+                </span>
+                <span className="text-slate-600 text-[10px]">Hidrobiodiésel Renovable</span>
+              </div>
+              <div className="text-right font-mono">
+                <span className="text-xs font-bold text-amber-950 block">SIN IVA: {hvoPrices.valdemoroSinIva.replace('.', ',')} €/L</span>
+                <span className="text-[10px] text-amber-800">CON IVA: {hvoPrices.valdemoroConIva.replace('.', ',')} €/L</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Stations Table con Columna de Estaciones Activas Checkbox */}
         <div className="overflow-x-auto border border-slate-300 rounded-xl">
