@@ -10,7 +10,6 @@ interface Comp2Props {
 
 export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
   const [fixedStationPrices, setFixedStationPrices] = useState<Record<string, number>>({
-    'Z.FRANCA': 1.1850,
     'BENAVENTE': 1.1790,
     'IRUN ZAISA III': 1.1920,
     'AVILESINA': 1.1880,
@@ -204,7 +203,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
         </div>
       </div>
 
-      {/* Fixed Colaboradoras Section (Z.FRANCA, BENAVENTE, IRUN ZAISA III, etc.) */}
+      {/* Fixed Colaboradoras Section (BENAVENTE, IRUN ZAISA III, etc.) */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
           <h3 className="text-lg font-bold text-amber-300 flex items-center space-x-2">
@@ -267,8 +266,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
           </div>
           <div>ARCOS ; ARCOS ; GOA ; 1.1950 ; 1.4460 ; {selectedDate}</div>
           <div>ALCUBILLAS ; ALCUBILLAS ; GOA ; 1.1950 ; 1.4460 ; {selectedDate}</div>
-          <div>Z.FRANCA ; Z.FRANCA ; GOA ; {fixedStationPrices['Z.FRANCA'].toFixed(4)} ; {(fixedStationPrices['Z.FRANCA'] * 1.21).toFixed(4)} ; {selectedDate}</div>
-          <div>BENAVENTE ; BENAVENTE ; GOA ; {fixedStationPrices['BENAVENTE'].toFixed(4)} ; {(fixedStationPrices['BENAVENTE'] * 1.21).toFixed(4)} ; {selectedDate}</div>
+                    <div>BENAVENTE ; BENAVENTE ; GOA ; {fixedStationPrices['BENAVENTE'].toFixed(4)} ; {(fixedStationPrices['BENAVENTE'] * 1.21).toFixed(4)} ; {selectedDate}</div>
           <div className="text-slate-600 italic">... +{PROPIAS_STATIONS.length + COLABORADORA_STATIONS.length - 4} filas de estaciones listas para EFI ...</div>
         </div>
       </div>

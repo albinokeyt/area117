@@ -14,7 +14,6 @@ interface Comp1Props {
 
 // 13 Colaboradoras Fijas (Columna J) para el 2do Cuadro
 const FIXED_COLLABORATOR_NAMES = [
-  'Z.FRANCA',
   'BENAVENTE',
   'IRUN ZAISA III',
   'AVILESINA',

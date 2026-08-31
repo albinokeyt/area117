@@ -39,7 +39,6 @@ const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> 
   'LA JOYOSA': { bandera: 'VALCARCE', ubicacion: 'Autovía de Logroño, A-68 - Salida 257, Zaragoza' },
   'JUNDIZ NORPETROL': { bandera: 'NORPETROL', ubicacion: 'Margarita Entitatea, 16, 01195 Margarita, Álava' },
   'OLIVERAL': { bandera: 'ALZ', ubicacion: 'Carrer A, 57 - 46394 Ribarroja de Túria, Valencia' },
-  'Z.FRANCA': { bandera: 'NIEVES', ubicacion: 'C/ Letra B de la Zona Franca, 13-15, 08040 Barcelona' },
   'GUARROMAN': { bandera: 'VALCARCE', ubicacion: 'Carretera N-IV, Salida 280, Guarromán, Jaén' },
   'VALDEPEÑAS': { bandera: 'VALCARCE', ubicacion: 'Autovía A-4, KM 200, Valdepeñas, Ciudad Real' },
   'OPEN': { bandera: 'OPEN', ubicacion: 'Polígono Industrial Las Quemadas, Córdoba' },

@@ -199,7 +199,7 @@ export function InstructionsManager() {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
               {[
-                'Z.FRANCA', 'BENAVENTE', 'IRUN ZAISA III', 'AVILESINA',
+                'BENAVENTE', 'IRUN ZAISA III', 'AVILESINA',
                 'MERIDA', 'SANCTI-SPIRITUS', 'SAN VICENTE DEL PALACIO', 'WATERY ARANDA',
                 'PUERTO DE BARCELONA', 'FEGOBLAN PONTEVEDRA', 'VEGA DE VALCARCE', 'HOILA TOLEDO', 'PETREM FIGUERES'
               ].map((s) => (

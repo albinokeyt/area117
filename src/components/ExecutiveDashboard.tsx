@@ -214,7 +214,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
           costAvg: '1.1865 €/L',
           gainAvg: '0.0395 €/L',
           marginPct: '3.33%',
-          commentary: 'Precios de Z.FRANCA, BENAVENTE, IRUN y resto de colaboradoras validados para EFI.',
+          commentary: 'Precios de BENAVENTE, IRUN y resto de colaboradoras validados para EFI.',
         },
         semana: {
           current: '16,280 € Ganancia Semanal',
@@ -380,7 +380,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
               34 <span className="text-xs text-slate-400">EESS (13 Fijas)</span>
             </p>
             <p className="text-[11px] text-purple-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>Z.Franca, Irun, Benavente...</span>
+              <span>Irun, Benavente...</span>
               <span className="text-slate-600">&bull;</span>
               <span className="underline group-hover:text-purple-300">Ver histórico</span>
             </p>
