@@ -377,10 +377,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return getGoaTotalCostForStation(row.name);
   };
 
-  // 2. Precio Referencia: por defecto es igual a Precio Actual / Especial
+  // 2. Precio Referencia: por defecto es igual a Precio Actual / Especial + 0.0080
   const getSpecialRefPrice = (row: SpecialStationRateRow, actualVal: string): string => {
     if (row.refPrice && (row.isCustomRef || modifiedKeys.has(`special_${row.id}_refPrice`))) {
       return row.refPrice;
+    }
+    const actNum = parseNum(actualVal);
+    if (actNum > 0) {
+      return (actNum + 0.0080).toFixed(3);
     }
     return actualVal;
   };
@@ -1128,7 +1132,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Precios especiales vinculados al P. Venta Sugerido de Gasóleo (+0.008) y precio de referencia editable
+                  Precio Actual = Costo Total GOA | Precio Referencia = Precio Actual + 0,0080 €
                 </p>
               </div>
             </div>
