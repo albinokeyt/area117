@@ -339,7 +339,61 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setIsSaved(false);
   };
 
-  // Manejador para Tarifas Especiales B50:F82
+  // Obtener Costo Total de Gasóleo A para una estación
+  const getGoaTotalCostForStation = (stName: string): string => {
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const matchedKey = Object.keys(purchases).find((k) => {
+      if (!k.endsWith('_GOA')) return false;
+      const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+      return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+    });
+
+    if (matchedKey && purchases[matchedKey]) {
+      const item = purchases[matchedKey];
+      const currNum = parseNum(item.curr);
+      const porteNum = parseNum(item.porte);
+      const paseNum = parseNum(item.pase);
+      const finNum = parseNum(item.fin);
+      const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(4));
+      if (totalCost > 0) {
+        return totalCost.toFixed(3);
+      }
+    }
+
+    const costs = STATION_EXCEL_COSTS[stName] || {
+      porte: 0.0050,
+      pase: 0.0100,
+      fin: 0.0100,
+      defaultCurr: 1.2000,
+    };
+    return (costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(3);
+  };
+
+  // 1. Precio Actual / Especial: por defecto es exactamente el Costo Total de Gasóleo A de esa estación
+  const getSpecialActualPrice = (row: SpecialStationRateRow): string => {
+    if (row.actualPrice && (row.isCustomActual || modifiedKeys.has(`special_${row.id}_actualPrice`))) {
+      return row.actualPrice;
+    }
+    return getGoaTotalCostForStation(row.name);
+  };
+
+  // 2. Precio Referencia: por defecto es igual a Precio Actual / Especial
+  const getSpecialRefPrice = (row: SpecialStationRateRow, actualVal: string): string => {
+    if (row.refPrice && (row.isCustomRef || modifiedKeys.has(`special_${row.id}_refPrice`))) {
+      return row.refPrice;
+    }
+    return actualVal;
+  };
+
+  // 3. Precio Base / Coste: por defecto es exactamente el Costo Total de Gasóleo A de esa estación
+  const getSpecialBasePrice = (row: SpecialStationRateRow): string => {
+    if (row.basePrice && (row.isCustomBase || modifiedKeys.has(`special_${row.id}_basePrice`))) {
+      return row.basePrice;
+    }
+    return getGoaTotalCostForStation(row.name);
+  };
+
+  // Manejador para Tarifas Especiales
   const handleSpecialRateChange = (id: string, field: 'actualPrice' | 'refPrice' | 'basePrice', rawVal: string) => {
     const fieldKey = `special_${id}_${field}`;
     setSpecialRates((prev) => {
@@ -683,7 +737,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={item.sale}
+                            value={displaySale}
                             onChange={(e) => handleInputChange(st.name, prod.code, 'sale', e.target.value)}
                             className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                               isSaleMod
@@ -1103,6 +1157,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
                 {specialRates.map((row, idx) => {
+                  const displayActual = getSpecialActualPrice(row);
+                  const displayRef = getSpecialRefPrice(row, displayActual);
+                  const displayBase = getSpecialBasePrice(row);
+
                   const isActMod = modifiedKeys.has(`special_${row.id}_actualPrice`);
                   const isRefMod = modifiedKeys.has(`special_${row.id}_refPrice`);
                   const isBaseMod = modifiedKeys.has(`special_${row.id}_basePrice`);
@@ -1124,13 +1182,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         {row.name}
                       </td>
 
-                      {/* Precio Actual / Especial (Fondo Amarillo en las resaltadas) */}
+                      {/* 1. Precio Actual / Especial (= Costo Total Gasóleo A) */}
                       <td className="py-2.5 px-6 text-center">
                         <div className="inline-flex items-center justify-center">
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={row.actualPrice}
+                            value={displayActual}
                             onChange={(e) => handleSpecialRateChange(row.id, 'actualPrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black text-center transition-all focus:outline-none ${
                               isActMod
@@ -1143,13 +1201,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* Precio Referencia (Texto Rojo según el Excel) */}
+                      {/* 2. Precio Referencia (= Precio Actual por defecto) */}
                       <td className="py-2.5 px-6 text-center">
                         <div className="inline-flex items-center justify-center">
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={row.refPrice}
+                            value={displayRef}
                             onChange={(e) => handleSpecialRateChange(row.id, 'refPrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all focus:outline-none ${
                               isRefMod
@@ -1162,13 +1220,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* Precio Base / Coste */}
+                      {/* 3. Precio Base / Coste (= Costo Total Gasóleo A) */}
                       <td className="py-2.5 px-6 text-center">
                         <div className="inline-flex items-center justify-center">
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={row.basePrice}
+                            value={displayBase}
                             onChange={(e) => handleSpecialRateChange(row.id, 'basePrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono text-center transition-all focus:outline-none ${
                               isBaseMod
