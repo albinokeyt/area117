@@ -1314,9 +1314,8 @@ export function PostesManager() {
               <tr className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 font-bold">
                 <th className="py-3 px-4">Estación</th>
                 <th className="py-3 px-4 text-amber-300">Precio Compra Sin IVA (€)</th>
-                <th className="py-3 px-4 text-emerald-400">Precio Compra Con IVA 21% (€)</th>
-                <th className="py-3 px-4 text-blue-300">Precios Transfrired (€)</th>
-                <th className="py-3 px-4 text-rose-300">Precio GOB Final (€)</th>
+                <th className="py-3 px-4 text-blue-300">Precio Transfrired (€)</th>
+                <th className="py-3 px-4 text-emerald-400">Transfrired Con IVA (€)</th>
                 <th className="py-3 px-4 text-amber-400 bg-slate-900">Precio Poste Gasóleo B (€)</th>
               </tr>
             </thead>
