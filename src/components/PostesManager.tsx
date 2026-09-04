@@ -1,27 +1,52 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import {
   Layers, Flame, Zap, Droplet, Check, Save, Sparkles,
   TrendingUp, ArrowRightLeft, Fuel, ShieldCheck, Gauge,
   Download, Image as ImageIcon
 } from 'lucide-react';
 
-const POSTES_PROPIAS_STATIONS = [
-  { name: 'ARCOS', defaultGoa: '1.599', defaultGasolina: '1.499', defaultGain: '0.114' },
-  { name: 'ALCUBILLAS', defaultGoa: '1.599', defaultGasolina: '1.499', defaultGain: '0.114' },
-  { name: 'ALFAJARIN', defaultGoa: '1.639', defaultGasolina: '1.499', defaultGain: '0.126' },
-  { name: 'TORREMOCHA', defaultGoa: '1.639', defaultGasolina: '1.499', defaultGain: '0.100' },
-  { name: 'UCLES', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.067' },
-  { name: 'VALLECAS', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.075' },
-  { name: 'GANESHA MADRID', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.075' },
-  { name: 'TORREJON', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.065' },
-  { name: 'VALDEMORO', defaultGoa: '1.489', defaultGasolina: '1.439', defaultGain: '0.022' },
-  { name: 'BENAMEJI', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.077' },
-  { name: 'HUMILLADERO', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.077' },
-  { name: 'ES RIBA-ROJA', defaultGoa: '1.469', defaultGasolina: '1.409', defaultGain: '0.060' },
-  { name: 'ES PISTA DE SILLA', defaultGoa: '1.469', defaultGasolina: '1.409', defaultGain: '0.060' },
-  { name: 'ES REAL DE GANDIA', defaultGoa: '1.489', defaultGasolina: '1.419', defaultGain: '0.070' },
+// Configuración oficial de fórmulas de costes de Gasolina de la Columna D de CALCULO INICIAL
+// Fórmula: Margen Gasolina = Precio Poste - (Base + Porte + Pase) * 1.21
+const GASOLINA_FORMULA_CONFIG: Record<string, { base: number; porte: number; pase: number }> = {
+  'ALCUBILLAS': { base: 1.120, porte: 0.025, pase: 0.000 },
+  'ALFAJARIN': { base: 1.120, porte: 0.005, pase: 0.010 },
+  'TORREMOCHA': { base: 1.136, porte: 0.010, pase: 0.010 },
+  'UCLES': { base: 1.155, porte: 0.010, pase: 0.010 },
+  'VALLECAS': { base: 1.145, porte: 0.005, pase: 0.010 },
+  'GANESHA MADRID': { base: 1.145, porte: 0.005, pase: 0.010 },
+  'TORREJON': { base: 1.154, porte: 0.005, pase: 0.010 },
+  'VALDEMORO': { base: 1.155, porte: 0.006, pase: 0.010 },
+  'BENAMEJI': { base: 1.152, porte: 0.005, pase: 0.010 },
+  'HUMILLADERO': { base: 1.152, porte: 0.005, pase: 0.010 },
+  'ES RIBA-ROJA': { base: 1.100, porte: 0.005, pase: 0.010 },
+  'ES PISTA DE SILLA': { base: 1.100, porte: 0.005, pase: 0.010 },
+  'ES REAL DE GANDIA': { base: 1.100, porte: 0.005, pase: 0.010 },
+};
+
+const POSTES_PROPIAS_STATIONS: {
+  name: string;
+  defaultGoa: string;
+  defaultGasolina: string;
+  defaultGain: string;
+  hasGasolina?: boolean;
+}[] = [
+  { name: 'ARCOS', defaultGoa: '1.599', defaultGasolina: '', defaultGain: '', hasGasolina: false },
+  { name: 'ALCUBILLAS', defaultGoa: '1.599', defaultGasolina: '1.499', defaultGain: '0.114', hasGasolina: true },
+  { name: 'ALFAJARIN', defaultGoa: '1.639', defaultGasolina: '1.499', defaultGain: '0.126', hasGasolina: true },
+  { name: 'TORREMOCHA', defaultGoa: '1.639', defaultGasolina: '1.499', defaultGain: '0.100', hasGasolina: true },
+  { name: 'UCLES', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.067', hasGasolina: true },
+  { name: 'VALLECAS', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.075', hasGasolina: true },
+  { name: 'GANESHA MADRID', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.075', hasGasolina: true },
+  { name: 'TORREJON', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.065', hasGasolina: true },
+  { name: 'VALDEMORO', defaultGoa: '1.489', defaultGasolina: '1.439', defaultGain: '0.022', hasGasolina: true },
+  { name: 'BENAMEJI', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.077', hasGasolina: true },
+  { name: 'HUMILLADERO', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.077', hasGasolina: true },
+  { name: 'ES RIBA-ROJA', defaultGoa: '1.469', defaultGasolina: '1.409', defaultGain: '0.060', hasGasolina: true },
+  { name: 'ES PISTA DE SILLA', defaultGoa: '1.469', defaultGasolina: '1.409', defaultGain: '0.060', hasGasolina: true },
+  { name: 'ES REAL DE GANDIA', defaultGoa: '1.489', defaultGasolina: '1.419', defaultGain: '0.070', hasGasolina: true },
 ];
 
 export function PostesManager() {
@@ -174,7 +199,85 @@ export function PostesManager() {
     };
   }, []);
 
-  // Cálculos dinámicos de HVO
+  // Obtener Tarifa 60 con IVA desde Sábana de Precios / Compras para calcular Margen GOA
+  const getTarifa60ConIva = (stName: string): number => {
+    let basePrice = 0;
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+
+    try {
+      const savedDate = localStorage.getItem(`efi_purchases_${validFromDate}`);
+      const savedGlobal = localStorage.getItem('efi_compras_data');
+      const p = savedDate ? JSON.parse(savedDate).data : savedGlobal ? JSON.parse(savedGlobal).data : null;
+
+      if (p) {
+        const key = `${stName}_GOA`;
+        if (p[key]?.sale) {
+          basePrice = parseNum(p[key].sale);
+        } else {
+          const matchedKey = Object.keys(p).find((k) => {
+            if (!k.endsWith('_GOA')) return false;
+            const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+            return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+          });
+          if (matchedKey && p[matchedKey]?.sale) {
+            basePrice = parseNum(p[matchedKey].sale);
+          }
+        }
+      }
+    } catch (e) {}
+
+    if (!basePrice || basePrice <= 0) {
+      const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[`ES ${stName}`] || {
+        porte: 0.0050,
+        pase: 0.0100,
+        fin: 0.0100,
+        defaultCurr: 1.2080,
+      };
+      basePrice = Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+    }
+
+    // Tarifa 60 Sin IVA = basePrice + 0.0800, Con IVA = Sin IVA * 1.21
+    const t60SinIva = basePrice + 0.0800;
+    return Number((t60SinIva * 1.21).toFixed(3));
+  };
+
+  // Margen GOA = Tarifa 60 con IVA - Precio Poste GOA
+  const getMargenGoa = (stName: string, goaPostePrice: number): { margen: number; t60ConIva: number } => {
+    const t60ConIva = getTarifa60ConIva(stName);
+    const margen = Number((t60ConIva - goaPostePrice).toFixed(3));
+    return { margen, t60ConIva };
+  };
+
+  // Margen Gasolina según las fórmulas exactas de la Columna D de CALCULO INICIAL
+  const getMargenGasolina = (stName: string, gasPostePrice: number): number | null => {
+    const conf = GASOLINA_FORMULA_CONFIG[stName];
+    if (!conf) return null; // ARCOS no tiene gasolina según el archivo
+
+    let buy = conf.base;
+    let porte = conf.porte;
+    let pase = conf.pase;
+
+    try {
+      const savedGlobal = localStorage.getItem('efi_compras_data');
+      if (savedGlobal) {
+        const p = JSON.parse(savedGlobal).data;
+        const key = `${stName}_GASOLINA`;
+        if (p && p[key]) {
+          const cNum = parseNum(p[key].curr);
+          if (cNum > 0) buy = cNum;
+          const portN = parseNum(p[key].porte);
+          if (portN > 0) porte = portN;
+          const pasN = parseNum(p[key].pase);
+          if (pasN > 0) pase = pasN;
+        }
+      }
+    } catch (e) {}
+
+    const costConIva = Number(((buy + porte + pase) * 1.21).toFixed(4));
+    return Number((gasPostePrice - costConIva).toFixed(3));
+  };
+
+    // Cálculos dinámicos de HVO
   const computedHvoGeneralSinIva = Number((parseNum(hvoGeneralBase) + parseNum(hvoGeneralAddition)).toFixed(4));
   const computedHvoGeneralConIva = Number((computedHvoGeneralSinIva * 1.21).toFixed(4));
 
@@ -809,9 +912,19 @@ export function PostesManager() {
               <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
                 <th className="py-3.5 px-5 sticky left-0 bg-slate-950 z-10">Estación</th>
                 <th className="py-3.5 px-4 text-amber-300">Gasóleo A (€/L)</th>
-                <th className="py-3.5 px-4 text-amber-400 bg-amber-500/5">GOA Premium (GOA + 0.04€)</th>
+                <th className="py-3.5 px-4 text-emerald-400">
+                  <span>Margen GOA (€)</span>
+                  <span className="block text-[9px] text-slate-400 font-normal">T60 Con IVA - Poste</span>
+                </th>
+                <th className="py-3.5 px-4 text-amber-400 bg-amber-500/5">
+                  <span>GOA Premium</span>
+                  <span className="block text-[9px] text-amber-300/70 font-normal">GOA + 0.04€</span>
+                </th>
                 <th className="py-3.5 px-4 text-blue-300">Gasolina 95 (€/L)</th>
-                <th className="py-3.5 px-4 text-emerald-400">Margen Gasolina (€)</th>
+                <th className="py-3.5 px-4 text-emerald-400">
+                  <span>Margen Gasolina (€)</span>
+                  <span className="block text-[9px] text-slate-400 font-normal">Fórmula Columna D</span>
+                </th>
                 <th className="py-3.5 px-4 text-center">Descargar PNG</th>
               </tr>
             </thead>
@@ -819,11 +932,22 @@ export function PostesManager() {
               {POSTES_PROPIAS_STATIONS.map((st) => {
                 const item = postes[st.name] || { goa: st.defaultGoa, gasolina: st.defaultGasolina, gasolinaGain: st.defaultGain };
                 const goaNum = parseNum(item.goa);
+                const gasNum = parseNum(item.gasolina);
                 const premiumPrice = Number((goaNum + 0.04).toFixed(3));
+
+                // 1. Margen Gasóleo A = Tarifa 60 con IVA - Precio Poste Gasóleo A
+                const { margen: margenGoa, t60ConIva } = getMargenGoa(st.name, goaNum);
+
+                // 2. Margen Gasolina según fórmula oficial de la columna D
+                const hasGasolina = st.hasGasolina !== false && st.name !== 'ARCOS';
+                const autoMargenGas = hasGasolina ? getMargenGasolina(st.name, gasNum) : null;
+                const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`);
+                const displayMargenGas = isGainMod
+                  ? item.gasolinaGain
+                  : (autoMargenGas !== null ? autoMargenGas.toFixed(3) : '—');
 
                 const isGoaMod = modifiedKeys.has(`poste_${st.name}_goa`);
                 const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
-                const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`);
 
                 const isMadridGroup = MADRID_GROUP.includes(st.name);
                 const isSurGroup = SUR_GROUP.includes(st.name);
@@ -846,7 +970,7 @@ export function PostesManager() {
                       </div>
                     </td>
                     
-                    {/* Gasóleo A */}
+                    {/* 1. Gasóleo A (€/L) */}
                     <td className={`py-3 px-4 transition-all ${isGoaMod ? 'bg-amber-400/20' : ''}`}>
                       <div className="relative inline-flex items-center">
                         <input
@@ -868,48 +992,79 @@ export function PostesManager() {
                       </div>
                     </td>
 
-                    {/* GOA Premium */}
+                    {/* 2. Margen Gasóleo A (€) = Tarifa 60 con IVA - Poste GOA */}
+                    <td className="py-3 px-4 bg-slate-900/40">
+                      <div className="flex flex-col">
+                        <span
+                          className={`font-mono font-bold text-xs ${
+                            margenGoa >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {margenGoa >= 0 ? `+${margenGoa.toFixed(3)}` : margenGoa.toFixed(3)} €
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono">
+                          T60: {t60ConIva.toFixed(3)} €
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* 3. GOA Premium (GOA + 0.04€) */}
                     <td className="py-3 px-4 bg-amber-500/5 font-mono font-bold text-amber-300 text-sm">
                       {premiumPrice.toFixed(3)} €
                     </td>
 
-                    {/* Gasolina 95 */}
+                    {/* 4. Gasolina 95 (€/L) */}
                     <td className={`py-3 px-4 transition-all ${isGasMod ? 'bg-amber-400/20' : ''}`}>
-                      <div className="relative inline-flex items-center">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={item.gasolina}
-                          onChange={(e) => handlePosteChange(st.name, 'gasolina', e.target.value)}
-                          className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                            isGasMod
-                              ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30'
-                              : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
-                          }`}
-                        />
-                        {isGasMod && (
-                          <span className="ml-2 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
-                            HOY
-                          </span>
-                        )}
-                      </div>
+                      {hasGasolina ? (
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.gasolina}
+                            onChange={(e) => handlePosteChange(st.name, 'gasolina', e.target.value)}
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                              isGasMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30'
+                                : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
+                            }`}
+                          />
+                          {isGasMod && (
+                            <span className="ml-2 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                              HOY
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-600 font-mono text-center block">—</span>
+                      )}
                     </td>
 
-                    {/* Ganancia Gasolina */}
+                    {/* 5. Margen Gasolina (€) según Columna D de CALCULO INICIAL */}
                     <td className={`py-3 px-4 transition-all ${isGainMod ? 'bg-amber-400/20' : ''}`}>
-                      <div className="relative inline-flex items-center">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={item.gasolinaGain}
-                          onChange={(e) => handlePosteChange(st.name, 'gasolinaGain', e.target.value)}
-                          className={`w-24 rounded-lg px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                            isGainMod
-                              ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
-                              : 'bg-slate-950 border border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
-                          }`}
-                        />
-                      </div>
+                      {hasGasolina ? (
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={displayMargenGas}
+                            onChange={(e) => handlePosteChange(st.name, 'gasolinaGain', e.target.value)}
+                            className={`w-24 rounded-lg px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                              isGainMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
+                                : parseNum(displayMargenGas) >= 0
+                                ? 'bg-slate-950 border border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
+                                : 'bg-slate-950 border border-rose-500/40 text-rose-400 focus:border-rose-400'
+                            }`}
+                          />
+                          {isGainMod && (
+                            <span className="ml-1 text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded">
+                              MOD
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-600 font-mono text-center block">—</span>
+                      )}
                     </td>
 
                     {/* Descargar PNG */}
