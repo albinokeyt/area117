@@ -57,37 +57,37 @@ export interface SpecialStationRateRow {
 }
 
 const DEFAULT_SPECIAL_RATES_B50_F82: SpecialStationRateRow[] = [
-  { id: 'torrejon', name: 'TORREJON', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.324' },
-  { id: 'arcos_jalon', name: 'ARCOS JALON', isRedRef: true, actualPrice: '1.335', refPrice: '1.335', basePrice: '1.312' },
-  { id: 'alfajarin', name: 'ALFAJARIN', isBlueBg: true, isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.323', basePrice: '1.323' },
-  { id: 'torremocha', name: 'TORREMOCHA', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.320' },
-  { id: 'madrid', name: 'MADRID', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.324' },
-  { id: 'valdemoro', name: 'VALDEMORO', isYellowPrice: true, isRedRef: true, actualPrice: '1.329', refPrice: '1.334', basePrice: '1.324' },
-  { id: 'el_casar', name: 'EL CASAR', isRedRef: true, actualPrice: '1.349', refPrice: '1.349', basePrice: '1.339' },
-  { id: 'pamplona', name: 'PAMPLONA', isRedRef: true, actualPrice: '1.319', refPrice: '1.319', basePrice: '1.273' },
-  { id: 'humilladero', name: 'HUMILLADERO', isRedRef: true, actualPrice: '1.334', refPrice: '1.334', basePrice: '1.324' },
-  { id: 'ucles', name: 'UCLES', isYellowPrice: true, isRedRef: true, actualPrice: '1.339', refPrice: '1.345', basePrice: '1.320' },
-  { id: 'benameji', name: 'BENAMEJI', isBlueBg: true, isRedRef: true, actualPrice: '1.344', refPrice: '1.344', basePrice: '1.344' },
-  { id: 'soria_alcubillas', name: 'SORIA ALCUBILLAS', isRedRef: true, actualPrice: '1.335', refPrice: '1.335', basePrice: '1.324' },
-  { id: 'riba_roja', name: 'RIBA-ROJA', isBlueBg: true, isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
-  { id: 'pista_silla', name: 'PISTA DE SILLA', isBlueBg: true, isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
-  { id: 'real_gandia', name: 'ES REAL DE GANDIA', isRedRef: true, actualPrice: '1.343', refPrice: '1.343', basePrice: '1.343' },
-  { id: 'chiva', name: 'ES CHIVA', isRedRef: true, actualPrice: '1.388', refPrice: '1.388', basePrice: '1.396' },
-  { id: 'alberic', name: 'ES ALBERIC', isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
-  { id: 'catarroja', name: 'CATARROJA', isRedRef: true, actualPrice: '1.324', refPrice: '1.324', basePrice: '1.319' },
-  { id: 'manises', name: 'MANISES - EXOIL', isRedRef: true, actualPrice: '1.353', refPrice: '1.353', basePrice: '1.375' },
-  { id: 'jundiz', name: 'JUNDIZ NORPETROL', isRedRef: true, actualPrice: '1.309', refPrice: '1.309', basePrice: '1.294' },
-  { id: 'oliveral', name: 'OLIVERAL', isRedRef: true, actualPrice: '1.424', refPrice: '1.424', basePrice: '1.298' },
-  { id: 'llers', name: 'LLERS', isRedRef: true, actualPrice: '1.378', refPrice: '1.378', basePrice: '1.387' },
-  { id: 'guarroman', name: 'GUARROMAN', isRedRef: true, actualPrice: '1.363', refPrice: '1.363', basePrice: '1.362' },
-  { id: 'valdepenas', name: 'VALDEPEÑAS', isRedRef: true, actualPrice: '1.383', refPrice: '1.383', basePrice: '1.386' },
-  { id: 'bera', name: 'BERA', isRedRef: true, actualPrice: '1.268', refPrice: '1.268', basePrice: '1.267' },
-  { id: 'abrera', name: 'ABRERA', isRedRef: true, actualPrice: '1.367', refPrice: '1.367', basePrice: '1.372' },
-  { id: 'la_campana', name: 'LA CAMPANA', isRedRef: true, actualPrice: '1.378', refPrice: '1.378', basePrice: '1.412' },
-  { id: 'irun', name: 'IRUN', isRedRef: true, actualPrice: '1.320', refPrice: '1.320', basePrice: '1.320' },
-  { id: 'girona_calsina', name: 'GIRONA-CALSINA', isRedRef: true, actualPrice: '1.343', refPrice: '1.343', basePrice: '0.009' },
-  { id: 'open', name: 'OPEN', isRedRef: true, actualPrice: '1.388', refPrice: '1.388', basePrice: '1.402' },
-  { id: 'figueres', name: 'FIGUERES', isRedRef: true, actualPrice: '1.370', refPrice: '1.370', basePrice: '1.370' },
+  { id: 'torrejon', name: 'TORREJON', isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'arcos_jalon', name: 'ARCOS JALON', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'alfajarin', name: 'ALFAJARIN', isBlueBg: true, isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'torremocha', name: 'TORREMOCHA', isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'madrid', name: 'MADRID', isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'valdemoro', name: 'VALDEMORO', isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'el_casar', name: 'EL CASAR', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'pamplona', name: 'PAMPLONA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'humilladero', name: 'HUMILLADERO', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'ucles', name: 'UCLES', isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'benameji', name: 'BENAMEJI', isBlueBg: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'soria_alcubillas', name: 'SORIA ALCUBILLAS', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'riba_roja', name: 'RIBA-ROJA', isBlueBg: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'pista_silla', name: 'PISTA DE SILLA', isBlueBg: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'real_gandia', name: 'ES REAL DE GANDIA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'chiva', name: 'ES CHIVA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'alberic', name: 'ES ALBERIC', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'catarroja', name: 'CATARROJA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'manises', name: 'MANISES - EXOIL', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'jundiz', name: 'JUNDIZ NORPETROL', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'oliveral', name: 'OLIVERAL', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'llers', name: 'LLERS', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'guarroman', name: 'GUARROMAN', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'valdepenas', name: 'VALDEPEÑAS', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'bera', name: 'BERA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'abrera', name: 'ABRERA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'la_campana', name: 'LA CAMPANA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'irun', name: 'IRUN', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'girona_calsina', name: 'GIRONA-CALSINA', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'open', name: 'OPEN', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
+  { id: 'figueres', name: 'FIGUERES', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
 ];
 
 type ProductSubTab = 'GOA' | 'GASOLINA' | 'ADBLUE' | 'SPECIAL' | 'ALL';
@@ -229,7 +229,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   // Estado de Tarifas Especiales B50:F82 EXACTAS
   const [specialRates, setSpecialRates] = useState<SpecialStationRateRow[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_special_rates_b50_f82_v2');
+      const saved = localStorage.getItem('efi_special_rates_b50_f82_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -246,7 +246,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     try {
       const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
       const savedGlobal = localStorage.getItem('efi_compras_data');
-      const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v2');
+      const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v3');
       const savedValidDate = localStorage.getItem('efi_compras_valid_from');
 
       if (savedValidDate) {
@@ -357,7 +357,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const porteNum = parseNum(item.porte);
       const paseNum = parseNum(item.pase);
       const finNum = parseNum(item.fin);
-      const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(4));
+      const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
       if (totalCost > 0) {
         return totalCost.toFixed(3);
       }
@@ -372,17 +372,17 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return (costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(3);
   };
 
-  // 1. Precio Actual / Especial: por defecto es exactamente el Costo Total de Gasóleo A de esa estación
+  // 1. Precio Actual / Especial: por defecto es SIEMPRE el Costo Total de Gasóleo A de esa estación
   const getSpecialActualPrice = (row: SpecialStationRateRow): string => {
-    if (row.actualPrice && (row.isCustomActual || modifiedKeys.has(`special_${row.id}_actualPrice`))) {
+    if (row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
       return row.actualPrice;
     }
     return getGoaTotalCostForStation(row.name);
   };
 
-  // 2. Precio Referencia: por defecto es igual a Precio Actual / Especial + 0.0080
+  // 2. Precio Referencia: por defecto es SIEMPRE Precio Actual / Especial + 0.0080
   const getSpecialRefPrice = (row: SpecialStationRateRow, actualVal: string): string => {
-    if (row.refPrice && (row.isCustomRef || modifiedKeys.has(`special_${row.id}_refPrice`))) {
+    if (row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
       return row.refPrice;
     }
     const actNum = parseNum(actualVal);
@@ -392,9 +392,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return actualVal;
   };
 
-  // 3. Precio Base / Coste: por defecto es exactamente el Costo Total de Gasóleo A de esa estación
+  // 3. Precio Base / Coste: por defecto es SIEMPRE el Costo Total de Gasóleo A de esa estación
   const getSpecialBasePrice = (row: SpecialStationRateRow): string => {
-    if (row.basePrice && (row.isCustomBase || modifiedKeys.has(`special_${row.id}_basePrice`))) {
+    if (row.isCustomBase && row.basePrice && row.basePrice.trim() !== '') {
       return row.basePrice;
     }
     return getGoaTotalCostForStation(row.name);
@@ -403,20 +403,35 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   // Manejador para Tarifas Especiales
   const handleSpecialRateChange = (id: string, field: 'actualPrice' | 'refPrice' | 'basePrice', rawVal: string) => {
     const fieldKey = `special_${id}_${field}`;
+    const customFlag =
+      field === 'actualPrice' ? 'isCustomActual' : field === 'refPrice' ? 'isCustomRef' : 'isCustomBase';
+
     setSpecialRates((prev) => {
       const next = prev.map((row) => {
         if (row.id !== id) return row;
-        return { ...row, [field]: rawVal };
+        return {
+          ...row,
+          [field]: rawVal,
+          [customFlag]: rawVal.trim() !== '',
+        };
       });
 
       try {
-        localStorage.setItem('efi_special_rates_b50_f82_v2', JSON.stringify(next));
+        localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(next));
       } catch (e) {}
 
       return next;
     });
 
-    setModifiedKeys((prev) => new Set(prev).add(fieldKey));
+    setModifiedKeys((prev) => {
+      const nextSet = new Set(prev);
+      if (rawVal.trim() !== '') {
+        nextSet.add(fieldKey);
+      } else {
+        nextSet.delete(fieldKey);
+      }
+      return nextSet;
+    });
   };
 
   const handleSave = () => {
@@ -431,7 +446,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         modified: Array.from(modifiedKeys),
         updatedAt: new Date().toISOString(),
       }));
-      localStorage.setItem('efi_special_rates_b50_f82_v2', JSON.stringify(specialRates));
+      localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
       localStorage.setItem('efi_compras_valid_from', validFromDate);
     } catch (e) {}
 
@@ -527,7 +542,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     csv += '\nTARIFAS ESPECIALES;;;;;;;;;;;\n';
     csv += 'ESTACION;PRECIO ACTUAL / ESPECIAL (EUR);PRECIO REFERENCIA (EUR);PRECIO BASE (EUR);;;;;;;;\n';
     specialRates.forEach((row) => {
-      csv += `${row.name};${row.actualPrice.replace('.', ',')};${row.refPrice.replace('.', ',')};${row.basePrice.replace('.', ',')};;;;;;;;\n`;
+      const actVal = getSpecialActualPrice(row);
+      const refVal = getSpecialRefPrice(row, actVal);
+      const baseVal = getSpecialBasePrice(row);
+      csv += `${row.name};${actVal.replace('.', ',')};${refVal.replace('.', ',')};${baseVal.replace('.', ',')};;;;;;;;\n`;
     });
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -1225,9 +1243,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   const displayRef = getSpecialRefPrice(row, displayActual);
                   const displayBase = getSpecialBasePrice(row);
 
-                  const isActMod = modifiedKeys.has(`special_${row.id}_actualPrice`);
-                  const isRefMod = modifiedKeys.has(`special_${row.id}_refPrice`);
-                  const isBaseMod = modifiedKeys.has(`special_${row.id}_basePrice`);
+                  const isActMod = modifiedKeys.has(`special_${row.id}_actualPrice`) || Boolean(row.isCustomActual && row.actualPrice);
+                  const isRefMod = modifiedKeys.has(`special_${row.id}_refPrice`) || Boolean(row.isCustomRef && row.refPrice);
+                  const isBaseMod = modifiedKeys.has(`special_${row.id}_basePrice`) || Boolean(row.isCustomBase && row.basePrice);
 
                   return (
                     <tr key={row.id} className="hover:bg-slate-800/40 transition-colors">
@@ -1265,7 +1283,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* 2. Precio Referencia (= Precio Actual por defecto) */}
+                      {/* 2. Precio Referencia (= Precio Actual + 0.0080) */}
                       <td className="py-2.5 px-6 text-center">
                         <div className="inline-flex items-center justify-center">
                           <input
