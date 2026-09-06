@@ -184,20 +184,46 @@ export function PostesManager() {
     }
   });
 
+  const [, setComprasUpdateTick] = useState(0);
+
   useEffect(() => {
-    const updateValidDate = () => {
+    const handleUpdates = () => {
       try {
         const saved = localStorage.getItem('efi_compras_valid_from');
         if (saved) setValidFromDate(saved);
       } catch (e) {}
+      setComprasUpdateTick((t) => t + 1);
     };
-    window.addEventListener('efi_valid_date_changed', updateValidDate);
-    window.addEventListener('storage', updateValidDate);
+    window.addEventListener('efi_valid_date_changed', handleUpdates);
+    window.addEventListener('efi_compras_updated', handleUpdates);
+    window.addEventListener('storage', handleUpdates);
     return () => {
-      window.removeEventListener('efi_valid_date_changed', updateValidDate);
-      window.removeEventListener('storage', updateValidDate);
+      window.removeEventListener('efi_valid_date_changed', handleUpdates);
+      window.removeEventListener('efi_compras_updated', handleUpdates);
+      window.removeEventListener('storage', handleUpdates);
     };
   }, []);
+
+  // Helper para buscar costes en el seed de Excel con resolución flexible
+  const findStationExcelCosts = (stName: string) => {
+    if (STATION_EXCEL_COSTS[stName]) return STATION_EXCEL_COSTS[stName];
+    if (STATION_EXCEL_COSTS[`ES ${stName}`]) return STATION_EXCEL_COSTS[`ES ${stName}`];
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const matchedKey = Object.keys(STATION_EXCEL_COSTS).find((k) => {
+      const cleanK = k.toUpperCase().replace(/^ES\s+/, '').trim();
+      return cleanK === cleanTarget || cleanK.includes(cleanTarget) || cleanTarget.includes(cleanK);
+    });
+    if (matchedKey) return STATION_EXCEL_COSTS[matchedKey];
+    return {
+      type: 'PROPIA' as const,
+      clhName: 'TORREJON',
+      porte: 0.0050,
+      pase: 0.0100,
+      fin: 0.0100,
+      defaultPrev: 1.2000,
+      defaultCurr: 1.2080,
+    };
+  };
 
   // Obtener Tarifa 60 con IVA desde Sábana de Precios / Compras para calcular Margen GOA
   const getTarifa60ConIva = (stName: string): number => {
@@ -205,9 +231,10 @@ export function PostesManager() {
     const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
 
     try {
-      const savedDate = localStorage.getItem(`efi_purchases_${validFromDate}`);
       const savedGlobal = localStorage.getItem('efi_compras_data');
-      const p = savedDate ? JSON.parse(savedDate).data : savedGlobal ? JSON.parse(savedGlobal).data : null;
+      const todayStr = new Date().toISOString().split('T')[0];
+      const savedDate = localStorage.getItem(`efi_purchases_${validFromDate}`) || localStorage.getItem(`efi_purchases_${todayStr}`);
+      const p = savedGlobal ? JSON.parse(savedGlobal).data : savedDate ? JSON.parse(savedDate).data : null;
 
       if (p) {
         const key = `${stName}_GOA`;
@@ -227,17 +254,12 @@ export function PostesManager() {
     } catch (e) {}
 
     if (!basePrice || basePrice <= 0) {
-      const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[`ES ${stName}`] || {
-        porte: 0.0050,
-        pase: 0.0100,
-        fin: 0.0100,
-        defaultCurr: 1.2080,
-      };
-      basePrice = Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+      const costs = findStationExcelCosts(stName);
+      basePrice = Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
     }
 
-    // Tarifa 60 Sin IVA = basePrice + 0.0800, Con IVA = Sin IVA * 1.21
-    const t60SinIva = basePrice + 0.0800;
+    // Tarifa 60 en Sábana de Precios: Sin IVA = basePrice + 0.0800 (3 dec), Con IVA = Sin IVA * 1.21 (3 dec)
+    const t60SinIva = Number((basePrice + 0.0800).toFixed(3));
     return Number((t60SinIva * 1.21).toFixed(3));
   };
 
@@ -261,13 +283,19 @@ export function PostesManager() {
       const savedGlobal = localStorage.getItem('efi_compras_data');
       if (savedGlobal) {
         const p = JSON.parse(savedGlobal).data;
-        const key = `${stName}_GASOLINA`;
-        if (p && p[key]) {
-          const cNum = parseNum(p[key].curr);
+        const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+        const matchedKey = Object.keys(p).find((k) => {
+          if (!k.endsWith('_GASOLINA')) return false;
+          const baseK = k.replace(/_GASOLINA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+          return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+        });
+        const gasItem = p[`${stName}_GASOLINA`] || (matchedKey ? p[matchedKey] : null);
+        if (gasItem) {
+          const cNum = parseNum(gasItem.curr);
           if (cNum > 0) buy = cNum;
-          const portN = parseNum(p[key].porte);
+          const portN = parseNum(gasItem.porte);
           if (portN > 0) porte = portN;
-          const pasN = parseNum(p[key].pase);
+          const pasN = parseNum(gasItem.pase);
           if (pasN > 0) pase = pasN;
         }
       }
@@ -277,7 +305,7 @@ export function PostesManager() {
     return Number((gasPostePrice - costConIva).toFixed(3));
   };
 
-    // Cálculos dinámicos de HVO
+  // Cálculos dinámicos de HVO
   const computedHvoGeneralSinIva = Number((parseNum(hvoGeneralBase) + parseNum(hvoGeneralAddition)).toFixed(4));
   const computedHvoGeneralConIva = Number((computedHvoGeneralSinIva * 1.21).toFixed(4));
 
@@ -1321,16 +1349,31 @@ export function PostesManager() {
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-medium">
               {['UCLES', 'TORREMOCHA', 'ARCOS'].map((stName) => {
-                const item = gasoleoBRows[stName] || { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: gasoleoBPosteGlobal };
+                const item = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
                 const compraNum = parseNum(item.compra);
-                const conIva = Number((compraNum * 1.21).toFixed(4));
                 const isMod = modifiedKeys.has(`gasb_${stName}`);
+
+                // Fórmulas oficiales Gasóleo B:
+                // 1. Transfrired = Compra Sin IVA + 0.017
+                const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
+                const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`);
+                const transferDisplay = isTransferMod && item.transfer ? item.transfer : autoTransferNum.toFixed(3);
+                const transferNum = parseNum(transferDisplay);
+
+                // 2. Transfrired Con IVA = Transfrired * 1.21
+                const transfriredConIva = Number((transferNum * 1.21).toFixed(3));
+
+                // 3. Precio Poste Gasóleo B = (Compra Sin IVA + 0.035) * 1.21
+                const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
+                const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`);
+                const posteDisplay = isPosteMod && item.poste ? item.poste : autoPosteNum.toFixed(3);
 
                 return (
                   <tr key={stName} className="hover:bg-slate-800/40 transition-colors">
+                    {/* 1. Estación */}
                     <td className="py-3 px-4 font-bold text-white">{stName}</td>
                     
-                    {/* Compra Sin IVA */}
+                    {/* 2. Precio Compra Sin IVA */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
@@ -1351,55 +1394,36 @@ export function PostesManager() {
                       />
                     </td>
 
-                    {/* Compra Con IVA 21% */}
-                    <td className="py-3 px-4 font-mono font-bold text-emerald-400 text-sm">
-                      {conIva.toFixed(4)} €
-                    </td>
-
-                    {/* Transfer Red */}
+                    {/* 3. Precio Transfrired (Compra Sin IVA + 0.017) */}
                     <td className="py-3 px-4">
                       <input
                         type="text"
                         inputMode="decimal"
-                        value={item.transfer}
+                        value={transferDisplay}
                         onChange={(e) => {
                           const val = e.target.value;
                           setGasoleoBRows((prev) => ({
                             ...prev,
                             [stName]: { ...prev[stName], transfer: val },
                           }));
-                          setModifiedKeys((prev) => new Set(prev).add(`gasb_${stName}`));
+                          setModifiedKeys((prev) => new Set(prev).add(`gasb_transfer_${stName}`));
                           setIsSaved(false);
                         }}
-                        className="w-28 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-blue-300 font-bold"
+                        className="w-28 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-blue-300 font-bold focus:border-blue-400 focus:outline-none"
                       />
                     </td>
 
-                    {/* GOB Final */}
-                    <td className="py-3 px-4">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={item.gob}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setGasoleoBRows((prev) => ({
-                            ...prev,
-                            [stName]: { ...prev[stName], gob: val },
-                          }));
-                          setModifiedKeys((prev) => new Set(prev).add(`gasb_${stName}`));
-                          setIsSaved(false);
-                        }}
-                        className="w-28 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-rose-300 font-bold"
-                      />
+                    {/* 4. Transfrired Con IVA (Transfrired * 1.21) */}
+                    <td className="py-3 px-4 font-mono font-bold text-emerald-400 text-sm">
+                      {transfriredConIva.toFixed(3)} €
                     </td>
 
-                    {/* NUEVA COLUMNA: Precio Poste Gasóleo B */}
+                    {/* 5. Precio Poste Gasóleo B: (Compra Sin IVA + 0.035) * 1.21 */}
                     <td className="py-3 px-4 bg-slate-900/50">
                       <input
                         type="text"
                         inputMode="decimal"
-                        value={item.poste || gasoleoBPosteGlobal}
+                        value={posteDisplay}
                         onChange={(e) => {
                           const val = e.target.value;
                           setGasoleoBRows((prev) => ({
@@ -1409,7 +1433,7 @@ export function PostesManager() {
                           setModifiedKeys((prev) => new Set(prev).add(`gasb_poste_${stName}`));
                           setIsSaved(false);
                         }}
-                        className="w-28 bg-slate-950 border border-amber-500/40 rounded px-2 py-1 text-xs font-mono text-amber-300 font-black"
+                        className="w-28 bg-slate-950 border border-amber-500/40 rounded px-2 py-1 text-xs font-mono text-amber-300 font-black focus:border-amber-400 focus:outline-none"
                       />
                     </td>
                   </tr>
