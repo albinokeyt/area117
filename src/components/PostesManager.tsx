@@ -11,16 +11,17 @@ import {
 // Configuración oficial de fórmulas de costes de Gasolina de la Columna D de CALCULO INICIAL
 // Fórmula: Margen Gasolina = Precio Poste - (Base + Porte + Pase) * 1.21
 const GASOLINA_FORMULA_CONFIG: Record<string, { base: number; porte: number; pase: number }> = {
-  'ALCUBILLAS': { base: 1.120, porte: 0.025, pase: 0.000 },
-  'ALFAJARIN': { base: 1.120, porte: 0.005, pase: 0.010 },
-  'TORREMOCHA': { base: 1.136, porte: 0.010, pase: 0.010 },
-  'UCLES': { base: 1.155, porte: 0.010, pase: 0.010 },
-  'VALLECAS': { base: 1.145, porte: 0.005, pase: 0.010 },
-  'GANESHA MADRID': { base: 1.145, porte: 0.005, pase: 0.010 },
-  'TORREJON': { base: 1.154, porte: 0.005, pase: 0.010 },
-  'VALDEMORO': { base: 1.155, porte: 0.006, pase: 0.010 },
-  'BENAMEJI': { base: 1.152, porte: 0.005, pase: 0.010 },
-  'HUMILLADERO': { base: 1.152, porte: 0.005, pase: 0.010 },
+  'ALCUBILLAS': { base: 1.238, porte: 0.025, pase: 0.000 },
+  'ALFAJARIN': { base: 1.248, porte: 0.005, pase: 0.010 },
+  'TORREMOCHA': { base: 1.242, porte: 0.010, pase: 0.010 },
+  'UCLES': { base: 1.232, porte: 0.010, pase: 0.010 },
+  'VALLECAS': { base: 1.247, porte: 0.005, pase: 0.010 },
+  'GANESHA MADRID': { base: 1.247, porte: 0.005, pase: 0.010 },
+  'GANESHA TORREJON': { base: 1.247, porte: 0.005, pase: 0.010 },
+  'TORREJON': { base: 1.247, porte: 0.005, pase: 0.010 },
+  'VALDEMORO': { base: 1.246, porte: 0.006, pase: 0.010 },
+  'BENAMEJI': { base: 1.245, porte: 0.005, pase: 0.010 },
+  'HUMILLADERO': { base: 1.245, porte: 0.005, pase: 0.010 },
   'ES RIBA-ROJA': { base: 1.100, porte: 0.005, pase: 0.010 },
   'ES PISTA DE SILLA': { base: 1.100, porte: 0.005, pase: 0.010 },
   'ES REAL DE GANDIA': { base: 1.100, porte: 0.005, pase: 0.010 },
@@ -33,20 +34,20 @@ const POSTES_PROPIAS_STATIONS: {
   defaultGain: string;
   hasGasolina?: boolean;
 }[] = [
-  { name: 'ARCOS', defaultGoa: '1.599', defaultGasolina: '', defaultGain: '', hasGasolina: false },
-  { name: 'ALCUBILLAS', defaultGoa: '1.599', defaultGasolina: '1.499', defaultGain: '0.114', hasGasolina: true },
-  { name: 'ALFAJARIN', defaultGoa: '1.639', defaultGasolina: '1.499', defaultGain: '0.126', hasGasolina: true },
-  { name: 'TORREMOCHA', defaultGoa: '1.639', defaultGasolina: '1.499', defaultGain: '0.100', hasGasolina: true },
-  { name: 'UCLES', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.067', hasGasolina: true },
-  { name: 'VALLECAS', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.075', hasGasolina: true },
-  { name: 'GANESHA MADRID', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.075', hasGasolina: true },
-  { name: 'TORREJON', defaultGoa: '1.579', defaultGasolina: '1.479', defaultGain: '0.065', hasGasolina: true },
-  { name: 'VALDEMORO', defaultGoa: '1.489', defaultGasolina: '1.439', defaultGain: '0.022', hasGasolina: true },
-  { name: 'BENAMEJI', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.077', hasGasolina: true },
-  { name: 'HUMILLADERO', defaultGoa: '1.639', defaultGasolina: '1.489', defaultGain: '0.077', hasGasolina: true },
-  { name: 'ES RIBA-ROJA', defaultGoa: '1.469', defaultGasolina: '1.409', defaultGain: '0.060', hasGasolina: true },
-  { name: 'ES PISTA DE SILLA', defaultGoa: '1.469', defaultGasolina: '1.409', defaultGain: '0.060', hasGasolina: true },
-  { name: 'ES REAL DE GANDIA', defaultGoa: '1.489', defaultGasolina: '1.419', defaultGain: '0.070', hasGasolina: true },
+  { name: 'ARCOS', defaultGoa: '1.779', defaultGasolina: '', defaultGain: '', hasGasolina: false },
+  { name: 'ALCUBILLAS', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.271', hasGasolina: true },
+  { name: 'ALFAJARIN', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.271', hasGasolina: true },
+  { name: 'TORREMOCHA', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.272', hasGasolina: true },
+  { name: 'UCLES', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.284', hasGasolina: true },
+  { name: 'VALLECAS', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
+  { name: 'GANESHA MADRID', defaultGoa: '1.749', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
+  { name: 'GANESHA TORREJON', defaultGoa: '1.749', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
+  { name: 'VALDEMORO', defaultGoa: '1.649', defaultGasolina: '1.649', defaultGain: '0.122', hasGasolina: true },
+  { name: 'BENAMEJI', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
+  { name: 'HUMILLADERO', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
+  { name: 'ES RIBA-ROJA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
+  { name: 'ES PISTA DE SILLA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
+  { name: 'ES REAL DE GANDIA', defaultGoa: '1.680', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
 ];
 
 export function PostesManager() {
@@ -208,9 +209,9 @@ export function PostesManager() {
   const findStationExcelCosts = (stName: string) => {
     if (STATION_EXCEL_COSTS[stName]) return STATION_EXCEL_COSTS[stName];
     if (STATION_EXCEL_COSTS[`ES ${stName}`]) return STATION_EXCEL_COSTS[`ES ${stName}`];
-    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
     const matchedKey = Object.keys(STATION_EXCEL_COSTS).find((k) => {
-      const cleanK = k.toUpperCase().replace(/^ES\s+/, '').trim();
+      const cleanK = k.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
       return cleanK === cleanTarget || cleanK.includes(cleanTarget) || cleanTarget.includes(cleanK);
     });
     if (matchedKey) return STATION_EXCEL_COSTS[matchedKey];
@@ -228,7 +229,7 @@ export function PostesManager() {
   // Obtener Tarifa 60 con IVA desde Sábana de Precios / Compras para calcular Margen GOA
   const getTarifa60ConIva = (stName: string): number => {
     let basePrice = 0;
-    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
 
     try {
       const savedGlobal = localStorage.getItem('efi_compras_data');
@@ -243,7 +244,7 @@ export function PostesManager() {
         } else {
           const matchedKey = Object.keys(p).find((k) => {
             if (!k.endsWith('_GOA')) return false;
-            const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+            const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
             return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
           });
           if (matchedKey && p[matchedKey]?.sale) {
@@ -272,7 +273,7 @@ export function PostesManager() {
 
   // Margen Gasolina según las fórmulas exactas de la Columna D de CALCULO INICIAL
   const getMargenGasolina = (stName: string, gasPostePrice: number): number | null => {
-    const conf = GASOLINA_FORMULA_CONFIG[stName];
+    const conf = GASOLINA_FORMULA_CONFIG[stName] || GASOLINA_FORMULA_CONFIG[stName.replace(/^GANESHA\s+/, '')];
     if (!conf) return null; // ARCOS no tiene gasolina según el archivo
 
     let buy = conf.base;
@@ -283,10 +284,10 @@ export function PostesManager() {
       const savedGlobal = localStorage.getItem('efi_compras_data');
       if (savedGlobal) {
         const p = JSON.parse(savedGlobal).data;
-        const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+        const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
         const matchedKey = Object.keys(p).find((k) => {
           if (!k.endsWith('_GASOLINA')) return false;
-          const baseK = k.replace(/_GASOLINA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+          const baseK = k.replace(/_GASOLINA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
           return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
         });
         const gasItem = p[`${stName}_GASOLINA`] || (matchedKey ? p[matchedKey] : null);
@@ -978,7 +979,7 @@ export function PostesManager() {
     setTimeout(() => setImageToast(null), 3500);
   };
 
-  const MADRID_GROUP = ['VALLECAS', 'GANESHA MADRID', 'TORREJON', 'VALDEMORO'];
+  const MADRID_GROUP = ['VALLECAS', 'GANESHA MADRID', 'GANESHA TORREJON', 'VALDEMORO'];
   const SUR_GROUP = ['BENAMEJI', 'HUMILLADERO'];
 
   return (
