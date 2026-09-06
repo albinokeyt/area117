@@ -5,250 +5,282 @@ import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import {
   TrendingUp, TrendingDown, Building2, Store, Fuel,
   ArrowUpRight, ArrowRight, BarChart3, Target, Zap, ShieldCheck,
-  Calendar, Layers, Download, X, Clock, DollarSign, Percent, ArrowLeftRight
+  Calendar, Layers, Download, X, Clock, DollarSign, Percent, ArrowLeftRight,
+  Droplet, Flame, CheckCircle2, ChevronRight, Award, Filter
 } from 'lucide-react';
 
 interface DashboardProps {
   onNavigateTab?: (tab: string) => void;
 }
 
-// 19 Estaciones Propias y 34 Estaciones Colaboradoras completas del Excel
+// Tipos de Períodos solicitados: 1 día, 7 días, 1 mes, 1 año
+type PeriodType = '1d' | '7d' | '1m' | '1y';
+
+// Tipos de Productos manejados: Gasóleo A, Gasolina 95, AdBlue, HVO, Gasóleo B
+type ProductCode = 'GOA' | 'GASOLINA' | 'ADBLUE' | 'HVO' | 'GOB';
+
+interface ProductComparisonData {
+  code: ProductCode;
+  name: string;
+  badge: string;
+  icon: React.ElementType;
+  buyPrice: number;
+  salePrice: number;
+  prevBuyPrice: number;
+  prevSalePrice: number;
+}
+
+// Datos de comparativa por Período y Producto (conservando 3 dígitos tras la coma/punto)
+const PRODUCTS_BY_PERIOD: Record<PeriodType, {
+  label: string;
+  sublabel: string;
+  periodName: string;
+  products: ProductComparisonData[];
+}> = {
+  '1d': {
+    label: '1 Día (vs Ayer)',
+    sublabel: 'Últimas 24 horas',
+    periodName: '1 Día',
+    products: [
+      { code: 'GOA', name: 'Gasóleo A (GOA)', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30', icon: Fuel, buyPrice: 1.197, salePrice: 1.239, prevBuyPrice: 1.201, prevSalePrice: 1.241 },
+      { code: 'GASOLINA', name: 'Gasolina 95', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/30', icon: Zap, buyPrice: 1.317, salePrice: 1.365, prevBuyPrice: 1.320, prevSalePrice: 1.367 },
+      { code: 'ADBLUE', name: 'AdBlue', badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30', icon: Droplet, buyPrice: 0.450, salePrice: 0.799, prevBuyPrice: 0.450, prevSalePrice: 0.799 },
+      { code: 'HVO', name: 'HVO Biofuel', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', icon: Flame, buyPrice: 1.420, salePrice: 1.485, prevBuyPrice: 1.425, prevSalePrice: 1.489 },
+      { code: 'GOB', name: 'Gasóleo B', badge: 'bg-orange-500/15 text-orange-300 border-orange-500/30', icon: Fuel, buyPrice: 0.985, salePrice: 1.025, prevBuyPrice: 0.988, prevSalePrice: 1.027 },
+    ],
+  },
+  '7d': {
+    label: '7 Días (Semanal)',
+    sublabel: 'Últimos 7 días',
+    periodName: '7 Días',
+    products: [
+      { code: 'GOA', name: 'Gasóleo A (GOA)', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30', icon: Fuel, buyPrice: 1.191, salePrice: 1.233, prevBuyPrice: 1.182, prevSalePrice: 1.222 },
+      { code: 'GASOLINA', name: 'Gasolina 95', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/30', icon: Zap, buyPrice: 1.311, salePrice: 1.358, prevBuyPrice: 1.302, prevSalePrice: 1.348 },
+      { code: 'ADBLUE', name: 'AdBlue', badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30', icon: Droplet, buyPrice: 0.448, salePrice: 0.795, prevBuyPrice: 0.445, prevSalePrice: 0.790 },
+      { code: 'HVO', name: 'HVO Biofuel', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', icon: Flame, buyPrice: 1.415, salePrice: 1.478, prevBuyPrice: 1.405, prevSalePrice: 1.468 },
+      { code: 'GOB', name: 'Gasóleo B', badge: 'bg-orange-500/15 text-orange-300 border-orange-500/30', icon: Fuel, buyPrice: 0.980, salePrice: 1.019, prevBuyPrice: 0.975, prevSalePrice: 1.012 },
+    ],
+  },
+  '1m': {
+    label: '1 Mes (Mensual)',
+    sublabel: 'Últimos 30 días',
+    periodName: '1 Mes',
+    products: [
+      { code: 'GOA', name: 'Gasóleo A (GOA)', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30', icon: Fuel, buyPrice: 1.178, salePrice: 1.221, prevBuyPrice: 1.165, prevSalePrice: 1.205 },
+      { code: 'GASOLINA', name: 'Gasolina 95', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/30', icon: Zap, buyPrice: 1.298, salePrice: 1.346, prevBuyPrice: 1.285, prevSalePrice: 1.331 },
+      { code: 'ADBLUE', name: 'AdBlue', badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30', icon: Droplet, buyPrice: 0.445, salePrice: 0.790, prevBuyPrice: 0.440, prevSalePrice: 0.785 },
+      { code: 'HVO', name: 'HVO Biofuel', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', icon: Flame, buyPrice: 1.405, salePrice: 1.470, prevBuyPrice: 1.390, prevSalePrice: 1.452 },
+      { code: 'GOB', name: 'Gasóleo B', badge: 'bg-orange-500/15 text-orange-300 border-orange-500/30', icon: Fuel, buyPrice: 0.970, salePrice: 1.011, prevBuyPrice: 0.960, prevSalePrice: 0.999 },
+    ],
+  },
+  '1y': {
+    label: '1 Año (Anual)',
+    sublabel: 'Últimos 365 días',
+    periodName: '1 Año',
+    products: [
+      { code: 'GOA', name: 'Gasóleo A (GOA)', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30', icon: Fuel, buyPrice: 1.210, salePrice: 1.251, prevBuyPrice: 1.245, prevSalePrice: 1.284 },
+      { code: 'GASOLINA', name: 'Gasolina 95', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/30', icon: Zap, buyPrice: 1.330, salePrice: 1.375, prevBuyPrice: 1.360, prevSalePrice: 1.402 },
+      { code: 'ADBLUE', name: 'AdBlue', badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30', icon: Droplet, buyPrice: 0.460, salePrice: 0.810, prevBuyPrice: 0.470, prevSalePrice: 0.820 },
+      { code: 'HVO', name: 'HVO Biofuel', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', icon: Flame, buyPrice: 1.435, salePrice: 1.498, prevBuyPrice: 1.460, prevSalePrice: 1.520 },
+      { code: 'GOB', name: 'Gasóleo B', badge: 'bg-orange-500/15 text-orange-300 border-orange-500/30', icon: Fuel, buyPrice: 0.995, salePrice: 1.034, prevBuyPrice: 1.015, prevSalePrice: 1.052 },
+    ],
+  },
+};
+
+// Ranking Semanal de Estaciones con Mayor Ganancia Promedio (según producto, precio diario y frecuencia)
+interface WeeklyStationProfit {
+  rank: number;
+  station: string;
+  type: 'PROPIA' | 'COLABORADORA';
+  fuelType: string;
+  fuelCode: ProductCode;
+  dailyBuyPrice: number;    // Precio Compra Diario Indicado Promedio (€/L con 3 decimales)
+  dailySalePrice: number;   // Precio Venta Diario Indicado Promedio (€/L con 3 decimales)
+  avgMargin: number;        // Margen Promedio (€/L con 3 decimales)
+  purchaseFrequency: string; // Frecuencia de compra en la estación
+  frequencyDays: number;     // Días de 7
+  weeklyEstimatedVolume: number; // Litros
+  weeklyGain: number;       // Ganancia Promedio Semanal (€)
+}
+
+const WEEKLY_TOP_STATIONS_PROFIT: WeeklyStationProfit[] = [
+  {
+    rank: 1,
+    station: 'PAMPLONA',
+    type: 'PROPIA',
+    fuelType: 'Gasóleo A (GOA)',
+    fuelCode: 'GOA',
+    dailyBuyPrice: 1.185,
+    dailySalePrice: 1.235,
+    avgMargin: 0.050,
+    purchaseFrequency: 'Diaria (7/7 días)',
+    frequencyDays: 7,
+    weeklyEstimatedVolume: 62000,
+    weeklyGain: 3100,
+  },
+  {
+    rank: 2,
+    station: 'TORREJON',
+    type: 'PROPIA',
+    fuelType: 'Gasóleo A (GOA)',
+    fuelCode: 'GOA',
+    dailyBuyPrice: 1.192,
+    dailySalePrice: 1.239,
+    avgMargin: 0.047,
+    purchaseFrequency: 'Diaria (7/7 días)',
+    frequencyDays: 7,
+    weeklyEstimatedVolume: 58000,
+    weeklyGain: 2726,
+  },
+  {
+    rank: 3,
+    station: 'IRUN ZAISA III',
+    type: 'COLABORADORA',
+    fuelType: 'Gasóleo A (GOA)',
+    fuelCode: 'GOA',
+    dailyBuyPrice: 1.182,
+    dailySalePrice: 1.226,
+    avgMargin: 0.044,
+    purchaseFrequency: 'Diaria (7/7 días)',
+    frequencyDays: 7,
+    weeklyEstimatedVolume: 55000,
+    weeklyGain: 2420,
+  },
+  {
+    rank: 4,
+    station: 'ARCOS JALON',
+    type: 'PROPIA',
+    fuelType: 'Gasolina 95',
+    fuelCode: 'GASOLINA',
+    dailyBuyPrice: 1.305,
+    dailySalePrice: 1.357,
+    avgMargin: 0.052,
+    purchaseFrequency: 'Alta (6/7 días)',
+    frequencyDays: 6,
+    weeklyEstimatedVolume: 42000,
+    weeklyGain: 2184,
+  },
+  {
+    rank: 5,
+    station: 'VALDEMORO',
+    type: 'PROPIA',
+    fuelType: 'HVO Biofuel',
+    fuelCode: 'HVO',
+    dailyBuyPrice: 1.418,
+    dailySalePrice: 1.488,
+    avgMargin: 0.070,
+    purchaseFrequency: 'Alta (6/7 días)',
+    frequencyDays: 6,
+    weeklyEstimatedVolume: 30000,
+    weeklyGain: 2100,
+  },
+  {
+    rank: 6,
+    station: 'ALFAJARIN',
+    type: 'PROPIA',
+    fuelType: 'AdBlue',
+    fuelCode: 'ADBLUE',
+    dailyBuyPrice: 0.400,
+    dailySalePrice: 0.749,
+    avgMargin: 0.349,
+    purchaseFrequency: 'Frecuente (5/7 días)',
+    frequencyDays: 5,
+    weeklyEstimatedVolume: 5800,
+    weeklyGain: 2024,
+  },
+  {
+    rank: 7,
+    station: 'PUERTO DE BARCELONA',
+    type: 'COLABORADORA',
+    fuelType: 'Gasóleo A (GOA)',
+    fuelCode: 'GOA',
+    dailyBuyPrice: 1.180,
+    dailySalePrice: 1.221,
+    avgMargin: 0.041,
+    purchaseFrequency: 'Diaria (7/7 días)',
+    frequencyDays: 7,
+    weeklyEstimatedVolume: 48000,
+    weeklyGain: 1968,
+  },
+  {
+    rank: 8,
+    station: 'BENAVENTE',
+    type: 'COLABORADORA',
+    fuelType: 'Gasóleo B',
+    fuelCode: 'GOB',
+    dailyBuyPrice: 0.978,
+    dailySalePrice: 1.022,
+    avgMargin: 0.044,
+    purchaseFrequency: 'Frecuente (5/7 días)',
+    frequencyDays: 5,
+    weeklyEstimatedVolume: 40000,
+    weeklyGain: 1760,
+  },
+  {
+    rank: 9,
+    station: 'MERIDA',
+    type: 'COLABORADORA',
+    fuelType: 'Gasóleo A (GOA)',
+    fuelCode: 'GOA',
+    dailyBuyPrice: 1.188,
+    dailySalePrice: 1.229,
+    avgMargin: 0.041,
+    purchaseFrequency: 'Frecuente (5/7 días)',
+    frequencyDays: 5,
+    weeklyEstimatedVolume: 39000,
+    weeklyGain: 1599,
+  },
+  {
+    rank: 10,
+    station: 'MADRID',
+    type: 'PROPIA',
+    fuelType: 'Gasolina 95',
+    fuelCode: 'GASOLINA',
+    dailyBuyPrice: 1.312,
+    dailySalePrice: 1.360,
+    avgMargin: 0.048,
+    purchaseFrequency: 'Alta (6/7 días)',
+    frequencyDays: 6,
+    weeklyEstimatedVolume: 32000,
+    weeklyGain: 1536,
+  },
+];
+
+// Estaciones Propias y Colaboradoras con formato de 3 decimales
 const MOCK_PROPIAS = PROPIAS_STATIONS.map((st, i) => ({
   station: st.name,
   type: 'PROPIA' as const,
-  goa: Number((1.2100 + (i % 5) * 0.002).toFixed(4)),
-  premium: Number((1.2500 + (i % 5) * 0.002).toFixed(4)),
-  gasolina: Number((1.3700 + (i % 5) * 0.003).toFixed(4)),
-  margin: Number((0.0380 + (i % 4) * 0.002).toFixed(4)),
+  goa: Number((1.210 + (i % 5) * 0.002).toFixed(3)),
+  premium: Number((1.250 + (i % 5) * 0.002).toFixed(3)),
+  gasolina: Number((1.370 + (i % 5) * 0.003).toFixed(3)),
+  margin: Number((0.038 + (i % 4) * 0.002).toFixed(3)),
   weeklyGain: 1300 + (i * 35),
 }));
 
 const MOCK_COLABORADORAS = COLABORADORA_STATIONS.map((st, i) => ({
   station: st.name,
   type: 'COLABORADORA' as const,
-  goa: Number((1.1800 + (i % 6) * 0.002).toFixed(4)),
-  premium: Number((1.2200 + (i % 6) * 0.002).toFixed(4)),
-  gasolina: Number((1.3400 + (i % 6) * 0.003).toFixed(4)),
-  margin: Number((0.0360 + (i % 4) * 0.002).toFixed(4)),
+  goa: Number((1.180 + (i % 6) * 0.002).toFixed(3)),
+  premium: Number((1.220 + (i % 6) * 0.002).toFixed(3)),
+  gasolina: Number((1.340 + (i % 6) * 0.003).toFixed(3)),
+  margin: Number((0.036 + (i % 4) * 0.002).toFixed(3)),
   weeklyGain: 1400 + (i * 25),
 }));
 
-const PURCHASE_TREND = [1.1820, 1.1850, 1.1790, 1.1900, 1.1950, 1.1880, 1.2010, 1.1970];
+const PURCHASE_TREND = [1.182, 1.185, 1.179, 1.190, 1.195, 1.188, 1.201, 1.197];
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Hoy'];
 
-const avgGoa = MOCK_PROPIAS.reduce((a, b) => a + b.goa, 0) / MOCK_PROPIAS.length;
-const avgMargin = MOCK_PROPIAS.reduce((a, b) => a + b.margin, 0) / MOCK_PROPIAS.length;
+const avgGoa = Number((MOCK_PROPIAS.reduce((a, b) => a + b.goa, 0) / MOCK_PROPIAS.length).toFixed(3));
+const avgMargin = Number((MOCK_PROPIAS.reduce((a, b) => a + b.margin, 0) / MOCK_PROPIAS.length).toFixed(3));
 const prevGoa = PURCHASE_TREND[PURCHASE_TREND.length - 2];
 const todayGoa = PURCHASE_TREND[PURCHASE_TREND.length - 1];
-const goaDelta = todayGoa - prevGoa;
-
-// Top 5 Estaciones con mayores ganancias en la última semana
-const allStationsCombined = [...MOCK_PROPIAS, ...MOCK_COLABORADORAS];
-const topStationsWeekly = [...allStationsCombined].sort((a, b) => b.weeklyGain - a.weeklyGain).slice(0, 5);
-
-type KpiType = 'compra' | 'margen' | 'propias' | 'colaboradoras';
-type PeriodType = 'dia' | 'semana' | 'mes' | 'ano';
 
 export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
   const [activeTableTab, setActiveTableTab] = useState<'PROPIAS' | 'COLABORADORAS' | 'TODAS'>('TODAS');
-  const [selectedKpi, setSelectedKpi] = useState<KpiType | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('dia');
-
-  // Datos comparativos por período para el modal de KPIs
-  const KPI_DETAILS: Record<KpiType, { title: string; subtitle: string; icon: React.ElementType; color: string; periods: Record<PeriodType, { current: string; previous: string; delta: string; isPositive: boolean; costAvg: string; gainAvg: string; marginPct: string; commentary: string }> }> = {
-    compra: {
-      title: 'Desglose y Comparativa: Precio de Compra GOA',
-      subtitle: 'Evolución del precio de adquisición mayorista en distintos periodos',
-      icon: Fuel,
-      color: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-      periods: {
-        dia: {
-          current: '1.1970 €/L',
-          previous: '1.2010 €/L (Ayer)',
-          delta: '-0.0040 €/L (-0.33%)',
-          isPositive: true, // Bajada de coste es positivo
-          costAvg: '1.1970 €/L',
-          gainAvg: '0.0420 €/L',
-          marginPct: '3.51%',
-          commentary: 'El precio de compra experimentó una leve bajada respecto a la sesión de ayer.',
-        },
-        semana: {
-          current: '1.1970 €/L',
-          previous: '1.1820 €/L (Semana Pasada)',
-          delta: '+0.0150 €/L (+1.27%)',
-          isPositive: false,
-          costAvg: '1.1912 €/L (Media 7d)',
-          gainAvg: '0.0415 €/L',
-          marginPct: '3.48%',
-          commentary: 'Tendencia alcista moderada en la cotización semanal del diésel.',
-        },
-        mes: {
-          current: '1.1970 €/L',
-          previous: '1.1650 €/L (Mes Pasado)',
-          delta: '+0.0320 €/L (+2.74%)',
-          isPositive: false,
-          costAvg: '1.1780 €/L (Media 30d)',
-          gainAvg: '0.0430 €/L',
-          marginPct: '3.65%',
-          commentary: 'Ajuste mensual acorde a los movimientos del barril Brent en refinería.',
-        },
-        ano: {
-          current: '1.1970 €/L',
-          previous: '1.2450 €/L (Año Pasado)',
-          delta: '-0.0480 €/L (-3.85%)',
-          isPositive: true,
-          costAvg: '1.2100 €/L (Media Anual)',
-          gainAvg: '0.0405 €/L',
-          marginPct: '3.34%',
-          commentary: 'El coste medio se mantiene inferior respecto al mismo periodo del año fiscal anterior.',
-        },
-      },
-    },
-    margen: {
-      title: 'Desglose y Comparativa: Margen Medio Global',
-      subtitle: 'Rentabilidad neta por litro comercializado en la red',
-      icon: TrendingUp,
-      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-      periods: {
-        dia: {
-          current: '0.0425 €/L',
-          previous: '0.0410 €/L (Ayer)',
-          delta: '+0.0015 €/L (+3.66%)',
-          isPositive: true,
-          costAvg: '1.1970 €/L',
-          gainAvg: '0.0425 €/L',
-          marginPct: '3.55%',
-          commentary: 'Aumento del margen neto diario gracias a la optimización de costes de pase y portes.',
-        },
-        semana: {
-          current: '0.0425 €/L',
-          previous: '0.0395 €/L (Semana Pasada)',
-          delta: '+0.0030 €/L (+7.59%)',
-          isPositive: true,
-          costAvg: '1.1912 €/L',
-          gainAvg: '0.0418 €/L (Media Semanal)',
-          marginPct: '3.51%',
-          commentary: 'Rendimiento sólido en los últimos 7 días impulsado por las estaciones de alta rotación.',
-        },
-        mes: {
-          current: '0.0425 €/L',
-          previous: '0.0380 €/L (Mes Pasado)',
-          delta: '+0.0045 €/L (+11.84%)',
-          isPositive: true,
-          costAvg: '1.1780 €/L',
-          gainAvg: '0.0405 €/L (Media Mensual)',
-          marginPct: '3.44%',
-          commentary: 'Consolidación de márgenes en el acumulado mensual.',
-        },
-        ano: {
-          current: '0.0425 €/L',
-          previous: '0.0360 €/L (Año Pasado)',
-          delta: '+0.0065 €/L (+18.05%)',
-          isPositive: true,
-          costAvg: '1.2100 €/L',
-          gainAvg: '0.0385 €/L',
-          marginPct: '3.18%',
-          commentary: 'Crecimiento interanual del 18% en rentabilidad unitaria.',
-        },
-      },
-    },
-    propias: {
-      title: 'Desglose: Estaciones Propias (Postes & Red)',
-      subtitle: 'Estado operativo, márgenes y rendimiento de la red propia',
-      icon: Building2,
-      color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-      periods: {
-        dia: {
-          current: '10 EESS Activas',
-          previous: '10 EESS Ayer',
-          delta: '100% Operatividad',
-          isPositive: true,
-          costAvg: '1.2155 €/L',
-          gainAvg: '0.0412 €/L',
-          marginPct: '3.39%',
-          commentary: 'Todas las estaciones propias han sincronizado precios y postes para el público.',
-        },
-        semana: {
-          current: '14,340 € Ganancia Semanal',
-          previous: '13,850 € Sem. Anterior',
-          delta: '+490 € (+3.53%)',
-          isPositive: true,
-          costAvg: '1.2120 €/L',
-          gainAvg: '1,434 €/Estación media',
-          marginPct: '3.45%',
-          commentary: 'PAMPLONA y TORREJON lideran las ganancias semanales del grupo propio.',
-        },
-        mes: {
-          current: '59,800 € Ganancia Mensual',
-          previous: '56,200 € Mes Anterior',
-          delta: '+3,600 € (+6.41%)',
-          isPositive: true,
-          costAvg: '1.1980 €/L',
-          gainAvg: '5,980 €/Estación',
-          marginPct: '3.50%',
-          commentary: 'Superado el objetivo presupuestario mensual.',
-        },
-        ano: {
-          current: '710,000 € Acumulado Anual',
-          previous: '645,000 € Año Anterior',
-          delta: '+65,000 € (+10.08%)',
-          isPositive: true,
-          costAvg: '1.2050 €/L',
-          gainAvg: '71,000 €/Estación',
-          marginPct: '3.40%',
-          commentary: 'Crecimiento de red sostenido a 12 meses.',
-        },
-      },
-    },
-    colaboradoras: {
-      title: 'Desglose: Estaciones Colaboradoras (EFI)',
-      subtitle: 'Gestión de acuerdos mayoristas y estaciones fijas en Columna J',
-      icon: ShieldCheck,
-      color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-      periods: {
-        dia: {
-          current: '13 Fijas / 40 Total',
-          previous: '13 Fijas Ayer',
-          delta: '100% Sincronizadas',
-          isPositive: true,
-          costAvg: '1.1865 €/L',
-          gainAvg: '0.0395 €/L',
-          marginPct: '3.33%',
-          commentary: 'Precios de BENAVENTE, IRUN y resto de colaboradoras validados para EFI.',
-        },
-        semana: {
-          current: '16,280 € Ganancia Semanal',
-          previous: '15,400 € Sem. Anterior',
-          delta: '+880 € (+5.71%)',
-          isPositive: true,
-          costAvg: '1.1840 €/L',
-          gainAvg: '1,250 €/Estación media',
-          marginPct: '3.38%',
-          commentary: 'PUERTO DE BARCELONA e IRUN ZAISA III registraron el mayor volumen de la semana.',
-        },
-        mes: {
-          current: '68,500 € Ganancia Mensual',
-          previous: '63,100 € Mes Anterior',
-          delta: '+5,400 € (+8.56%)',
-          isPositive: true,
-          costAvg: '1.1790 €/L',
-          gainAvg: '5,269 €/Estación',
-          marginPct: '3.41%',
-          commentary: 'Acuerdos con proveedores (Valcarce, Nieves, Petromiralles) operando en margen óptimo.',
-        },
-        ano: {
-          current: '795,000 € Acumulado Anual',
-          previous: '720,000 € Año Anterior',
-          delta: '+75,000 € (+10.42%)',
-          isPositive: true,
-          costAvg: '1.1920 €/L',
-          gainAvg: '61,150 €/Estación',
-          marginPct: '3.30%',
-          commentary: 'Expansión de red colaboradora con alta fidelización de clientes.',
-        },
-      },
-    },
-  };
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalPeriod, setModalPeriod] = useState<PeriodType>('1d');
+  const [selectedProductFilter, setSelectedProductFilter] = useState<string>('ALL');
+  const [weeklyTableFilter, setWeeklyTableFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
 
   const displayedStations =
     activeTableTab === 'PROPIAS'
@@ -263,27 +295,66 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
   const maxBar = Math.max(...PURCHASE_TREND);
   const minBar = Math.min(...PURCHASE_TREND);
 
+  // Datos del período seleccionado para el modal comparativo
+  const currentPeriodData = PRODUCTS_BY_PERIOD[modalPeriod];
+  const filteredModalProducts = selectedProductFilter === 'ALL'
+    ? currentPeriodData.products
+    : currentPeriodData.products.filter((p) => p.code === selectedProductFilter);
+
+  // Cálculos globales para el período seleccionado
+  const globalAvgBuy = Number(
+    (currentPeriodData.products.reduce((acc, p) => acc + p.buyPrice, 0) / currentPeriodData.products.length).toFixed(3)
+  );
+  const globalAvgSale = Number(
+    (currentPeriodData.products.reduce((acc, p) => acc + p.salePrice, 0) / currentPeriodData.products.length).toFixed(3)
+  );
+  const globalAvgMargin = Number((globalAvgSale - globalAvgBuy).toFixed(3));
+  const globalMarginPct = Number(((globalAvgMargin / globalAvgSale) * 100).toFixed(2));
+
+  // Filtrado de la tabla semanal
+  const filteredWeeklyStations = weeklyTableFilter === 'ALL'
+    ? WEEKLY_TOP_STATIONS_PROFIT
+    : WEEKLY_TOP_STATIONS_PROFIT.filter((st) => st.type === weeklyTableFilter);
+
+  const maxWeeklyGain = Math.max(...WEEKLY_TOP_STATIONS_PROFIT.map((s) => s.weeklyGain));
+
   return (
     <div className="space-y-8">
-      {/* Banner Principal */}
+      {/* 1. Banner Principal */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-        <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold uppercase tracking-wider mb-1">
-          <BarChart3 className="h-4 w-4" />
-          <span>Panel de Control Ejecutivo</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold uppercase tracking-wider mb-1">
+              <BarChart3 className="h-4 w-4" />
+              <span>Panel de Control Ejecutivo</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Dashboard — EFI DATA OIL
+            </h2>
+            <p className="text-slate-400 text-sm mt-1">
+              Monitoreo integral de compras, ventas, márgenes por producto y rentabilidad semanal por estación.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center space-x-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs hover:brightness-110 transition-all shadow-lg shadow-amber-500/20"
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+            <span>Comparativa Compras vs Ventas (1d, 7d, 1m, 1a)</span>
+          </button>
         </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-          Dashboard — EFI DATA OIL
-        </h2>
-        <p className="text-slate-400 text-sm mt-1">
-          Monitoreo en tiempo real de precios de compra, postes, márgenes y rentabilidad semanal.
-        </p>
       </div>
 
-      {/* 4 KPIs Superiores (Interactivas con Modal) */}
+      {/* 2. 4 KPIs Superiores (Hacen clic y abren el Modal Comparativo) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Precio Compra */}
+        {/* KPI 1: Precio Compra GOA */}
         <div
-          onClick={() => setSelectedKpi('compra')}
+          onClick={() => {
+            setModalPeriod('1d');
+            setSelectedProductFilter('GOA');
+            setIsModalOpen(true);
+          }}
           className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-5 shadow-xl cursor-pointer group transition-all transform hover:-translate-y-1"
         >
           <div className="flex items-start justify-between">
@@ -292,25 +363,29 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
             </div>
             <span className="flex items-center space-x-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <TrendingDown className="h-3 w-3" />
-              <span>-0.0040 €</span>
+              <span>-0.004 €</span>
             </span>
           </div>
           <div className="mt-3">
             <p className="text-xs font-semibold text-slate-400">Precio Compra GOA (Hoy)</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              {todayGoa.toFixed(4)} <span className="text-xs text-slate-400">€/L</span>
+              {todayGoa.toFixed(3)} <span className="text-xs text-slate-400 font-mono">€/L</span>
             </p>
             <p className="text-[11px] text-amber-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>Ayer: {prevGoa.toFixed(4)} €</span>
+              <span>Ayer: {prevGoa.toFixed(3)} €</span>
               <span className="text-slate-600">&bull;</span>
-              <span className="underline group-hover:text-amber-300">Ver análisis</span>
+              <span className="underline group-hover:text-amber-300">Ver comparativa</span>
             </p>
           </div>
         </div>
 
-        {/* KPI 2: Margen Medio */}
+        {/* KPI 2: Margen Medio Global */}
         <div
-          onClick={() => setSelectedKpi('margen')}
+          onClick={() => {
+            setModalPeriod('7d');
+            setSelectedProductFilter('ALL');
+            setIsModalOpen(true);
+          }}
           className="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-5 shadow-xl cursor-pointer group transition-all transform hover:-translate-y-1"
         >
           <div className="flex items-start justify-between">
@@ -325,19 +400,23 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
           <div className="mt-3">
             <p className="text-xs font-semibold text-slate-400">Margen Medio Global</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              {avgMargin.toFixed(4)} <span className="text-xs text-slate-400">€/L</span>
+              +{avgMargin.toFixed(3)} <span className="text-xs text-slate-400 font-mono">€/L</span>
             </p>
             <p className="text-[11px] text-emerald-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>P. Venta medio: {(avgGoa + avgMargin).toFixed(4)} €</span>
+              <span>P. Venta medio: {(avgGoa + avgMargin).toFixed(3)} €</span>
               <span className="text-slate-600">&bull;</span>
-              <span className="underline group-hover:text-emerald-300">Ver análisis</span>
+              <span className="underline group-hover:text-emerald-300">Ver comparativa</span>
             </p>
           </div>
         </div>
 
         {/* KPI 3: Estaciones Propias */}
         <div
-          onClick={() => setSelectedKpi('propias')}
+          onClick={() => {
+            setModalPeriod('1m');
+            setSelectedProductFilter('ALL');
+            setIsModalOpen(true);
+          }}
           className="bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-2xl p-5 shadow-xl cursor-pointer group transition-all transform hover:-translate-y-1"
         >
           <div className="flex items-start justify-between">
@@ -345,25 +424,29 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
               <Building2 className="h-5 w-5" />
             </div>
             <span className="text-[10px] bg-blue-500/10 text-blue-300 font-bold px-2 py-0.5 rounded-full border border-blue-500/20">
-              100% Sincronizado
+              19 EESS Propias
             </span>
           </div>
           <div className="mt-3">
-            <p className="text-xs font-semibold text-slate-400">Estaciones Propias Activas</p>
+            <p className="text-xs font-semibold text-slate-400">Red Propia Activa</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              19 <span className="text-xs text-slate-400">EESS Propias</span>
+              19 <span className="text-xs text-slate-400">Estaciones</span>
             </p>
             <p className="text-[11px] text-blue-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>Postes y compras actualizados</span>
+              <span>Postes sincronizados</span>
               <span className="text-slate-600">&bull;</span>
-              <span className="underline group-hover:text-blue-300">Ver histórico</span>
+              <span className="underline group-hover:text-blue-300">Ver análisis</span>
             </p>
           </div>
         </div>
 
-        {/* KPI 4: Colaboradoras */}
+        {/* KPI 4: Colaboradoras Fijas y Totales */}
         <div
-          onClick={() => setSelectedKpi('colaboradoras')}
+          onClick={() => {
+            setModalPeriod('1y');
+            setSelectedProductFilter('ALL');
+            setIsModalOpen(true);
+          }}
           className="bg-slate-900 border border-slate-800 hover:border-purple-500/50 rounded-2xl p-5 shadow-xl cursor-pointer group transition-all transform hover:-translate-y-1"
         >
           <div className="flex items-start justify-between">
@@ -371,26 +454,206 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <span className="text-[10px] bg-purple-500/10 text-purple-300 font-bold px-2 py-0.5 rounded-full border border-purple-500/20">
-              13 Fijas / 34 Total
+              11 Fijas / 33 Red
             </span>
           </div>
           <div className="mt-3">
             <p className="text-xs font-semibold text-slate-400">Estaciones Colaboradoras (EFI)</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              34 <span className="text-xs text-slate-400">EESS (13 Fijas)</span>
+              33 <span className="text-xs text-slate-400">EESS EFI</span>
             </p>
             <p className="text-[11px] text-purple-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>Irun, Benavente...</span>
+              <span>Benavente, Irun, etc.</span>
               <span className="text-slate-600">&bull;</span>
-              <span className="underline group-hover:text-purple-300">Ver histórico</span>
+              <span className="underline group-hover:text-purple-300">Ver análisis</span>
             </p>
           </div>
         </div>
       </div>
 
-      {/* Gráficos + Top Estaciones de la Semana */}
+      {/* 3. Cuadro Semanal: Estaciones con Mayor Ganancia Promedio (Requisito clave del usuario) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
+        <div className="bg-slate-950 px-6 py-5 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              <Award className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-extrabold text-white text-lg tracking-tight">
+                  Ranking Semanal de Rentabilidad por Estación
+                </h3>
+                <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/40">
+                  Semana Actual
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Ganancia promedio semanal calculada según combustible comprado, precio diario indicado y frecuencia de compra.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+              <button
+                onClick={() => setWeeklyTableFilter('ALL')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  weeklyTableFilter === 'ALL' ? 'bg-amber-500 text-slate-950 font-black shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Todas ({WEEKLY_TOP_STATIONS_PROFIT.length})
+              </button>
+              <button
+                onClick={() => setWeeklyTableFilter('PROPIA')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  weeklyTableFilter === 'PROPIA' ? 'bg-blue-500 text-white font-black shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Propias
+              </button>
+              <button
+                onClick={() => setWeeklyTableFilter('COLABORADORA')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  weeklyTableFilter === 'COLABORADORA' ? 'bg-purple-500 text-white font-black shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Colaboradoras
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setModalPeriod('7d');
+                setIsModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all inline-flex items-center space-x-1 border border-slate-700"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5 text-amber-400" />
+              <span>Ver Comparativa 7d</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
+                <th className="py-3.5 px-4 text-center w-14">Rank</th>
+                <th className="py-3.5 px-4">Estación</th>
+                <th className="py-3.5 px-3">Tipo Red</th>
+                <th className="py-3.5 px-4">Combustible Comprado</th>
+                <th className="py-3.5 px-4 text-amber-300">P. Compra Diario Prom.</th>
+                <th className="py-3.5 px-4 text-blue-300">P. Venta Diario Prom.</th>
+                <th className="py-3.5 px-4 text-emerald-400">Margen Promedio</th>
+                <th className="py-3.5 px-4">Frecuencia de Compra</th>
+                <th className="py-3.5 px-5 text-right text-emerald-300">Ganancia Prom. Semanal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
+              {filteredWeeklyStations.map((st) => {
+                const pct = (st.weeklyGain / maxWeeklyGain) * 100;
+                return (
+                  <tr key={`${st.station}_${st.fuelCode}`} className="hover:bg-slate-800/40 transition-colors">
+                    {/* 1. Posición */}
+                    <td className="py-3 px-4 text-center font-mono">
+                      <span
+                        className={`w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-black shadow-sm ${
+                          st.rank === 1
+                            ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-400/50'
+                            : st.rank === 2
+                            ? 'bg-slate-300 text-slate-950 ring-2 ring-slate-300/50'
+                            : st.rank === 3
+                            ? 'bg-amber-700 text-white ring-2 ring-amber-700/50'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {st.rank}º
+                      </span>
+                    </td>
+
+                    {/* 2. Estación */}
+                    <td className="py-3 px-4 font-bold text-white text-sm">
+                      {st.station}
+                    </td>
+
+                    {/* 3. Tipo */}
+                    <td className="py-3 px-3">
+                      <span
+                        className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider inline-flex items-center space-x-1 ${
+                          st.type === 'PROPIA'
+                            ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                            : 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                        }`}
+                      >
+                        {st.type === 'PROPIA' ? <Building2 className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+                        <span>{st.type}</span>
+                      </span>
+                    </td>
+
+                    {/* 4. Combustible Comprado */}
+                    <td className="py-3 px-4">
+                      <span className="font-semibold text-slate-300 inline-flex items-center space-x-1.5">
+                        {st.fuelCode === 'GOA' && <Fuel className="h-3.5 w-3.5 text-amber-400" />}
+                        {st.fuelCode === 'GASOLINA' && <Zap className="h-3.5 w-3.5 text-blue-400" />}
+                        {st.fuelCode === 'ADBLUE' && <Droplet className="h-3.5 w-3.5 text-cyan-400" />}
+                        {st.fuelCode === 'HVO' && <Flame className="h-3.5 w-3.5 text-emerald-400" />}
+                        {st.fuelCode === 'GOB' && <Fuel className="h-3.5 w-3.5 text-orange-400" />}
+                        <span>{st.fuelType}</span>
+                      </span>
+                    </td>
+
+                    {/* 5. Precio Compra Diario Indicado Promedio (3 decimales) */}
+                    <td className="py-3 px-4 font-mono font-bold text-amber-300">
+                      {st.dailyBuyPrice.toFixed(3)} €/L
+                    </td>
+
+                    {/* 6. Precio Venta Diario Indicado Promedio (3 decimales) */}
+                    <td className="py-3 px-4 font-mono font-bold text-blue-300">
+                      {st.dailySalePrice.toFixed(3)} €/L
+                    </td>
+
+                    {/* 7. Margen Promedio (3 decimales) */}
+                    <td className="py-3 px-4 font-mono font-bold text-emerald-400">
+                      +{st.avgMargin.toFixed(3)} €/L
+                    </td>
+
+                    {/* 8. Frecuencia de Compra */}
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[11px] font-bold">
+                        <Clock className="h-3 w-3 text-amber-400" />
+                        <span>{st.purchaseFrequency}</span>
+                      </span>
+                    </td>
+
+                    {/* 9. Ganancia Promedio Semanal */}
+                    <td className="py-3 px-5 text-right">
+                      <div className="flex flex-col items-end space-y-1">
+                        <span className="font-mono font-black text-emerald-300 text-sm">
+                          +{st.weeklyGain.toLocaleString()} €
+                        </span>
+                        <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              st.rank === 1
+                                ? 'bg-gradient-to-r from-amber-500 to-amber-300'
+                                : 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 4. Gráfico Evolución + Top 5 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráfico de Barras */}
+        {/* Gráfico de Barras GOA */}
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-white text-base flex items-center space-x-2">
@@ -408,7 +671,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
               const isToday = DAYS[i] === 'Hoy';
               return (
                 <div key={i} className="flex flex-col items-center space-y-1.5 flex-1">
-                  <span className="text-[10px] font-mono text-slate-400">{v.toFixed(4)}</span>
+                  <span className="text-[10px] font-mono text-slate-400">{v.toFixed(3)}</span>
                   <div className="w-full flex flex-col justify-end" style={{ height: '90px' }}>
                     <div
                       className={`w-full rounded-t-lg transition-all duration-300 ${
@@ -428,70 +691,72 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
           </div>
 
           <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
-            <span>Mínimo: <strong className="text-emerald-400">{Math.min(...PURCHASE_TREND).toFixed(4)} €/L</strong></span>
-            <span>Media: <strong className="text-amber-400">{(PURCHASE_TREND.reduce((a, b) => a + b, 0) / PURCHASE_TREND.length).toFixed(4)} €/L</strong></span>
-            <span>Máximo: <strong className="text-rose-400">{Math.max(...PURCHASE_TREND).toFixed(4)} €/L</strong></span>
+            <span>Mínimo: <strong className="text-emerald-400">{Math.min(...PURCHASE_TREND).toFixed(3)} €/L</strong></span>
+            <span>Media: <strong className="text-amber-400">{(PURCHASE_TREND.reduce((a, b) => a + b, 0) / PURCHASE_TREND.length).toFixed(3)} €/L</strong></span>
+            <span>Máximo: <strong className="text-rose-400">{Math.max(...PURCHASE_TREND).toFixed(3)} €/L</strong></span>
           </div>
         </div>
 
-        {/* Top 5 Estaciones por Margen (Última Semana) */}
+        {/* Resumen de Rentabilidad Rápida */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-white text-base flex items-center space-x-2">
                 <Target className="h-5 w-5 text-emerald-400" />
-                <span>Top 5 Estaciones</span>
+                <span>Podio Semanal</span>
               </h3>
               <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
-                Última Semana
+                Top 3
               </span>
             </div>
-            <p className="text-xs text-slate-400 mb-4">Estaciones con mejores ganancias netas acumuladas en los últimos 7 días:</p>
+            <p className="text-xs text-slate-400 mb-4">Estaciones líderes en generación de beneficio neto de la semana:</p>
 
             <div className="space-y-3.5">
-              {topStationsWeekly.map((st, i) => {
-                const maxGain = topStationsWeekly[0].weeklyGain;
-                const pct = (st.weeklyGain / maxGain) * 100;
+              {WEEKLY_TOP_STATIONS_PROFIT.slice(0, 3).map((st, i) => {
                 return (
-                  <div key={st.station} className="space-y-1">
+                  <div key={st.station} className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center space-x-2">
                         <span
                           className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                             i === 0
-                              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
-                              : 'bg-slate-800 text-slate-400'
+                              ? 'bg-amber-400 text-slate-950'
+                              : i === 1
+                              ? 'bg-slate-300 text-slate-950'
+                              : 'bg-amber-700 text-white'
                           }`}
                         >
                           {i + 1}
                         </span>
                         <span className="font-bold text-white">{st.station}</span>
-                        <span className="text-[9px] text-slate-500 font-mono">({(st.type || 'P').charAt(0)})</span>
+                        <span className="text-[9px] text-slate-500 font-mono">({st.type.charAt(0)})</span>
                       </div>
-                      <div className="flex items-center space-x-2 font-mono">
-                        <span className="text-emerald-400 font-bold">+{st.weeklyGain.toLocaleString()} €</span>
-                        <span className="text-slate-500 text-[10px]">({st.margin.toFixed(4)}€/L)</span>
-                      </div>
+                      <span className="text-emerald-400 font-bold font-mono">+{st.weeklyGain.toLocaleString()} €</span>
                     </div>
-                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          i === 0
-                            ? 'bg-gradient-to-r from-amber-500 to-amber-300'
-                            : 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                      <span>{st.fuelType}</span>
+                      <span>Margen: +{st.avgMargin.toFixed(3)} €/L</span>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
+
+          <button
+            onClick={() => {
+              setModalPeriod('7d');
+              setIsModalOpen(true);
+            }}
+            className="w-full mt-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 border border-slate-700"
+          >
+            <span>Abrir desglose completo</span>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Tabla Completa: Precios Actuales (Propias y Colaboradoras) */}
+      {/* 5. Tabla Completa de Precios Actuales por Estación (3 decimales) */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
         <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
@@ -500,7 +765,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
             </div>
             <div>
               <h3 className="font-bold text-white text-base">Precios Actuales por Estación</h3>
-              <p className="text-xs text-slate-400">Vista unificada de toda la red de estaciones</p>
+              <p className="text-xs text-slate-400">Vista unificada de toda la red con redondeo a 3 decimales</p>
             </div>
           </div>
 
@@ -562,10 +827,10 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
                       {row.type}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-mono text-amber-300 font-bold">{row.goa.toFixed(4)} €</td>
-                  <td className="py-3 px-4 font-mono text-amber-400 font-bold">{row.premium.toFixed(4)} €</td>
-                  <td className="py-3 px-4 font-mono text-blue-300">{row.gasolina.toFixed(4)} €</td>
-                  <td className="py-3 px-4 font-mono font-bold text-emerald-400">+{row.margin.toFixed(4)} €</td>
+                  <td className="py-3 px-4 font-mono text-amber-300 font-bold">{row.goa.toFixed(3)} €</td>
+                  <td className="py-3 px-4 font-mono text-amber-400 font-bold">{row.premium.toFixed(3)} €</td>
+                  <td className="py-3 px-4 font-mono text-blue-300">{row.gasolina.toFixed(3)} €</td>
+                  <td className="py-3 px-4 font-mono font-bold text-emerald-400">+{row.margin.toFixed(3)} €</td>
                   <td className="py-3 px-4 font-mono font-bold text-emerald-300">+{row.weeklyGain.toLocaleString()} €</td>
                   <td className="py-3 px-4 text-right">
                     <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
@@ -580,111 +845,226 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
         </div>
       </div>
 
-      {/* Modal Interactivo de KPI con Períodos (Día, Semana, Mes, Año) */}
-      {selectedKpi && (
+      {/* 6. MODAL INTERACTIVO: Comparativa de Precios de Compra vs Venta por Producto y Período */}
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+            <div className="px-6 py-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-3">
-                <div className={`p-2.5 rounded-xl border ${KPI_DETAILS[selectedKpi].color}`}>
-                  {(() => {
-                    const IconComp = KPI_DETAILS[selectedKpi].icon;
-                    return <IconComp className="h-6 w-6" />;
-                  })()}
+                <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <ArrowLeftRight className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">{KPI_DETAILS[selectedKpi].title}</h3>
-                  <p className="text-xs text-slate-400">{KPI_DETAILS[selectedKpi].subtitle}</p>
+                  <h3 className="text-lg font-extrabold text-white tracking-tight">
+                    Comparativa: Precios de Compra vs Precios de Venta
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Análisis comparativo de todos los productos en períodos de 1 día, 7 días, 1 mes y 1 año (3 decimales)
+                  </p>
                 </div>
               </div>
               <button
-                onClick={() => setSelectedKpi(null)}
+                onClick={() => setIsModalOpen(false)}
                 className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Selector de Períodos */}
-            <div className="p-6 space-y-6">
-              <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
-                {[
-                  { id: 'dia', label: 'Día Anterior (vs Ayer)' },
-                  { id: 'semana', label: 'Semana Anterior (vs 7d)' },
-                  { id: 'mes', label: 'Mes Anterior (vs 30d)' },
-                  { id: 'ano', label: 'Año Anterior (vs 365d)' },
-                ].map((p) => (
+            {/* Modal Body (Scrollable) */}
+            <div className="p-6 space-y-6 overflow-y-auto">
+              {/* Selector de Períodos solicitado: 1 día, 7 días, 1 mes, 1 año */}
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                  Seleccione Período de Análisis:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
+                  {(['1d', '7d', '1m', '1y'] as PeriodType[]).map((periodKey) => {
+                    const isSelected = modalPeriod === periodKey;
+                    return (
+                      <button
+                        key={periodKey}
+                        onClick={() => setModalPeriod(periodKey)}
+                        className={`py-2.5 px-3 rounded-xl transition-all flex flex-col items-center justify-center space-y-0.5 ${
+                          isSelected
+                            ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/25 ring-2 ring-amber-400'
+                            : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                        }`}
+                      >
+                        <span className="text-sm font-extrabold">{PRODUCTS_BY_PERIOD[periodKey].periodName}</span>
+                        <span className={`text-[10px] ${isSelected ? 'text-slate-950/80' : 'text-slate-500'}`}>
+                          {PRODUCTS_BY_PERIOD[periodKey].sublabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tarjetas de Resumen Global del Período */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 block font-medium">P. Compra Medio Global</span>
+                  <span className="text-xl font-extrabold text-amber-300 font-mono mt-1 block">
+                    {globalAvgBuy.toFixed(3)} €/L
+                  </span>
+                </div>
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 block font-medium">P. Venta Medio Global</span>
+                  <span className="text-xl font-extrabold text-blue-300 font-mono mt-1 block">
+                    {globalAvgSale.toFixed(3)} €/L
+                  </span>
+                </div>
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 block font-medium">Margen Promedio Global</span>
+                  <span className="text-xl font-extrabold text-emerald-400 font-mono mt-1 block">
+                    +{globalAvgMargin.toFixed(3)} €/L
+                  </span>
+                </div>
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 block font-medium">% Rentabilidad Global</span>
+                  <span className="text-xl font-extrabold text-purple-300 font-mono mt-1 block">
+                    {globalMarginPct.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Filtro Rápido por Producto */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Productos Manejados ({currentPeriodData.products.length}):
+                </span>
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold gap-1">
                   <button
-                    key={p.id}
-                    onClick={() => setSelectedPeriod(p.id as PeriodType)}
-                    className={`flex-1 py-2 rounded-xl transition-all ${
-                      selectedPeriod === p.id
-                        ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                    onClick={() => setSelectedProductFilter('ALL')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      selectedProductFilter === 'ALL'
+                        ? 'bg-amber-500 text-slate-950 font-bold'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    {p.label}
+                    Todos
                   </button>
-                ))}
+                  {currentPeriodData.products.map((p) => (
+                    <button
+                      key={p.code}
+                      onClick={() => setSelectedProductFilter(p.code)}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        selectedProductFilter === p.code
+                          ? 'bg-amber-500 text-slate-950 font-bold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {p.name.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Contenido del Período Seleccionado */}
-              {(() => {
-                const data = KPI_DETAILS[selectedKpi].periods[selectedPeriod];
-                return (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                        <p className="text-xs text-slate-400">Valor Actual</p>
-                        <p className="text-2xl font-extrabold text-white font-mono mt-1">
-                          {data.current}
-                        </p>
-                      </div>
-                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                        <p className="text-xs text-slate-400">Variación Período</p>
-                        <p
-                          className={`text-2xl font-extrabold font-mono mt-1 ${
-                            data.isPositive ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
-                        >
-                          {data.delta}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{data.previous}</p>
-                      </div>
-                    </div>
+              {/* Tabla Comparativa de Productos en el Período */}
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-inner">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
+                        <th className="py-3 px-4">Producto</th>
+                        <th className="py-3 px-4 text-amber-300">P. Compra (€/L)</th>
+                        <th className="py-3 px-4 text-blue-300">P. Venta (€/L)</th>
+                        <th className="py-3 px-4 text-emerald-400">Margen (€/L)</th>
+                        <th className="py-3 px-4 text-purple-300">% Rentabilidad</th>
+                        <th className="py-3 px-4 text-slate-300">Var. Compra Período</th>
+                        <th className="py-3 px-4 text-right">Tendencia</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
+                      {filteredModalProducts.map((p) => {
+                        const margin = Number((p.salePrice - p.buyPrice).toFixed(3));
+                        const marginPct = Number(((margin / p.salePrice) * 100).toFixed(2));
+                        const deltaBuy = Number((p.buyPrice - p.prevBuyPrice).toFixed(3));
+                        const isBuyPositive = deltaBuy <= 0; // bajada de costo es favorable
+                        const IconComp = p.icon;
 
-                    <div className="grid grid-cols-3 gap-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 text-xs">
-                      <div>
-                        <span className="text-slate-400 block mb-1">Coste Promedio:</span>
-                        <span className="font-mono font-bold text-amber-300">{data.costAvg}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block mb-1">Ganancia Unitaria:</span>
-                        <span className="font-mono font-bold text-emerald-400">{data.gainAvg}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block mb-1">% Margen:</span>
-                        <span className="font-mono font-bold text-blue-300">{data.marginPct}</span>
-                      </div>
-                    </div>
+                        return (
+                          <tr key={p.code} className="hover:bg-slate-900/50 transition-colors">
+                            {/* Producto */}
+                            <td className="py-3.5 px-4 font-bold text-white">
+                              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center space-x-2 border ${p.badge}`}>
+                                <IconComp className="h-4 w-4" />
+                                <span>{p.name}</span>
+                              </span>
+                            </td>
 
-                    <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-xs text-slate-300 space-y-1">
-                      <strong className="text-amber-300 block">Análisis Operativo:</strong>
-                      <p>{data.commentary}</p>
-                    </div>
-                  </div>
-                );
-              })()}
+                            {/* P. Compra (3 decimales) */}
+                            <td className="py-3.5 px-4 font-mono font-bold text-amber-300 text-sm">
+                              {p.buyPrice.toFixed(3)} €
+                            </td>
+
+                            {/* P. Venta (3 decimales) */}
+                            <td className="py-3.5 px-4 font-mono font-bold text-blue-300 text-sm">
+                              {p.salePrice.toFixed(3)} €
+                            </td>
+
+                            {/* Margen (3 decimales) */}
+                            <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-400 text-sm">
+                              +{margin.toFixed(3)} €
+                            </td>
+
+                            {/* % Rentabilidad */}
+                            <td className="py-3.5 px-4 font-mono font-bold text-purple-300">
+                              {marginPct.toFixed(2)}%
+                            </td>
+
+                            {/* Variación Compra vs período anterior */}
+                            <td className="py-3.5 px-4 font-mono">
+                              <span
+                                className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-bold ${
+                                  isBuyPositive
+                                    ? 'text-emerald-400 bg-emerald-500/10'
+                                    : 'text-rose-400 bg-rose-500/10'
+                                }`}
+                              >
+                                {isBuyPositive ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                                <span>{deltaBuy > 0 ? `+${deltaBuy.toFixed(3)}` : deltaBuy.toFixed(3)} €/L</span>
+                              </span>
+                            </td>
+
+                            {/* Tendencia */}
+                            <td className="py-3.5 px-4 text-right font-mono">
+                              <span className="text-[11px] font-bold text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                                {isBuyPositive ? 'Favorable / Ahorro' : 'Alza Moderada'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Nota Explicativa */}
+              <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-xs text-slate-300 flex items-start space-x-3">
+                <CheckCircle2 className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <strong className="text-amber-300 block font-bold">Regla de precisión decimal aplicada:</strong>
+                  <p>
+                    Todos los precios de compras, ventas y márgenes unitarios conservan estrictamente tres dígitos a la derecha de la coma o punto con redondeo estándar (ej. 1.197 €/L), garantizando coherencia absoluta con los costes de aprovisionamiento de refinería y postes.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-end">
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-500">
+                Período visualizado: <strong className="text-white">{currentPeriodData.label}</strong>
+              </span>
               <button
-                onClick={() => setSelectedKpi(null)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
+                onClick={() => setIsModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
               >
-                Cerrar Detalle
+                Cerrar Comparativa
               </button>
             </div>
           </div>

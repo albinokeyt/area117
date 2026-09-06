@@ -53,7 +53,6 @@ const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> 
   'LLERS': { bandera: 'PADROSA', ubicacion: 'Autopista AP-7, Salida 3, 17740 Llers, Girona' },
   'DARRO - A92': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, KM 292, Darro, Granada' },
   'MERIDA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-5, KM 341, Mérida, Badajoz' },
-  'SANCTI-SPIRITUS': { bandera: 'VALCARCE', ubicacion: 'Autovía A-62, KM 312, Sancti-Spíritus, Salamanca' },
   'MURCIA': { bandera: 'ANDAMUR', ubicacion: 'Polígono Industrial Oeste, Alcantarilla, Murcia' },
   'NORIOIL': { bandera: 'NORIOIL', ubicacion: 'Autovía A-7, KM 585, Lorca, Murcia' },
   'SAN VICENTE DEL PALACIO': { bandera: 'VALCARCE', ubicacion: 'A-6, KM 147, San Vicente del Palacio, Valladolid' },

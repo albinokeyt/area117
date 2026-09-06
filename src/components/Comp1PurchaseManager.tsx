@@ -18,7 +18,6 @@ const FIXED_COLLABORATOR_NAMES = [
   'IRUN ZAISA III',
   'AVILESINA',
   'MERIDA',
-  'SANCTI-SPIRITUS',
   'SAN VICENTE DEL PALACIO',
   'WATERY ARANDA',
   'PUERTO DE BARCELONA',
@@ -100,6 +99,7 @@ interface PurchaseRowValues {
   porte: string;
   pase: string;
   fin: string;
+  prevSale?: string;
   sale: string;
   isCustomSale?: boolean;
 }
@@ -131,7 +131,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return isNaN(num) ? 0 : num;
   };
 
-  const formatNum = (num: number, decimals: number = 4): string => {
+  const formatNum = (num: number, decimals: number = 3): string => {
     return num.toFixed(decimals);
   };
 
@@ -178,11 +178,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       const goaPrev = costs.defaultPrev;
       const goaCurr = costs.defaultCurr;
-      const totalCostGoa = Number((goaCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+      const totalCostGoa = Number((goaCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
 
       const gasPrev = costs.defaultPrev + 0.1200;
       const gasCurr = costs.defaultCurr + 0.1200;
-      const totalCostGas = Number((gasCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+      const totalCostGas = Number((gasCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
 
       initial[`${st.name}_GOA`] = {
         prev: formatNum(goaPrev),
@@ -191,6 +191,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         porte: formatNum(costs.porte),
         pase: formatNum(costs.pase),
         fin: formatNum(costs.fin),
+        prevSale: formatNum(totalCostGoa),
         sale: formatNum(totalCostGoa),
         isCustomSale: false,
       };
@@ -202,6 +203,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         porte: formatNum(costs.porte),
         pase: formatNum(costs.pase),
         fin: formatNum(costs.fin),
+        prevSale: formatNum(totalCostGas),
         sale: formatNum(totalCostGas),
         isCustomSale: false,
       };
@@ -212,11 +214,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           prev: formatNum(adblueData.defaultBuy),
           curr: formatNum(adblueData.defaultBuy),
           clh: '-',
-          porte: '0.0000',
-          pase: '0.0000',
-          fin: '0.0000',
-          sale: formatNum(adblueData.defaultSale),
-          isCustomSale: true,
+          porte: '0.000',
+          pase: '0.000',
+          fin: '0.000',
+          prevSale: formatNum(adblueData.defaultBuy),
+          sale: formatNum(adblueData.defaultBuy),
+          isCustomSale: false,
         };
       }
     });
@@ -309,9 +312,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         const porteN = parseNum(field === 'porte' ? rawVal : updated.porte);
         const paseN = parseNum(field === 'pase' ? rawVal : updated.pase);
         const finN = parseNum(field === 'fin' ? rawVal : updated.fin);
-        const newTotalCost = Number((currN + porteN + paseN + finN).toFixed(4));
+        const newTotalCost = Number((currN + porteN + paseN + finN).toFixed(3));
 
-        if (!updated.isCustomSale && prodCode !== 'ADBLUE') {
+        if (!updated.isCustomSale) {
           updated.sale = formatNum(newTotalCost);
         }
       }
@@ -444,9 +447,18 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setPurchases((prev) => {
       const nextPurchases: Record<string, PurchaseRowValues> = {};
       Object.entries(prev).forEach(([key, item]) => {
+        const currNum = parseNum(item.curr);
+        const porteNum = parseNum(item.porte);
+        const paseNum = parseNum(item.pase);
+        const finNum = parseNum(item.fin);
+        const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
+        const effectiveSale = item.isCustomSale && item.sale ? item.sale : formatNum(totalCost);
+
         nextPurchases[key] = {
           ...item,
-          prev: item.sale,
+          prev: item.curr,
+          prevSale: effectiveSale,
+          isCustomSale: false,
         };
       });
 
@@ -461,19 +473,20 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           modified: [],
           updatedAt: new Date().toISOString(),
         }));
+        window.dispatchEvent(new Event('efi_compras_updated'));
       } catch (e) {}
 
       return nextPurchases;
     });
 
     setModifiedKeys(new Set());
-    setToastMessage('Cierre de Día Completado: P. Venta copiado a Precio Anterior');
+    setToastMessage('Cierre de Día Completado: Compra Hoy -> P. Ant. Compra, P. Venta -> P. Venta Ant.');
     setTimeout(() => setToastMessage(null), 3500);
   };
 
   const handleExportDailyExcel = () => {
     let csv = `INFORME DIARIO DE COMPRAS Y COSTES - AREA 117\nFECHA EMISION:;${selectedDate};PRECIOS VALIDOS A PARTIR DE:;${validFromDate}\nAVISO IMPORTANTE:;TODOS LOS PRECIOS Y COSTES TIENEN VALIDEZ OFICIAL A PARTIR DEL:;${validFromDate}\n\n`;
-    csv += 'ESTACION;TIPO;PRODUCTO;PRECIO ANTERIOR (EUR);PRECIO COMPRA HOY (EUR);CLH (TERMINAL);PORTE (R);PASE (S);FINANCIACION (T);COSTO TOTAL (EUR);P. VENTA SUGERIDO (EUR);MARGEN (EUR)\n';
+    csv += 'ESTACION;TIPO;PRODUCTO;P. ANT. COMPRA (EUR);PRECIO COMPRA HOY (EUR);CLH (TERMINAL);PORTE (R);PASE (S);FINANCIACION (T);COSTO TOTAL (EUR);P. VENTA ANT. (EUR);P. VENTA SUGERIDO (EUR);MARGEN (EUR)\n';
 
     const exportSection = (stationList: typeof propiasStations, typeLabel: string) => {
       stationList.forEach((st) => {
@@ -488,18 +501,20 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         prods.forEach((prod) => {
           const key = `${st.name}_${prod.code}`;
           const item = purchases[key] || {
-            prev: '0', curr: '0', clh: 'TORREJON', porte: '0', pase: '0', fin: '0', sale: '0'
+            prev: '0.000', curr: '0.000', clh: 'TORREJON', porte: '0.000', pase: '0.000', fin: '0.000', sale: '0.000', prevSale: '0.000'
           };
           const currNum = parseNum(item.curr);
           const porteNum = parseNum(item.porte);
           const paseNum = parseNum(item.pase);
           const finNum = parseNum(item.fin);
-          const saleNum = parseNum(item.sale);
-          const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(4));
-          const margin = Number((saleNum - totalCost).toFixed(4));
+          const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
+          const effectiveSale = item.isCustomSale && item.sale ? item.sale : totalCost.toFixed(3);
+          const saleNum = parseNum(effectiveSale);
+          const margin = Number((saleNum - totalCost).toFixed(3));
           const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
+          const prevSaleVal = item.prevSale || effectiveSale;
 
-          csv += `${st.name};${typeLabel};${prod.name};${item.prev.replace('.', ',')};${item.curr.replace('.', ',')};${clhName};${item.porte.replace('.', ',')};${item.pase.replace('.', ',')};${item.fin.replace('.', ',')};${totalCost.toFixed(4).replace('.', ',')};${saleNum.toFixed(4).replace('.', ',')};${margin.toFixed(4).replace('.', ',')}\n`;
+          csv += `${st.name};${typeLabel};${prod.name};${item.prev.replace('.', ',')};${item.curr.replace('.', ',')};${clhName};${item.porte.replace('.', ',')};${item.pase.replace('.', ',')};${item.fin.replace('.', ',')};${totalCost.toFixed(3).replace('.', ',')};${prevSaleVal.replace('.', ',')};${effectiveSale.replace('.', ',')};${margin.toFixed(3).replace('.', ',')}\n`;
         });
       });
     };
@@ -592,12 +607,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-cyan-500/30 font-bold">
                   <th className="py-3.5 px-4 sticky left-0 bg-slate-950 z-20">Estación</th>
                   <th className="py-3.5 px-3 text-cyan-300">Producto</th>
-                  <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">Precio Anterior (€)</th>
+                  <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">P. Ant. Compra (€)</th>
                   <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
                     Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
                   </th>
                   <th className="py-3.5 px-3 text-amber-400 bg-slate-900/50">Precio Sin IVA (€)</th>
                   <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/80">Precio Con IVA 21% (€)</th>
+                  <th className="py-3.5 px-3 bg-slate-900/50 text-slate-300">P. Venta Ant. (€)</th>
                   <th className="py-3.5 px-3 text-blue-400 bg-slate-900/60">P. Venta Sugerido (€)</th>
                   <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
                 </tr>
@@ -605,7 +621,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
                   <th className="py-3.5 px-4 sticky left-0 bg-slate-950 z-20">Estación</th>
                   <th className="py-3.5 px-3">Producto</th>
-                  <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">Precio Anterior (€)</th>
+                  <th className="py-3.5 px-3 bg-slate-900/70 text-slate-300">P. Ant. Compra (€)</th>
                   <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
                     Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
                   </th>
@@ -614,6 +630,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   <th className="py-3.5 px-2 text-blue-300">Pase (S)</th>
                   <th className="py-3.5 px-2 text-purple-300">Financ. (T)</th>
                   <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/60">Costo Total (€)</th>
+                  <th className="py-3.5 px-3 bg-slate-900/50 text-slate-300">P. Venta Ant. (€)</th>
                   <th className="py-3.5 px-3 text-blue-400 bg-slate-900/80">P. Venta Sugerido (€)</th>
                   <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
                 </tr>
@@ -641,16 +658,19 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   const porteNum = parseNum(item.porte);
                   const paseNum = parseNum(item.pase);
                   const finNum = parseNum(item.fin);
-                  const saleNum = parseNum(item.sale);
 
-                  const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(4));
-                  const margin = Number((saleNum - totalCost).toFixed(4));
+                  const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
+                  const displaySale = item.isCustomSale && item.sale ? item.sale : totalCost.toFixed(3);
+                  const saleNum = parseNum(displaySale);
+                  const margin = Number((saleNum - totalCost).toFixed(3));
+                  const displayPrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || totalCost.toFixed(3));
 
                   const isCurrMod = modifiedKeys.has(`${key}_curr`);
                   const isPrevMod = modifiedKeys.has(`${key}_prev`);
                   const isPorteMod = modifiedKeys.has(`${key}_porte`);
                   const isPaseMod = modifiedKeys.has(`${key}_pase`);
                   const isFinMod = modifiedKeys.has(`${key}_fin`);
+                  const isPrevSaleMod = modifiedKeys.has(`${key}_prevSale`);
                   const isSaleMod = modifiedKeys.has(`${key}_sale`);
 
                   const clhDisplayName = excelCosts?.clhName && excelCosts.clhName !== '0' && excelCosts.clhName !== 'n/a'
@@ -659,8 +679,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
                   if (activeProductTab === 'ADBLUE') {
                     const adblueSinIva = currNum;
-                    const adblueConIva = Number((currNum * 1.21).toFixed(4));
-                    const adblueMargin = Number((saleNum - currNum).toFixed(4));
+                    const adblueConIva = Number((currNum * 1.21).toFixed(3));
+                    const displayAdblueSale = item.isCustomSale && item.sale ? item.sale : currNum.toFixed(3);
+                    const adblueSaleNum = parseNum(displayAdblueSale);
+                    const adblueMargin = Number((adblueSaleNum - currNum).toFixed(3));
+                    const displayAdbluePrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || currNum.toFixed(3));
 
                     return (
                       <tr
@@ -688,7 +711,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           </span>
                         </td>
 
-                        {/* 3. Precio Anterior */}
+                        {/* 3. P. Ant. Compra */}
                         <td className={`py-2.5 px-3 bg-slate-900/40 ${isPrevMod ? 'bg-amber-400/20' : ''}`}>
                           <input
                             type="text"
@@ -711,7 +734,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                               inputMode="decimal"
                               value={item.curr}
                               onChange={(e) => handleInputChange(st.name, prod.code, 'curr', e.target.value)}
-                              placeholder="0,0000"
+                              placeholder="0,000"
                               className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
                                 isCurrMod
                                   ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40'
@@ -728,37 +751,59 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
                         {/* 5. Precio Sin IVA (= Precio Compra Hoy) */}
                         <td className="py-2.5 px-3 font-mono font-bold text-amber-300 bg-slate-900/40 text-center">
-                          {adblueSinIva.toFixed(4)} €
+                          {adblueSinIva.toFixed(3)} €
                         </td>
 
                         {/* 6. Precio Con IVA 21% (= Precio Sin IVA * 1.21) */}
                         <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 bg-slate-900/60 text-center">
-                          {adblueConIva.toFixed(4)} €
+                          {adblueConIva.toFixed(3)} €
                         </td>
 
-                        {/* 7. P. Venta Sugerido */}
-                        <td className={`py-2.5 px-3 bg-blue-500/5 ${isSaleMod ? 'bg-amber-400/20' : ''}`}>
+                        {/* 7. P. Venta Ant. */}
+                        <td className={`py-2.5 px-3 bg-slate-900/30 ${isPrevSaleMod ? 'bg-amber-400/20' : ''}`}>
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={displaySale}
-                            onChange={(e) => handleInputChange(st.name, prod.code, 'sale', e.target.value)}
-                            className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                              isSaleMod
-                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30'
-                                : 'bg-slate-950 border border-blue-500/40 text-blue-300 focus:border-blue-400'
+                            value={displayAdbluePrevSale}
+                            onChange={(e) => handleInputChange(st.name, prod.code, 'prevSale', e.target.value)}
+                            className={`w-20 rounded px-2 py-1 text-xs font-mono transition-all focus:outline-none ${
+                              isPrevSaleMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md font-bold'
+                                : 'bg-slate-950 border border-slate-800 text-slate-400 focus:border-amber-400'
                             }`}
                           />
                         </td>
 
-                        {/* 8. Margen */}
+                        {/* 8. P. Venta Sugerido */}
+                        <td className={`py-2.5 px-3 bg-blue-500/5 ${isSaleMod ? 'bg-amber-400/20' : ''}`}>
+                          <div className="relative inline-flex items-center">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={displayAdblueSale}
+                              onChange={(e) => handleInputChange(st.name, prod.code, 'sale', e.target.value)}
+                              className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                                isSaleMod
+                                  ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30'
+                                  : 'bg-slate-950 border border-blue-500/40 text-blue-300 focus:border-blue-400'
+                              }`}
+                            />
+                            {isSaleMod && (
+                              <span className="ml-1.5 text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded shadow">
+                                MOD
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 9. Margen */}
                         <td className="py-2.5 px-3 font-mono font-bold">
                           <span
                             className={`px-2 py-0.5 rounded ${
                               adblueMargin >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
                             }`}
                           >
-                            {adblueMargin.toFixed(4)} €
+                            {adblueMargin > 0 ? `+${adblueMargin.toFixed(3)}` : adblueMargin.toFixed(3)} €
                           </span>
                         </td>
                       </tr>
@@ -807,7 +852,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </span>
                       </td>
 
-                      {/* 3. Precio Anterior */}
+                      {/* 3. P. Ant. Compra */}
                       <td className={`py-2.5 px-3 bg-slate-900/40 ${isPrevMod ? 'bg-amber-400/20' : ''}`}>
                         <input
                           type="text"
@@ -830,7 +875,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             inputMode="decimal"
                             value={item.curr}
                             onChange={(e) => handleInputChange(st.name, prod.code, 'curr', e.target.value)}
-                            placeholder="0,0000"
+                            placeholder="0,000"
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
                               isCurrMod
                                 ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/40'
@@ -906,16 +951,31 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
                       {/* 9. Costo Total (€) */}
                       <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 bg-slate-900/40">
-                        {totalCost.toFixed(4)} €
+                        {totalCost.toFixed(3)} €
                       </td>
 
-                      {/* 10. P. Venta Sugerido (€) */}
+                      {/* 10. P. Venta Ant. (€) */}
+                      <td className={`py-2.5 px-3 bg-slate-900/30 ${isPrevSaleMod ? 'bg-amber-400/20' : ''}`}>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={displayPrevSale}
+                          onChange={(e) => handleInputChange(st.name, prod.code, 'prevSale', e.target.value)}
+                          className={`w-20 rounded px-2 py-1 text-xs font-mono transition-all focus:outline-none ${
+                            isPrevSaleMod
+                              ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md font-bold'
+                              : 'bg-slate-950 border border-slate-800 text-slate-400 focus:border-amber-400'
+                          }`}
+                        />
+                      </td>
+
+                      {/* 11. P. Venta Sugerido (€) */}
                       <td className={`py-2.5 px-3 bg-blue-500/5 ${isSaleMod ? 'bg-amber-400/20' : ''}`}>
                         <div className="relative inline-flex items-center">
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={item.sale}
+                            value={displaySale}
                             onChange={(e) => handleInputChange(st.name, prod.code, 'sale', e.target.value)}
                             className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                               isSaleMod
@@ -931,13 +991,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         </div>
                       </td>
 
-                      {/* 11. Margen (€) */}
+                      {/* 12. Margen (€) */}
                       <td
                         className={`py-2.5 px-3 font-mono font-bold text-xs ${
                           margin >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {margin > 0 ? `+${margin.toFixed(4)}` : margin.toFixed(4)} €
+                        {margin > 0 ? `+${margin.toFixed(3)}` : margin.toFixed(3)} €
                       </td>
                     </tr>
                   );
