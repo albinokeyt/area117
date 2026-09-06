@@ -621,9 +621,9 @@ export function PostesManager() {
     ctx.fillRect(0, 0, width, height);
 
     stationNames.forEach((stName, idx) => {
-      const item = gasoleoBRows[stName] || { compra: '1.0045' };
-      const compraNum = parseNum(item.compra);
-      const conIvaNum = Number((compraNum * 1.21).toFixed(4));
+      const item = gasoleoBRows[stName] || { compra: '1.005' };
+      const compraNum = parseNum(item.compra || '1.005');
+      const conIvaNum = Number((compraNum * 1.21).toFixed(3));
       const yStart = idx * 2 * rowHeight;
 
       // Columna 1: Estación
@@ -721,8 +721,11 @@ export function PostesManager() {
     ctx.fillRect(0, 0, width, height);
 
     stationNames.forEach((stName, idx) => {
-      const item = gasoleoBRows[stName] || { transfer: '1.0240' };
-      const transferNum = parseNum(item.transfer);
+      const item = gasoleoBRows[stName] || { compra: '1.005' };
+      const compraNum = parseNum(item.compra || '1.005');
+      const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
+      const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`);
+      const transferNum = isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum;
       const yStart = idx * rowHeight;
 
       // Columna 1: Estación
@@ -774,6 +777,119 @@ export function PostesManager() {
     link.click();
 
     setImageToast('Imagen PNG generada: POSTES_PRECIOS_TRANSFRIRED.png');
+    setTimeout(() => setImageToast(null), 3500);
+  };
+
+  // Descarga PNG Gasóleo B: Tabla Completa de 5 Columnas Oficial
+  const downloadGasoleoBTablaCompletaPng = () => {
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    const rowHeight = 44;
+    const stationNames = ['UCLES', 'TORREMOCHA', 'ARCOS'];
+    const totalRows = stationNames.length + 1;
+
+    const colWidths = [140, 170, 160, 160, 180];
+    const width = colWidths.reduce((a, b) => a + b, 0);
+    const height = totalRows * rowHeight;
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    // Cabecera
+    const headers = ['ESTACIÓN', 'COMPRA SIN IVA', 'TRANSFRIRED', 'TRANSFRIRED CON IVA', 'PRECIO POSTE GOB'];
+    let xOffset = 0;
+    ctx.fillStyle = '#0F172A';
+    ctx.fillRect(0, 0, width, rowHeight);
+
+    ctx.fillStyle = '#F8FAFC';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    headers.forEach((h, i) => {
+      ctx.fillText(h, xOffset + colWidths[i] / 2, rowHeight / 2);
+      xOffset += colWidths[i];
+    });
+
+    stationNames.forEach((stName, idx) => {
+      const item = gasoleoBRows[stName] || { compra: '1.005' };
+      const compraNum = parseNum(item.compra || '1.005');
+      const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
+      const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`);
+      const transferNum = isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum;
+      const transfriredConIva = Number((transferNum * 1.21).toFixed(3));
+      const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
+      const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`);
+      const posteNum = isPosteMod && item.poste ? parseNum(item.poste) : autoPosteNum;
+
+      const y = (idx + 1) * rowHeight;
+
+      // Columna 1: Estación
+      ctx.fillStyle = '#FBE8DB';
+      ctx.fillRect(0, y, colWidths[0], rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(stName, colWidths[0] / 2, y + rowHeight / 2);
+
+      // Columna 2: Compra Sin IVA
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(colWidths[0], y, colWidths[1], rowHeight);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`${compraNum.toFixed(3).replace('.', ',')} €`, colWidths[0] + colWidths[1] / 2, y + rowHeight / 2);
+
+      // Columna 3: Transfrired
+      ctx.fillStyle = '#EFF6FF';
+      ctx.fillRect(colWidths[0] + colWidths[1], y, colWidths[2], rowHeight);
+      ctx.fillStyle = '#1D4ED8';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(`${transferNum.toFixed(3).replace('.', ',')} €`, colWidths[0] + colWidths[1] + colWidths[2] / 2, y + rowHeight / 2);
+
+      // Columna 4: Transfrired Con IVA
+      ctx.fillStyle = '#ECFDF5';
+      ctx.fillRect(colWidths[0] + colWidths[1] + colWidths[2], y, colWidths[3], rowHeight);
+      ctx.fillStyle = '#047857';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(`${transfriredConIva.toFixed(3).replace('.', ',')} €`, colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] / 2, y + rowHeight / 2);
+
+      // Columna 5: Precio Poste GOB
+      ctx.fillStyle = '#FFFBEB';
+      ctx.fillRect(colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], y, colWidths[4], rowHeight);
+      ctx.fillStyle = '#B45309';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(`${posteNum.toFixed(3).replace('.', ',')} €`, colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4] / 2, y + rowHeight / 2);
+
+      ctx.strokeStyle = '#CBD5E1';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y + rowHeight);
+      ctx.lineTo(width, y + rowHeight);
+      ctx.stroke();
+    });
+
+    let curX = 0;
+    colWidths.forEach((w) => {
+      curX += w;
+      ctx.beginPath();
+      ctx.moveTo(curX, 0);
+      ctx.lineTo(curX, height);
+      ctx.stroke();
+    });
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'TABLA_GASOLEO_B_5_COLUMNAS.png';
+    link.click();
+
+    setImageToast('Imagen PNG generada: TABLA_GASOLEO_B_5_COLUMNAS.png');
     setTimeout(() => setImageToast(null), 3500);
   };
 
@@ -1305,14 +1421,23 @@ export function PostesManager() {
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={downloadGasoleoBTablaCompletaPng}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95"
+              title="Descarga PNG de la tabla completa de 5 columnas oficial"
+            >
+              <Download className="h-4 w-4" />
+              <span>PNG Tabla Completa (5 Columnas)</span>
+            </button>
+
+            <button
               onClick={() => {
                 downloadGasoleoBCompraPng();
                 setTimeout(() => downloadPreciosTransfriredPng(), 600);
               }}
-              className="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-rose-500 to-blue-500 hover:from-rose-400 hover:to-blue-400 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95"
+              className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow-md transition-all active:scale-95"
               title="Descarga automática de ambos archivos PNG (Compra y Transfrired)"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-4 w-4 text-amber-400" />
               <span>Descargar Ambos PNGs (Compra + Transfrired)</span>
             </button>
 
@@ -1322,7 +1447,7 @@ export function PostesManager() {
               title="Descarga PNG de las 3 estaciones con Precio Compra Sin IVA y Con IVA"
             >
               <Download className="h-4 w-4 text-rose-400" />
-              <span>1. PNG Compra GOB (Sin/Con IVA)</span>
+              <span>PNG Compra GOB (Sin/Con IVA)</span>
             </button>
 
             <button
@@ -1331,7 +1456,7 @@ export function PostesManager() {
               title="Descarga PNG de las 3 estaciones solo con la columna Precios Transfrired"
             >
               <Download className="h-4 w-4 text-blue-400" />
-              <span>2. PNG Precios Transfrired (3 EESS)</span>
+              <span>PNG Precios Transfrired (3 EESS)</span>
             </button>
           </div>
         </div>
@@ -1381,9 +1506,21 @@ export function PostesManager() {
                         value={item.compra}
                         onChange={(e) => {
                           const val = e.target.value;
+                          const valNum = parseNum(val);
+                          const nextTransfer = modifiedKeys.has(`gasb_transfer_${stName}`)
+                            ? item.transfer
+                            : Number((valNum + 0.017).toFixed(3)).toFixed(3);
+                          const nextPoste = modifiedKeys.has(`gasb_poste_${stName}`)
+                            ? item.poste
+                            : Number(((valNum + 0.035) * 1.21).toFixed(3)).toFixed(3);
                           setGasoleoBRows((prev) => ({
                             ...prev,
-                            [stName]: { ...prev[stName], compra: val },
+                            [stName]: {
+                              ...prev[stName],
+                              compra: val,
+                              transfer: nextTransfer,
+                              poste: nextPoste,
+                            },
                           }));
                           setModifiedKeys((prev) => new Set(prev).add(`gasb_${stName}`));
                           setIsSaved(false);
