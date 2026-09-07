@@ -79,11 +79,21 @@ const round3 = (num: number): number => {
   return Math.round(num * 1000) / 1000;
 };
 
+export interface GasolinaBroncoRow {
+  name: string;
+  sinIva: string;
+  conIva: string;
+  beneficio: string;
+  compra: string;
+  fecha: string;
+}
+
 export function generateAndDownloadCierreWorkbook(
   selectedDate: string,
   validFromDate: string,
   purchases: Record<string, PurchaseRowValues>,
-  specialRates: SpecialStationRateRow[]
+  specialRates: SpecialStationRateRow[],
+  bronco?: GasolinaBroncoRow
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -92,6 +102,28 @@ export function generateAndDownloadCierreWorkbook(
   calculoRows.push(['AREA 117 - CIERRE DIARIO Y CALCULO INICIAL DE COMPRAS']);
   calculoRows.push(['Fecha Emision:', selectedDate, 'Precios Validos A Partir De:', validFromDate]);
   calculoRows.push(['Aviso:', 'Cierre diario oficial consolidado para Compras, Postes, Sabana de Precios, PDFs y Clientes, EFI Export']);
+  calculoRows.push([]);
+
+  // Cuadro Especial: GASOLINA BRONCO (Filas 3-4 de Cálculo Inicial)
+  const broncoData = bronco || {
+    name: 'GASOLINA BRONCO',
+    sinIva: '1.397',
+    conIva: '1.690',
+    beneficio: '0.034',
+    compra: '1.348',
+    fecha: '04/09/2026',
+  };
+
+  calculoRows.push(['CUADRO ESPECIAL: GASOLINA BRONCO']);
+  calculoRows.push(['PRODUCTO', 'SIN IVA (EUR)', 'CON IVA (EUR)', 'BENEFICIO (EUR)', 'COMPRA (EUR)', 'FECHA']);
+  calculoRows.push([
+    broncoData.name,
+    parseNum(broncoData.sinIva),
+    parseNum(broncoData.conIva),
+    parseNum(broncoData.beneficio),
+    parseNum(broncoData.compra),
+    broncoData.fecha,
+  ]);
   calculoRows.push([]);
 
   calculoRows.push([

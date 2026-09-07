@@ -2,12 +2,30 @@
 
 import React, { useState, useEffect } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
-import { generateAndDownloadCierreWorkbook } from '@/lib/excelExportService';
+import { generateAndDownloadCierreWorkbook, GasolinaBroncoRow } from '@/lib/excelExportService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
   ShieldCheck, Droplet, Fuel, Flame, Layers, Download, RefreshCw, Star, Calendar
 } from 'lucide-react';
+
+const formatToDMY = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
+
+const DEFAULT_GASOLINA_BRONCO: GasolinaBroncoRow = {
+  name: 'GASOLINA BRONCO',
+  sinIva: '1.397',
+  conIva: '1.690',
+  beneficio: '0.034',
+  compra: '1.348',
+  fecha: '04/09/2026',
+};
 
 interface Comp1Props {
   selectedDate: string;
@@ -240,6 +258,20 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     return DEFAULT_SPECIAL_RATES_B50_F82;
   });
 
+  // Estado de Cuadro Especial: Gasolina Bronco (Cálculo Inicial F3:H4)
+  const [gasolinaBronco, setGasolinaBronco] = useState<GasolinaBroncoRow>(() => {
+    try {
+      const savedDate = localStorage.getItem(`efi_purchases_bronco_${selectedDate}`);
+      if (savedDate) return JSON.parse(savedDate);
+      const savedGlobal = localStorage.getItem('efi_compras_gasolina_bronco');
+      if (savedGlobal) return JSON.parse(savedGlobal);
+    } catch (e) {}
+    return {
+      ...DEFAULT_GASOLINA_BRONCO,
+      fecha: selectedDate ? formatToDMY(selectedDate) : DEFAULT_GASOLINA_BRONCO.fecha,
+    };
+  });
+
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
   const [isSaved, setIsSaved] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -250,6 +282,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const savedGlobal = localStorage.getItem('efi_compras_data');
       const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v3');
       const savedValidDate = localStorage.getItem('efi_compras_valid_from');
+      const savedBroncoDate = localStorage.getItem(`efi_purchases_bronco_${selectedDate}`);
+      const savedBroncoGlobal = localStorage.getItem('efi_compras_gasolina_bronco');
 
       if (savedValidDate) {
         setValidFromDate(savedValidDate);
@@ -268,10 +302,69 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       if (savedSpecial) {
         setSpecialRates(JSON.parse(savedSpecial));
       }
+
+      if (savedBroncoDate) {
+        setGasolinaBronco(JSON.parse(savedBroncoDate));
+      } else if (savedBroncoGlobal) {
+        const parsed = JSON.parse(savedBroncoGlobal);
+        setGasolinaBronco({
+          ...parsed,
+          fecha: selectedDate ? formatToDMY(selectedDate) : parsed.fecha,
+        });
+      } else if (selectedDate) {
+        setGasolinaBronco((prev) => ({
+          ...prev,
+          fecha: formatToDMY(selectedDate),
+        }));
+      }
     } catch (e) {
       console.error(e);
     }
   }, [selectedDate]);
+
+  const handleBroncoChange = (field: keyof GasolinaBroncoRow, val: string) => {
+    setGasolinaBronco((prev) => {
+      const updated = { ...prev, [field]: val };
+
+      if (field === 'conIva') {
+        const conIvaN = parseNum(val);
+        const sinIvaN = conIvaN > 0 ? Number((conIvaN / 1.21).toFixed(3)) : 0;
+        const compraN = parseNum(updated.compra);
+        const beneficioN = Number((sinIvaN - (compraN + 0.015)).toFixed(3));
+        updated.sinIva = sinIvaN.toFixed(3);
+        updated.beneficio = beneficioN.toFixed(3);
+      } else if (field === 'sinIva') {
+        const sinIvaN = parseNum(val);
+        const conIvaN = Number((sinIvaN * 1.21).toFixed(3));
+        const compraN = parseNum(updated.compra);
+        const beneficioN = Number((sinIvaN - (compraN + 0.015)).toFixed(3));
+        updated.conIva = conIvaN.toFixed(3);
+        updated.beneficio = beneficioN.toFixed(3);
+      } else if (field === 'compra') {
+        const compraN = parseNum(val);
+        const sinIvaN = parseNum(updated.sinIva);
+        const beneficioN = Number((sinIvaN - (compraN + 0.015)).toFixed(3));
+        updated.beneficio = beneficioN.toFixed(3);
+      } else if (field === 'beneficio') {
+        const beneficioN = parseNum(val);
+        const compraN = parseNum(updated.compra);
+        const sinIvaN = Number((compraN + 0.015 + beneficioN).toFixed(3));
+        const conIvaN = Number((sinIvaN * 1.21).toFixed(3));
+        updated.sinIva = sinIvaN.toFixed(3);
+        updated.conIva = conIvaN.toFixed(3);
+      }
+
+      try {
+        localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(updated));
+        localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(updated));
+        window.dispatchEvent(new Event('efi_compras_updated'));
+      } catch (e) {}
+
+      return updated;
+    });
+    setModifiedKeys((prev) => new Set(prev).add(`bronco_${field}`));
+    setIsSaved(false);
+  };
 
   const handleValidDateChange = (newDate: string) => {
     setValidFromDate(newDate);
@@ -507,10 +600,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }));
       localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
       localStorage.setItem('efi_compras_valid_from', validFromDate);
+      localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
+      localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
     } catch (e) {}
 
     setIsSaved(true);
-    setToastMessage('¡Precios de Compras y Tarifas Guardados Correctamente!');
+    setToastMessage('¡Precios de Compras, Gasolina Bronco y Tarifas Guardados Correctamente!');
     setTimeout(() => {
       setIsSaved(false);
       setToastMessage(null);
@@ -556,12 +651,15 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         localStorage.setItem('efi_global_valid_from_date', validFromDate);
         localStorage.setItem('efi_last_cierre_date', selectedDate);
         localStorage.setItem('efi_last_cierre_timestamp', timestamp);
+        localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
+        localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
 
         localStorage.setItem(`efi_cierre_completo_${selectedDate}`, JSON.stringify({
           selectedDate,
           validFromDate,
           purchases: nextPurchases,
           specialRates,
+          gasolinaBronco,
           closedAt: timestamp,
         }));
 
@@ -576,7 +674,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       // Descargar archivo Excel (.xlsx) con formato idéntico al oficial consolidado
       try {
-        generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, specialRates);
+        generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, specialRates, gasolinaBronco);
       } catch (e) {
         console.error('Error al generar libro Excel de Cierre:', e);
       }
@@ -627,6 +725,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     exportSection(propiasStations, 'PROPIA');
     exportSection(fixedCollaborators, 'COLABORADORA FIJA');
     exportSection(remainingCollaborators, 'COLABORADORA RESTANTE');
+
+    // Cuadro Especial: GASOLINA BRONCO
+    csv += '\nCUADRO ESPECIAL: GASOLINA BRONCO;;;;;;;;;;;\n';
+    csv += 'PRODUCTO;SIN IVA (EUR);CON IVA (EUR);BENEFICIO (EUR);COMPRA (EUR);FECHA;;;;;;\n';
+    csv += `${gasolinaBronco.name};${gasolinaBronco.sinIva.replace('.', ',')};${gasolinaBronco.conIva.replace('.', ',')};${gasolinaBronco.beneficio.replace('.', ',')};${gasolinaBronco.compra.replace('.', ',')};${gasolinaBronco.fecha};;;;;;\n`;
 
     // Tarifas Especiales B50:F82
     csv += '\nTARIFAS ESPECIALES;;;;;;;;;;;\n';
@@ -1256,6 +1359,137 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       {/* 3. Renderizado de las Tablas */}
       {activeProductTab !== 'SPECIAL' && (
         <div className="space-y-8">
+          {/* CUADRO ESPECIAL: GASOLINA BRONCO (Hoja Cálculo Inicial F3:H4) */}
+          {(activeProductTab === 'GASOLINA' || activeProductTab === 'ALL') && (
+            <div className="bg-slate-900 border border-amber-500/40 rounded-3xl overflow-hidden shadow-2xl space-y-0">
+              <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    <Fuel className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-bold text-white text-base tracking-tight">
+                        Cuadro Especial: Gasolina Bronco
+                      </h3>
+                      <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/40">
+                        Cálculo Inicial (F3:H4)
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Fórmulas: Con IVA = Sin IVA × 1,21 | Beneficio = Sin IVA - (Compra + 0,015 €)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 px-3 py-1 rounded-full font-bold">
+                    Amarillo = Con IVA (Editable / Reactivo)
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto p-4 sm:p-6">
+                <div className="max-w-5xl mx-auto rounded-2xl border border-amber-600/30 overflow-hidden shadow-xl bg-slate-950">
+                  <table className="w-full text-center border-collapse">
+                    <thead>
+                      <tr className="bg-[#fceade] text-slate-900 font-black text-xs uppercase tracking-wider border-b border-amber-300">
+                        <th className="py-3.5 px-6 text-left font-black">PRODUCTO</th>
+                        <th className="py-3.5 px-4 font-black">SIN IVA</th>
+                        <th className="py-3.5 px-4 font-black text-amber-950 bg-yellow-300">CON IVA</th>
+                        <th className="py-3.5 px-4 font-black text-emerald-800">BENEFICIO</th>
+                        <th className="py-3.5 px-4 font-black text-blue-900">COMPRA</th>
+                        <th className="py-3.5 px-4 font-black text-rose-800">FECHA</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono text-xs">
+                      <tr className="bg-slate-900/90 hover:bg-slate-900 transition-colors">
+                        {/* PRODUCTO */}
+                        <td className="py-3 px-6 text-left font-black text-white bg-[#fdf2e9] text-slate-900 border-r border-slate-700/60">
+                          <input
+                            type="text"
+                            value={gasolinaBronco.name}
+                            onChange={(e) => handleBroncoChange('name', e.target.value)}
+                            className="bg-transparent text-slate-950 font-black text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-0.5 w-full uppercase"
+                          />
+                        </td>
+
+                        {/* SIN IVA */}
+                        <td className="py-3 px-4 border-r border-slate-800">
+                          <div className="inline-flex items-center space-x-1">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={gasolinaBronco.sinIva}
+                              onChange={(e) => handleBroncoChange('sinIva', e.target.value)}
+                              className="w-24 text-center font-bold text-slate-100 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 focus:outline-none focus:border-amber-400"
+                            />
+                            <span className="text-slate-400 font-bold">€</span>
+                          </div>
+                        </td>
+
+                        {/* CON IVA (Amarillo llamativo como en el Excel) */}
+                        <td className="py-3 px-4 bg-amber-500/10 border-r border-slate-800">
+                          <div className="inline-flex items-center space-x-1">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={gasolinaBronco.conIva}
+                              onChange={(e) => handleBroncoChange('conIva', e.target.value)}
+                              className="w-24 text-center font-black text-slate-950 bg-yellow-300 ring-2 ring-yellow-400 shadow-md rounded-lg px-2 py-1 focus:outline-none focus:ring-4 focus:ring-yellow-200 cursor-pointer"
+                              title="Precio Con IVA (al cambiarlo se recalcula Sin IVA y Beneficio automáticamente)"
+                            />
+                            <span className="text-amber-400 font-black">€</span>
+                          </div>
+                        </td>
+
+                        {/* BENEFICIO */}
+                        <td className="py-3 px-4 border-r border-slate-800">
+                          <div className="inline-flex items-center space-x-1">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={gasolinaBronco.beneficio}
+                              onChange={(e) => handleBroncoChange('beneficio', e.target.value)}
+                              className="w-24 text-center font-bold text-emerald-400 bg-slate-950 border border-emerald-900/50 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-400"
+                              title="Beneficio = Sin IVA - (Compra + 0.015)"
+                            />
+                            <span className="text-emerald-400 font-bold">€</span>
+                          </div>
+                        </td>
+
+                        {/* COMPRA */}
+                        <td className="py-3 px-4 border-r border-slate-800">
+                          <div className="inline-flex items-center space-x-1">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={gasolinaBronco.compra}
+                              onChange={(e) => handleBroncoChange('compra', e.target.value)}
+                              className="w-24 text-center font-bold text-blue-300 bg-slate-950 border border-blue-900/50 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
+                            />
+                            <span className="text-blue-300 font-bold">€</span>
+                          </div>
+                        </td>
+
+                        {/* FECHA */}
+                        <td className="py-3 px-4">
+                          <input
+                            type="text"
+                            value={gasolinaBronco.fecha}
+                            onChange={(e) => handleBroncoChange('fecha', e.target.value)}
+                            className="w-28 text-center font-bold text-rose-500 bg-slate-950 border border-rose-950 rounded-lg px-2 py-1 focus:outline-none focus:border-rose-400"
+                            title="Fecha del cálculo"
+                          />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {renderStationTable(
             '1. Estaciones Propias',
             'Precios de compra y costes fijos (Porte, Pase, Financiación) de las 19 estaciones propias',
