@@ -1,10 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import {
-  FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check
+  FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check,
+  Calculator, RotateCcw, Layers
 } from 'lucide-react';
+import { SabanaFormulaModal } from './SabanaFormulaModal';
+import {
+  loadSabanaFormulas,
+  saveSabanaFormula,
+  removeSabanaFormula,
+  clearAllSabanaFormulas,
+  CellFormula,
+  getProgramVariables,
+  evaluateFormula
+} from '@/lib/sabanaFormulaEngine';
 
 interface SabanaProps {
   selectedDate: string;
@@ -115,6 +126,21 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [searchFilter, setSearchFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
   const [comprasPurchases, setComprasPurchases] = useState<Record<string, { sale: string }>>({});
+  const [downloadToast, setDownloadToast] = useState<string | null>(null);
+
+  // Estados del Modo Formulación
+  const [isFormulaMode, setIsFormulaMode] = useState<boolean>(false);
+  const [customFormulas, setCustomFormulas] = useState<Record<string, CellFormula>>(() => {
+    return loadSabanaFormulas(selectedDate);
+  });
+  const [activeModalCell, setActiveModalCell] = useState<{
+    cellKey: string;
+    cellTitle: string;
+    defaultValue: number;
+    currentFormula?: string;
+    columnLabel?: string;
+    onApplyToColumn?: (formulaStr: string) => void;
+  } | null>(null);
 
   const loadComprasData = () => {
     try {
@@ -130,13 +156,29 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     } catch (e) {}
   };
 
-  React.useEffect(() => {
+  const loadFormulas = () => {
+    setCustomFormulas(loadSabanaFormulas(selectedDate));
+  };
+
+  useEffect(() => {
     loadComprasData();
-    window.addEventListener('efi_compras_updated', loadComprasData);
-    window.addEventListener('storage', loadComprasData);
+    loadFormulas();
+
+    const onComprasUpdated = () => loadComprasData();
+    const onSabanaUpdated = () => loadFormulas();
+    const onStorage = () => {
+      loadComprasData();
+      loadFormulas();
+    };
+
+    window.addEventListener('efi_compras_updated', onComprasUpdated);
+    window.addEventListener('efi_sabana_updated', onSabanaUpdated);
+    window.addEventListener('storage', onStorage);
+
     return () => {
-      window.removeEventListener('efi_compras_updated', loadComprasData);
-      window.removeEventListener('storage', loadComprasData);
+      window.removeEventListener('efi_compras_updated', onComprasUpdated);
+      window.removeEventListener('efi_sabana_updated', onSabanaUpdated);
+      window.removeEventListener('storage', onStorage);
     };
   }, [selectedDate]);
 
@@ -172,17 +214,63 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
     return Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
   };
-  const [downloadToast, setDownloadToast] = useState<string | null>(null);
+  // Guardar fórmula en celda
+  const handleSaveFormula = (cellKey: string, rawFormula: string, evaluatedValue: number) => {
+    const updated = saveSabanaFormula(selectedDate, cellKey, {
+      rawFormula,
+      evaluatedValue,
+      updatedAt: new Date().toISOString(),
+    });
+    setCustomFormulas(updated);
+    setDownloadToast(`Fórmula guardada para ${cellKey}`);
+    setTimeout(() => setDownloadToast(null), 3000);
+  };
 
-  const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
-  
-  const filteredStations = allStations.filter((st) => {
-    const matchesSearch = st.name.toLowerCase().includes(searchFilter.toLowerCase());
-    const matchesType = typeFilter === 'ALL' || st.type === typeFilter;
-    return matchesSearch && matchesType;
-  });
+  // Eliminar fórmula de celda
+  const handleRemoveFormula = (cellKey: string) => {
+    const updated = removeSabanaFormula(selectedDate, cellKey);
+    setCustomFormulas(updated);
+    setDownloadToast(`Fórmula restablecida a valor original`);
+    setTimeout(() => setDownloadToast(null), 3000);
+  };
 
+  // Limpiar todas las fórmulas
+  const handleClearAllFormulas = () => {
+    if (window.confirm('¿Seguro que deseas eliminar todas las fórmulas personalizadas de la Sábana de Precios y volver a los valores estándar?')) {
+      clearAllSabanaFormulas(selectedDate);
+      setCustomFormulas({});
+      setDownloadToast('Todas las fórmulas han sido restablecidas.');
+      setTimeout(() => setDownloadToast(null), 3000);
+    }
+  };
 
+  // Aplicar fórmula a toda la columna de Tarifas Estándar
+  const handleApplyFormulaToStandardColumn = (tariffId: string, isConIva: boolean, rawFormula: string) => {
+    const field = isConIva ? 'conIva' : 'sinIva';
+    const { map } = getProgramVariables(selectedDate);
+    const updatedFormulas = { ...customFormulas };
+
+    allStations.forEach((st) => {
+      const cellKey = `STD_${st.name}_T${tariffId}_${field}`;
+      const evalRes = evaluateFormula(rawFormula, map);
+      if (evalRes.success) {
+        saveSabanaFormula(selectedDate, cellKey, {
+          rawFormula,
+          evaluatedValue: evalRes.value,
+          updatedAt: new Date().toISOString(),
+        });
+        updatedFormulas[cellKey] = {
+          rawFormula,
+          evaluatedValue: evalRes.value,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+    });
+
+    setCustomFormulas(updatedFormulas);
+    setDownloadToast(`Fórmula aplicada a toda la columna Tarifa ${tariffId} (${isConIva ? 'Con IVA' : 'Sin IVA'})`);
+    setTimeout(() => setDownloadToast(null), 3500);
+  };
 
   const triggerDownload = (fileName: string, csvContent: string) => {
     const validDate = (() => {
@@ -202,7 +290,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     setTimeout(() => setDownloadToast(null), 3500);
   };
 
-  // Descarga de la tabla de Tarifas Estándar con el formato EXACTO del Excel (media_1787840120442.png)
+  // Descarga de la tabla de Tarifas Estándar con valores efectivos
   const handleExportStandardCsv = () => {
     const validDate = (() => {
       try {
@@ -222,8 +310,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const base = getStationBasePrice(st.name, true);
       csv += `${st.name};`;
       STANDARD_TARIFFS.forEach((t) => {
-        const sinIva = Number((base + t.markup).toFixed(3));
-        const conIva = Number((sinIva * 1.21).toFixed(3));
+        const defaultSinIva = Number((base + t.markup).toFixed(3));
+        const sinIvaKey = `STD_${st.name}_T${t.id}_sinIva`;
+        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+
+        const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+        const conIvaKey = `STD_${st.name}_T${t.id}_conIva`;
+        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
       csv += '\n';
@@ -241,8 +335,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const base = getStationBasePrice(st.name, false);
       csv += `${st.name};`;
       STANDARD_TARIFFS.forEach((t) => {
-        const sinIva = Number((base + t.markup).toFixed(3));
-        const conIva = Number((sinIva * 1.21).toFixed(3));
+        const defaultSinIva = Number((base + t.markup).toFixed(3));
+        const sinIvaKey = `STD_${st.name}_T${t.id}_sinIva`;
+        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+
+        const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+        const conIvaKey = `STD_${st.name}_T${t.id}_conIva`;
+        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
       csv += '\n';
@@ -264,8 +364,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const base = getStationBasePrice(st.name, true);
       csv += `${st.name};`;
       block.tariffs.forEach((t) => {
-        const sinIva = Number((base + t.markup).toFixed(3));
-        const conIva = Number((sinIva * 1.21).toFixed(3));
+        const defaultSinIva = Number((base + t.markup).toFixed(3));
+        const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
+        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+
+        const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+        const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
+        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
       csv += '\n';
@@ -283,8 +389,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const base = getStationBasePrice(st.name, false);
       csv += `${st.name};`;
       block.tariffs.forEach((t) => {
-        const sinIva = Number((base + t.markup).toFixed(3));
-        const conIva = Number((sinIva * 1.21).toFixed(3));
+        const defaultSinIva = Number((base + t.markup).toFixed(3));
+        const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
+        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+
+        const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+        const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
+        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
       csv += '\n';
@@ -312,15 +424,75 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             </p>
           </div>
 
-          <button
-            onClick={handleExportStandardCsv}
-            className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 hover:from-amber-400 hover:to-amber-300 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all active:scale-95"
-          >
-            <Download className="h-4 w-4" />
-            <span>Descargar Sábana Estándar (Excel)</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Botón Formular */}
+            <button
+              onClick={() => setIsFormulaMode((prev) => !prev)}
+              className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 ${
+                isFormulaMode
+                  ? 'bg-emerald-500 text-slate-950 ring-4 ring-emerald-500/30 font-black scale-105 shadow-emerald-500/40'
+                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 hover:border-amber-400 shadow-slate-950/50'
+              }`}
+            >
+              <Calculator className="h-4 w-4" />
+              <span>{isFormulaMode ? '✓ Modo Formular ACTIVO' : 'Formular'}</span>
+              {Object.keys(customFormulas).length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-950 text-amber-300 border border-amber-500/40">
+                  {Object.keys(customFormulas).length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={handleExportStandardCsv}
+              className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 hover:from-amber-400 hover:to-amber-300 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+            >
+              <Download className="h-4 w-4" />
+              <span>Descargar Sábana Estándar (Excel)</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Banner Informativo del Modo Formulación Activo */}
+      {isFormulaMode && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/15 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 shadow-xl">
+          <div className="flex items-center space-x-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/30">
+              <Calculator className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center space-x-2">
+                <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-black text-[10px] uppercase">
+                  Modo Formular Activo
+                </span>
+                <span>Haz clic sobre cualquiera de las celdas de precios en las tablas</span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Al hacer clic se abrirá la ventana emergente para crear fórmulas matemáticas estilo Excel y seleccionar cualquier celda de Compras, Postes, Tarifas Especiales o Sábana.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0">
+            {Object.keys(customFormulas).length > 0 && (
+              <button
+                onClick={handleClearAllFormulas}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Restablecer Todo ({Object.keys(customFormulas).length})</span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsFormulaMode(false)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all border border-slate-700"
+            >
+              Salir del Modo Formular
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Control Bar: Filters & Search */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -386,6 +558,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             <span className="w-2 h-2 rounded-full bg-purple-400" />
             <span>Morado = Colab / Destacadas</span>
           </span>
+          {Object.keys(customFormulas).length > 0 && (
+            <span className="inline-flex items-center space-x-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-full font-bold">
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span>fx = Personalizado ({Object.keys(customFormulas).length})</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -483,25 +661,84 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
                     {/* Columnas de Precios */}
                     {STANDARD_TARIFFS.map((tariff) => {
-                      const sinIva = Number((base + tariff.markup).toFixed(3));
-                      const conIva = Number((sinIva * 1.21).toFixed(3));
+                      const defaultSinIva = Number((base + tariff.markup).toFixed(3));
+                      const sinIvaKey = `STD_${st.name}_T${tariff.id}_sinIva`;
+                      const customSinIva = customFormulas[sinIvaKey];
+                      const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+                      const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+                      const conIvaKey = `STD_${st.name}_T${tariff.id}_conIva`;
+                      const customConIva = customFormulas[conIvaKey];
+                      const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
                       const isPurplePrice = isPurple && ['18', '36', '60'].includes(tariff.id);
 
                       return (
                         <React.Fragment key={`${st.name}_${tariff.id}`}>
-                          <td className={`py-2.5 px-2.5 text-right font-mono ${
-                            isPurplePrice
-                              ? 'bg-purple-950/40 text-purple-300 font-semibold'
-                              : 'text-slate-300 bg-slate-900/10'
-                          }`}>
-                            {sinIva.toFixed(3).replace('.', ',')}
+                          {/* SIN IVA */}
+                          <td
+                            onClick={() => {
+                              setActiveModalCell({
+                                cellKey: sinIvaKey,
+                                cellTitle: `${st.name} — Tarifa ${tariff.name} (Sin IVA)`,
+                                defaultValue: defaultSinIva,
+                                currentFormula: customSinIva?.rawFormula,
+                                columnLabel: `Tarifa ${tariff.name} Sin IVA`,
+                                onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(tariff.id, false, f),
+                              });
+                            }}
+                            className={`py-2 px-2 text-right font-mono relative transition-all group ${
+                              isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
+                            } ${
+                              customSinIva
+                                ? 'bg-amber-500/20 text-amber-200 font-black ring-1 ring-amber-400 shadow-sm'
+                                : isPurplePrice
+                                ? 'bg-purple-950/40 text-purple-300 font-semibold'
+                                : 'text-slate-300 bg-slate-900/10'
+                            }`}
+                            title={customSinIva ? `Fórmula personalizada: ${customSinIva.rawFormula}` : 'Haz clic para formular esta celda'}
+                          >
+                            <div className="flex items-center justify-end space-x-1">
+                              {customSinIva && (
+                                <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm">
+                                  fx
+                                </span>
+                              )}
+                              <span>{sinIva.toFixed(3).replace('.', ',')}</span>
+                            </div>
                           </td>
-                          <td className={`py-2.5 px-2.5 text-right font-bold font-mono border-r ${
-                            isPurplePrice
-                              ? 'bg-purple-600/30 text-purple-200 font-black border-purple-500/40 shadow-inner'
-                              : 'text-emerald-400 bg-emerald-500/5 border-slate-800/80'
-                          }`}>
-                            {conIva.toFixed(3).replace('.', ',')}
+
+                          {/* CON IVA */}
+                          <td
+                            onClick={() => {
+                              setActiveModalCell({
+                                cellKey: conIvaKey,
+                                cellTitle: `${st.name} — Tarifa ${tariff.name} (Con IVA)`,
+                                defaultValue: defaultConIva,
+                                currentFormula: customConIva?.rawFormula,
+                                columnLabel: `Tarifa ${tariff.name} Con IVA`,
+                                onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(tariff.id, true, f),
+                              });
+                            }}
+                            className={`py-2 px-2 text-right font-bold font-mono border-r relative transition-all group ${
+                              isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
+                            } ${
+                              customConIva
+                                ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                : isPurplePrice
+                                ? 'bg-purple-600/30 text-purple-200 font-black border-purple-500/40 shadow-inner'
+                                : 'text-emerald-400 bg-emerald-500/5 border-slate-800/80'
+                            }`}
+                            title={customConIva ? `Fórmula personalizada: ${customConIva.rawFormula}` : 'Haz clic para formular esta celda'}
+                          >
+                            <div className="flex items-center justify-end space-x-1">
+                              {customConIva && (
+                                <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded shadow-sm">
+                                  fx
+                                </span>
+                              )}
+                              <span>{conIva.toFixed(3).replace('.', ',')}</span>
+                            </div>
                           </td>
                         </React.Fragment>
                       );
@@ -584,16 +821,65 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                               {st.name}
                             </td>
                             {block.tariffs.map((t, idx) => {
-                              const sinIva = Number((base + t.markup).toFixed(3));
-                              const conIva = Number((sinIva * 1.21).toFixed(3));
+                              const defaultSinIva = Number((base + t.markup).toFixed(3));
+                              const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
+                              const customSinIva = customFormulas[sinIvaKey];
+                              const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+                              const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+                              const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
+                              const customConIva = customFormulas[conIvaKey];
+                              const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
                               return (
                                 <React.Fragment key={idx}>
-                                  <td className="py-2 px-2 text-right text-slate-300 border-l border-slate-800/50">
-                                    {sinIva.toFixed(3).replace('.', ',')}
+                                  <td
+                                    onClick={() => {
+                                      setActiveModalCell({
+                                        cellKey: sinIvaKey,
+                                        cellTitle: `${st.name} — ${block.title} > ${t.name} (Sin IVA)`,
+                                        defaultValue: defaultSinIva,
+                                        currentFormula: customSinIva?.rawFormula,
+                                        columnLabel: `${block.title} - ${t.name} Sin IVA`,
+                                      });
+                                    }}
+                                    className={`py-2 px-2 text-right border-l border-slate-800/50 transition-all ${
+                                      isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
+                                    } ${
+                                      customSinIva ? 'bg-amber-500/20 text-amber-200 font-bold ring-1 ring-amber-400 shadow-sm' : 'text-slate-300'
+                                    }`}
+                                    title={customSinIva ? `Fórmula: ${customSinIva.rawFormula}` : 'Haz clic para formular esta celda'}
+                                  >
+                                    <div className="flex items-center justify-end space-x-1">
+                                      {customSinIva && (
+                                        <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                      )}
+                                      <span>{sinIva.toFixed(3).replace('.', ',')}</span>
+                                    </div>
                                   </td>
-                                  <td className="py-2 px-2 text-right font-bold text-emerald-400">
-                                    {conIva.toFixed(3).replace('.', ',')}
+                                  <td
+                                    onClick={() => {
+                                      setActiveModalCell({
+                                        cellKey: conIvaKey,
+                                        cellTitle: `${st.name} — ${block.title} > ${t.name} (Con IVA)`,
+                                        defaultValue: defaultConIva,
+                                        currentFormula: customConIva?.rawFormula,
+                                        columnLabel: `${block.title} - ${t.name} Con IVA`,
+                                      });
+                                    }}
+                                    className={`py-2 px-2 text-right font-bold transition-all ${
+                                      isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
+                                    } ${
+                                      customConIva ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm' : 'text-emerald-400'
+                                    }`}
+                                    title={customConIva ? `Fórmula: ${customConIva.rawFormula}` : 'Haz clic para formular esta celda'}
+                                  >
+                                    <div className="flex items-center justify-end space-x-1">
+                                      {customConIva && (
+                                        <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                      )}
+                                      <span>{conIva.toFixed(3).replace('.', ',')}</span>
+                                    </div>
                                   </td>
                                 </React.Fragment>
                               );
@@ -610,11 +896,32 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         </div>
       </div>
 
+      {/* Ventana Emergente de Formulación */}
+      {activeModalCell && (
+        <SabanaFormulaModal
+          isOpen={Boolean(activeModalCell)}
+          onClose={() => setActiveModalCell(null)}
+          cellKey={activeModalCell.cellKey}
+          cellTitle={activeModalCell.cellTitle}
+          cellDefaultValue={activeModalCell.defaultValue}
+          currentFormula={activeModalCell.currentFormula}
+          columnLabel={activeModalCell.columnLabel}
+          selectedDate={selectedDate}
+          onSave={(formulaStr, evaluatedVal) => {
+            handleSaveFormula(activeModalCell.cellKey, formulaStr, evaluatedVal);
+          }}
+          onRemove={() => {
+            handleRemoveFormula(activeModalCell.cellKey);
+          }}
+          onApplyToColumn={activeModalCell.onApplyToColumn}
+        />
+      )}
+
       {/* Confirmation Toast */}
       {downloadToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-5">
           <Check className="h-5 w-5" />
-          <span>Archivo descargado correctamente: {downloadToast}</span>
+          <span>{downloadToast}</span>
         </div>
       )}
     </div>
