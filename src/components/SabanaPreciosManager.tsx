@@ -214,6 +214,15 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
     return Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
   };
+
+  const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+
+  const filteredStations = allStations.filter((st) => {
+    const matchesSearch = st.name.toLowerCase().includes(searchFilter.toLowerCase());
+    const matchesType = typeFilter === 'ALL' || st.type === typeFilter;
+    return matchesSearch && matchesType;
+  });
+
   // Guardar fórmula en celda
   const handleSaveFormula = (cellKey: string, rawFormula: string, evaluatedValue: number) => {
     const updated = saveSabanaFormula(selectedDate, cellKey, {
