@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
+import { generateAndDownloadCierreWorkbook } from '@/lib/excelExportService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
@@ -12,7 +13,7 @@ interface Comp1Props {
   selectedDate: string;
 }
 
-// 13 Colaboradoras Fijas (Columna J) para el 2do Cuadro
+// Colaboradoras Fijas (Columna J) para el 2do Cuadro
 const FIXED_COLLABORATOR_NAMES = [
   'BENAVENTE',
   'IRUN ZAISA III',
@@ -21,6 +22,7 @@ const FIXED_COLLABORATOR_NAMES = [
   'SAN VICENTE DEL PALACIO',
   'WATERY ARANDA',
   'PUERTO DE BARCELONA',
+  'GIRONA-CALSINA',
   'FEGOBLAN PONTEVEDRA',
   'VEGA DE VALCARCE',
   'HOILA TOLEDO',
@@ -116,9 +118,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   // 3 Bloques Estructurales
   const propiasStations = PROPIAS_STATIONS;
-  const fixedCollaborators = COLABORADORA_STATIONS.filter((st) =>
-    FIXED_COLLABORATOR_NAMES.some((fname) => st.name.toUpperCase().includes(fname.toUpperCase()))
-  );
+  const fixedCollaborators = FIXED_COLLABORATOR_NAMES
+    .map((fname) => COLABORADORA_STATIONS.find((st) => st.name.toUpperCase().includes(fname.toUpperCase())))
+    .filter(Boolean) as typeof COLABORADORA_STATIONS;
   const remainingCollaborators = COLABORADORA_STATIONS.filter(
     (st) => !FIXED_COLLABORATOR_NAMES.some((fname) => st.name.toUpperCase().includes(fname.toUpperCase()))
   );
@@ -469,34 +471,65 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
         const effectiveSale = item.isCustomSale && item.sale ? item.sale : formatNum(totalCost);
 
+        // 3) los datos de cada fila en la columna costo total se copian en la columna p.ant.compra y los datos de la columna p.venta sugerido se copian en la columna p. venta ant.
         nextPurchases[key] = {
           ...item,
-          prev: item.curr,
+          prev: formatNum(totalCost),
           prevSale: effectiveSale,
+          sale: formatNum(totalCost),
           isCustomSale: false,
         };
       });
 
+      const timestamp = new Date().toISOString();
       try {
+        // 2) Guardar y sincronizar todas las ventanas del sistema (compras, postes, sabana de precios, pdfs y clientes, efi export)
         localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
           data: nextPurchases,
           modified: [],
-          updatedAt: new Date().toISOString(),
+          updatedAt: timestamp,
         }));
         localStorage.setItem('efi_compras_data', JSON.stringify({
           data: nextPurchases,
           modified: [],
-          updatedAt: new Date().toISOString(),
+          updatedAt: timestamp,
         }));
+        localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
+        localStorage.setItem('efi_compras_valid_from', validFromDate);
+        localStorage.setItem('efi_global_valid_from_date', validFromDate);
+        localStorage.setItem('efi_last_cierre_date', selectedDate);
+        localStorage.setItem('efi_last_cierre_timestamp', timestamp);
+
+        localStorage.setItem(`efi_cierre_completo_${selectedDate}`, JSON.stringify({
+          selectedDate,
+          validFromDate,
+          purchases: nextPurchases,
+          specialRates,
+          closedAt: timestamp,
+        }));
+
+        // Notificar reactivamente a todas las ventanas
         window.dispatchEvent(new Event('efi_compras_updated'));
-      } catch (e) {}
+        window.dispatchEvent(new Event('efi_valid_date_changed'));
+        window.dispatchEvent(new Event('efi_cierre_dia'));
+        window.dispatchEvent(new Event('storage'));
+      } catch (e) {
+        console.error('Error al guardar cierre en localStorage:', e);
+      }
+
+      // Descargar archivo Excel (.xlsx) con formato idéntico al oficial consolidado
+      try {
+        generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, specialRates);
+      } catch (e) {
+        console.error('Error al generar libro Excel de Cierre:', e);
+      }
 
       return nextPurchases;
     });
 
     setModifiedKeys(new Set());
-    setToastMessage('Cierre de Día Completado: Compra Hoy -> P. Ant. Compra, P. Venta -> P. Venta Ant.');
-    setTimeout(() => setToastMessage(null), 3500);
+    setToastMessage('¡Cierre de Día Completado! Datos guardados en todos los módulos y Excel descargado.');
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleExportDailyExcel = () => {

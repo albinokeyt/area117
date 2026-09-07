@@ -67,7 +67,7 @@ export const COLABORADORA_STATIONS: StationSeed[] = [
   { name: 'WATERY ARANDA', type: 'COLABORADORA', isFixedColaboradora: true, order: 46 },
   { name: 'BERA', type: 'COLABORADORA', isFixedColaboradora: false, order: 47 },
   { name: 'PUERTO DE BARCELONA', type: 'COLABORADORA', isFixedColaboradora: true, order: 48 },
-  { name: 'GIRONA-CALSINA', type: 'COLABORADORA', isFixedColaboradora: false, order: 49 },
+  { name: 'GIRONA-CALSINA', type: 'COLABORADORA', isFixedColaboradora: true, order: 49 },
   { name: 'FEGOBLAN PONTEVEDRA', type: 'COLABORADORA', isFixedColaboradora: true, order: 50 },
   { name: 'VEGA DE VALCARCE', type: 'COLABORADORA', isFixedColaboradora: true, order: 51 },
   { name: 'HOILA TOLEDO', type: 'COLABORADORA', isFixedColaboradora: true, order: 52 },
