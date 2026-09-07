@@ -1,4 +1,4 @@
-﻿import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from './dataSeed';
 
 export interface PurchaseRowValues {
@@ -334,20 +334,51 @@ export function generateAndDownloadCierreWorkbook(
   specialRows.push(['TARIFAS ESPECIALES (B50:F82) - AREA 117']);
   specialRows.push(['Fecha Emision:', selectedDate, 'Valido A Partir De:', validFromDate]);
   specialRows.push([]);
-  specialRows.push(['ESTACION', 'PRECIO ACTUAL / ESPECIAL (EUR)', 'PRECIO REFERENCIA (EUR)', 'PRECIO BASE (EUR)']);
+  specialRows.push(['ESTACION', 'PRECIO REFERENCIA (EUR)', 'PRECIO ACTUAL / ESPECIAL (EUR)', 'PRECIO BASE / COSTE (EUR)']);
 
   specialRates.forEach((row) => {
+    // 1) Precio actual/especial se copia siempre de p. venta sugerido de Gasoleo A
     let act = parseNum(row.actualPrice);
     if (!act || act === 0) {
-      const goaKey = `${row.name}_GOA`;
-      const item = purchases[goaKey];
-      if (item) {
-        act = round3(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin));
+      const cleanTarget = row.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const matchedKey = Object.keys(purchases).find((k) => {
+        if (!k.endsWith('_GOA')) return false;
+        const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+      });
+      if (matchedKey && purchases[matchedKey]) {
+        const item = purchases[matchedKey];
+        const cTotal = round3(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin));
+        act = item.isCustomSale && item.sale ? parseNum(item.sale) : cTotal;
+      }
+      if (!act || act === 0) {
+        const costs = STATION_EXCEL_COSTS[row.name];
+        act = costs ? round3(costs.defaultCurr + costs.porte + costs.pase + costs.fin) : 1.230;
       }
     }
+
+    // 2) Precio base / coste se copia siempre de costo total de GOA / 1000 + 0.008
+    let base = parseNum(row.basePrice);
+    if (!base || base === 0) {
+      const cleanTarget = row.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const matchedKey = Object.keys(purchases).find((k) => {
+        if (!k.endsWith('_GOA')) return false;
+        const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+      });
+      let cTotal = 1.230;
+      if (matchedKey && purchases[matchedKey]) {
+        const item = purchases[matchedKey];
+        cTotal = round3(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin));
+      } else if (STATION_EXCEL_COSTS[row.name]) {
+        const costs = STATION_EXCEL_COSTS[row.name];
+        cTotal = round3(costs.defaultCurr + costs.porte + costs.pase + costs.fin);
+      }
+      base = round3(cTotal > 50 ? (cTotal / 1000) + 0.008 : cTotal + 0.008);
+    }
+
     const ref = row.refPrice ? parseNum(row.refPrice) : round3(act + 0.008);
-    const base = row.basePrice ? parseNum(row.basePrice) : act;
-    specialRows.push([row.name, act, ref, base]);
+    specialRows.push([row.name, ref, act, base]);
   });
 
   const wsSpecial = XLSX.utils.aoa_to_sheet(specialRows);
