@@ -250,7 +250,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   // Estado de Tarifas Especiales B50:F82 EXACTAS
   const [specialRates, setSpecialRates] = useState<SpecialStationRateRow[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_special_rates_b50_f82_v3');
+      const saved = localStorage.getItem('efi_special_rates_b50_f82_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -281,7 +281,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     try {
       const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
       const savedGlobal = localStorage.getItem('efi_compras_data');
-      const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v3');
+      const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v4');
       const savedValidDate = localStorage.getItem('efi_compras_valid_from');
       const savedBroncoDate = localStorage.getItem(`efi_purchases_bronco_${selectedDate}`);
       const savedBroncoGlobal = localStorage.getItem('efi_compras_gasolina_bronco');
@@ -301,7 +301,15 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }
 
       if (savedSpecial) {
-        setSpecialRates(JSON.parse(savedSpecial));
+        try {
+          const parsed = JSON.parse(savedSpecial);
+          if (Array.isArray(parsed) && parsed.length > 0) setSpecialRates(parsed);
+        } catch (e) {}
+      } else {
+        setSpecialRates(DEFAULT_SPECIAL_RATES_B50_F82);
+        try {
+          localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(DEFAULT_SPECIAL_RATES_B50_F82));
+        } catch (e) {}
       }
 
       if (savedBroncoDate) {
@@ -478,19 +486,37 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   // 1) Obtener P. Venta Sugerido de Gasóleo A (GOA) para una estación
   const getGoaSuggestedSaleForStation = (stName: string): string => {
     const item = findGoaItemForStation(stName);
+    const cleanName = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+
     if (item) {
+      // Si en compras tiene un precio de venta sugerido válido, se toma directamente
+      if (item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000') {
+        return item.sale;
+      }
+
+      // Si no, tomar el precio oficial sugerido de Gasóleo A
+      const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
+      if (officialPrice !== undefined) {
+        return officialPrice.toFixed(3);
+      }
+
+      // Fallback a costo total de la estación
       const currNum = parseNum(item.curr);
       const porteNum = parseNum(item.porte);
       const paseNum = parseNum(item.pase);
       const finNum = parseNum(item.fin);
       const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-      const effectiveSale = item.isCustomSale && item.sale ? item.sale : totalCost.toFixed(3);
-      if (parseNum(effectiveSale) > 0) {
-        return effectiveSale;
+      if (totalCost > 0) {
+        return totalCost.toFixed(3);
       }
     }
 
-    const costs = STATION_EXCEL_COSTS[stName] || {
+    const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
+    if (officialPrice !== undefined) {
+      return officialPrice.toFixed(3);
+    }
+
+    const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[cleanName] || {
       porte: 0.0050,
       pase: 0.0100,
       fin: 0.0100,
@@ -570,6 +596,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       });
 
       try {
+        localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(next));
         localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(next));
       } catch (e) {}
 
@@ -599,6 +626,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         modified: Array.from(modifiedKeys),
         updatedAt: new Date().toISOString(),
       }));
+      localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(specialRates));
       localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
       localStorage.setItem('efi_compras_valid_from', validFromDate);
       localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
@@ -622,20 +650,29 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         const paseNum = parseNum(item.pase);
         const finNum = parseNum(item.fin);
         const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-        const effectiveSale = item.isCustomSale && item.sale ? item.sale : formatNum(totalCost);
+        const stName = key.replace(/_(GOA|GASOLINA|ADBLUE)$/, '');
+        const cleanName = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
+        const defaultSale = officialPrice !== undefined ? officialPrice.toFixed(3) : totalCost.toFixed(3);
+        const effectiveSale = item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000'
+          ? item.sale
+          : defaultSale;
 
         // 3) los datos de cada fila en la columna costo total se copian en la columna p.ant.compra y los datos de la columna p.venta sugerido se copian en la columna p. venta ant.
         nextPurchases[key] = {
           ...item,
           prev: formatNum(totalCost),
           prevSale: effectiveSale,
-          sale: formatNum(totalCost),
+          sale: effectiveSale,
           isCustomSale: false,
         };
       });
 
       const cleanedSpecialRates = specialRates.map((row) => ({
         ...row,
+        actualPrice: '',
+        refPrice: '',
+        basePrice: '',
         isCustomActual: false,
         isCustomRef: false,
         isCustomBase: false,
@@ -655,6 +692,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           modified: [],
           updatedAt: timestamp,
         }));
+        localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(cleanedSpecialRates));
         localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(cleanedSpecialRates));
         localStorage.setItem('efi_compras_valid_from', validFromDate);
         localStorage.setItem('efi_global_valid_from_date', validFromDate);

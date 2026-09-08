@@ -381,11 +381,16 @@ export function generateAndDownloadCierreWorkbook(
       if (matchedKey && purchases[matchedKey]) {
         const item = purchases[matchedKey];
         const cTotal = round3(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin));
-        act = item.isCustomSale && item.sale ? parseNum(item.sale) : cTotal;
+        const cleanSt = row.name.toUpperCase().replace(/^ES\s+/, '').trim();
+        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[row.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanSt];
+        act = item.sale && parseNum(item.sale) > 0
+          ? parseNum(item.sale)
+          : (officialPrice !== undefined ? officialPrice : cTotal);
       }
       if (!act || act === 0) {
-        const costs = STATION_EXCEL_COSTS[row.name];
-        act = costs ? round3(costs.defaultCurr + costs.porte + costs.pase + costs.fin) : 1.230;
+        const cleanSt = row.name.toUpperCase().replace(/^ES\s+/, '').trim();
+        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[row.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanSt];
+        act = officialPrice !== undefined ? officialPrice : 1.320;
       }
     }
 
@@ -596,7 +601,7 @@ export function buildImportacionTable(
       if (sDate) purchasesData = JSON.parse(sDate).data || {};
       else if (sGlob) purchasesData = JSON.parse(sGlob).data || {};
 
-      const sp = localStorage.getItem('efi_special_rates_b50_f82_v3');
+      const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
       if (sp) specialRates = JSON.parse(sp);
 
       const fDate = localStorage.getItem('efi_sabana_formulas_' + selectedDate);

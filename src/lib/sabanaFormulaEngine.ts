@@ -182,7 +182,7 @@ export function getProgramVariables(selectedDate: string): {
   // 4. TARIFAS ESPECIALES
   let specialRates: any[] = [];
   try {
-    const sp = localStorage.getItem("efi_special_rates_b50_f82_v3");
+    const sp = localStorage.getItem("efi_special_rates_b50_f82_v4") || localStorage.getItem("efi_special_rates_b50_f82_v3");
     if (sp) specialRates = JSON.parse(sp);
   } catch (e) {}
 
