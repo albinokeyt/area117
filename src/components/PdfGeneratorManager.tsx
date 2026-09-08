@@ -5,7 +5,8 @@ import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/
 import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
-  Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert
+  Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert,
+  RotateCcw
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
@@ -77,6 +78,7 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'ESPECIAL COMPLETO', markup: 0.0116 },
   { name: 'TARIFA 40', markup: 0.0400 },
   { name: 'TARIFA 42', markup: 0.0420 },
+  { name: 'TARIFA 45', markup: 0.0450 },
   { name: 'TARIFA 47', markup: 0.0470 },
   { name: 'TARIFA 50', markup: 0.0600 },
   { name: 'TARIFA 60', markup: 0.0800 },
@@ -110,21 +112,15 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_custom_tariffs_list_v3');
+      const saved = localStorage.getItem('efi_custom_tariffs_catalog_v5');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-      // Restauración de catálogo completo inicial
-      const legacySaved = localStorage.getItem('efi_custom_tariffs_list');
-      if (legacySaved) {
-        const parsed = JSON.parse(legacySaved);
         if (Array.isArray(parsed) && parsed.length >= 30) {
           return parsed;
         }
       }
+      // Restauración de catálogo completo inicial si venía truncado
+      localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(INITIAL_TARIFFS_LIST));
       localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(INITIAL_TARIFFS_LIST));
       localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(INITIAL_TARIFFS_LIST));
     } catch (e) {}
@@ -164,6 +160,41 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       window.removeEventListener('storage', updateValidDate);
     };
   }, []);
+
+  // Asegurar que si el navegador del usuario tenía en cache una lista truncada o incompleta,
+  // se restablezca inmediatamente el catálogo oficial de 38 tarifas
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('efi_custom_tariffs_catalog_v5');
+      let needsReset = false;
+      if (!saved) {
+        needsReset = true;
+      } else {
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed) || parsed.length < 30) {
+          needsReset = true;
+        }
+      }
+      if (needsReset) {
+        setTariffsList(INITIAL_TARIFFS_LIST);
+        localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(INITIAL_TARIFFS_LIST));
+        localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(INITIAL_TARIFFS_LIST));
+        localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(INITIAL_TARIFFS_LIST));
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleRestoreAllTariffs = () => {
+    setTariffsList(INITIAL_TARIFFS_LIST);
+    try {
+      localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(INITIAL_TARIFFS_LIST));
+      localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(INITIAL_TARIFFS_LIST));
+      localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(INITIAL_TARIFFS_LIST));
+    } catch (e) {}
+    setDownloadNotice(`Catálogo completo oficial restaurado (${INITIAL_TARIFFS_LIST.length} Tarifas)`);
+    setTimeout(() => setDownloadNotice(null), 3500);
+  };
+
   const [searchFilter, setSearchFilter] = useState('');
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
 
@@ -264,6 +295,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     setSelectedTariff(formattedName);
 
     try {
+      localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(nextList));
       localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(nextList));
       localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(nextList));
     } catch (e) {}
@@ -403,6 +435,15 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleRestoreAllTariffs}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-750 shadow-md transition-all active:scale-95"
+              title="Restaurar catálogo completo oficial con todas las tarifas originales"
+            >
+              <RotateCcw className="h-4 w-4 text-emerald-400" />
+              <span>Restaurar Catálogo ({INITIAL_TARIFFS_LIST.length})</span>
+            </button>
+
             <button
               onClick={() => setShowAddTariffModal(true)}
               className="flex items-center space-x-2 px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/40 shadow-md transition-all active:scale-95"
@@ -865,6 +906,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                       const newTariffs = tariffsList.filter((t) => t.name !== deleteModalState.tariffName);
                       setTariffsList(newTariffs);
                       try {
+                        localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(newTariffs));
                         localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(newTariffs));
                         localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(newTariffs));
                       } catch (e) {}

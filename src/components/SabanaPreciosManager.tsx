@@ -607,6 +607,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       conIva,
       defaultConIva,
       isOrange: isRorOrange(stName),
+      isGreen: false,
     };
   };
 

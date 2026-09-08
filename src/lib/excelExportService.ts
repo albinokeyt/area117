@@ -8,7 +8,7 @@ export interface PurchaseRowValues {
   porte: string;
   pase: string;
   fin: string;
-  prevSale: string;
+  prevSale?: string;
   sale: string;
   isCustomSale?: boolean;
 }
