@@ -39,10 +39,10 @@ const POSTES_PROPIAS_STATIONS: {
   { name: 'ALFAJARIN', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.271', hasGasolina: true },
   { name: 'TORREMOCHA', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.272', hasGasolina: true },
   { name: 'UCLES', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.284', hasGasolina: true },
-  { name: 'VALLECAS', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'GANESHA MADRID', defaultGoa: '1.749', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'GANESHA TORREJON', defaultGoa: '1.749', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'VALDEMORO', defaultGoa: '1.649', defaultGasolina: '1.649', defaultGain: '0.122', hasGasolina: true },
+  { name: 'VALLECAS', defaultGoa: '1.709', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
+  { name: 'GANESHA MADRID', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
+  { name: 'GANESHA TORREJON', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
+  { name: 'VALDEMORO', defaultGoa: '1.657', defaultGasolina: '1.649', defaultGain: '0.122', hasGasolina: true },
   { name: 'BENAMEJI', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
   { name: 'HUMILLADERO', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
   { name: 'ES RIBA-ROJA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
@@ -112,8 +112,8 @@ export function PostesManager() {
   const [gasoleoBPosteGlobal, setGasoleoBPosteGlobal] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).gasoleoBPosteGlobal || '1.2890' : '1.2890';
-    } catch (e) { return '1.2890'; }
+      return s ? JSON.parse(s).gasoleoBPosteGlobal || '1.3504' : '1.3504';
+    } catch (e) { return '1.3504'; }
   });
   const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string; poste: string }>>(() => {
     try {
@@ -121,9 +121,9 @@ export function PostesManager() {
       if (s && JSON.parse(s).gasoleoBRows) return JSON.parse(s).gasoleoBRows;
     } catch (e) {}
     return {
-      'UCLES': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
-      'TORREMOCHA': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
-      'ARCOS': { compra: '1.0045', transfer: '1.0240', gob: '1.2886', poste: '1.2890' },
+      'UCLES': { compra: '1.0810', transfer: '1.0980', gob: '1.3286', poste: '1.3504' },
+      'TORREMOCHA': { compra: '1.0810', transfer: '1.0980', gob: '1.3286', poste: '1.3504' },
+      'ARCOS': { compra: '1.0810', transfer: '1.0980', gob: '1.3286', poste: '1.3504' },
     };
   });
 

@@ -109,10 +109,10 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     id: 'sur_benito',
     title: 'Tarifas Sur (Benito: 27 Sur & 15 Sur)',
     description: 'Convenios específicos zona Sur: Tarifa 27 Sur y Tarifa 15 Sur',
-    columnsRange: 'Cols BC:BF',
+    columnsRange: 'Cols AZ:BE',
     tariffs: [
-      { name: 'Tarifa 27 Sur', markup: 0.127 },
-      { name: 'Tarifa 15 Sur', markup: 0.115 },
+      { name: 'Tarifa 27 Sur', markup: 0.027 },
+      { name: 'Tarifa 15 Sur', markup: 0.015 },
     ],
     borderTheme: 'border-purple-500/30',
     badgeTheme: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
@@ -755,6 +755,82 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
   };
 
+  // Helper para identificar estaciones con celda Naranja en Tarifas Sur (ABRERA toma Precio Actual / Especial de Compras)
+  const isSurOrange = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return u.includes('ABRERA');
+  };
+
+  // Valor por defecto Sin IVA para Tarifa 27 Sur
+  const getTarifa27SurSinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    if (isSurOrange(stName)) {
+      return Number(getSpecialRateActualPrice(stName).toFixed(3));
+    }
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    const markup = isPropia ? 0.027 : 0.036;
+    return Number((costoTotal + markup).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Tarifa 27 Sur
+  const getTarifa27SurPrices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getTarifa27SurSinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_sur_benito_${stName}_Tarifa 27 Sur_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_sur_benito_${stName}_Tarifa 27 Sur_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+      isOrange: isSurOrange(stName),
+    };
+  };
+
+  // Valor por defecto Sin IVA para Tarifa 15 Sur
+  const getTarifa15SurSinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    if (isSurOrange(stName)) {
+      return Number(getSpecialRateActualPrice(stName).toFixed(3));
+    }
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    const markup = isPropia ? 0.015 : 0.024;
+    return Number((costoTotal + markup).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Tarifa 15 Sur
+  const getTarifa15SurPrices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getTarifa15SurSinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_sur_benito_${stName}_Tarifa 15 Sur_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_sur_benito_${stName}_Tarifa 15 Sur_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+      isOrange: isSurOrange(stName),
+    };
+  };
+
   const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
 
   const filteredStations = allStations.filter((st) => {
@@ -997,6 +1073,26 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         csv += `${st.name};${miki.sinIva.toFixed(3).replace('.', ',')};${miki.conIva.toFixed(3).replace('.', ',')};${eco.sinIva.toFixed(3).replace('.', ',')};${eco.conIva.toFixed(3).replace('.', ',')};${t30.sinIva.toFixed(3).replace('.', ',')};${t30.conIva.toFixed(3).replace('.', ',')};\n`;
       });
       triggerDownload(`TARIFA_90_MIKI_ECOTRANS_TARIFA30_${selectedDate}.csv`, csv);
+      return;
+    }
+
+    if (block.id === 'sur_benito') {
+      let csv = 'EESS DE SERVICIO;TARIFA 27 SUR SIN IVA;CON IVA;TARIFA 15 SUR SIN IVA;CON IVA;\n';
+      // Propias
+      PROPIAS_STATIONS.forEach((st) => {
+        const t27 = getTarifa27SurPrices(st.name, true);
+        const t15 = getTarifa15SurPrices(st.name, true);
+        csv += `${st.name};${t27.sinIva.toFixed(3).replace('.', ',')};${t27.conIva.toFixed(3).replace('.', ',')};${t15.sinIva.toFixed(3).replace('.', ',')};${t15.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      // Separador COLABORADORAS
+      csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
+      // Colaboradoras
+      COLABORADORA_STATIONS.forEach((st) => {
+        const t27 = getTarifa27SurPrices(st.name, false);
+        const t15 = getTarifa15SurPrices(st.name, false);
+        csv += `${st.name};${t27.sinIva.toFixed(3).replace('.', ',')};${t27.conIva.toFixed(3).replace('.', ',')};${t15.sinIva.toFixed(3).replace('.', ',')};${t15.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      triggerDownload(`TARIFA_SUR_BENITO_${selectedDate}.csv`, csv);
       return;
     }
 
@@ -1410,7 +1506,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             <div
               key={block.id}
               className={`bg-slate-900 border ${block.borderTheme} rounded-3xl p-6 shadow-xl space-y-4 flex flex-col justify-between ${
-                block.id === 'los_javi' || block.id === 'ror_esteban' || block.id === 'miki_ecotrans_tarifa30' ? 'lg:col-span-2' : ''
+                block.id === 'los_javi' || block.id === 'ror_esteban' || block.id === 'miki_ecotrans_tarifa30' || block.id === 'sur_benito' ? 'lg:col-span-2' : ''
               }`}
             >
               <div>
@@ -1434,6 +1530,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                         ? 'Celdas anaranjadas toman Precio Actual / Especial. Celdas verdes: Tarifa 24 Sin IVA. Celdas blancas: Costo Total GOA + 0.024. Con IVA = Sin IVA * 1.21'
                         : block.id === 'miki_ecotrans_tarifa30'
                         ? 'Miki: Costo Total GOA + 0.09. ECOTRANS: Costo Total GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto Costo Total GOA + 0.03. Con IVA = Sin IVA * 1.21'
+                        : block.id === 'sur_benito'
+                        ? 'Tarifa 27 Sur: Propias Costo + 0.027, Colab Costo + 0.036 (ABRERA Precio Especial). Tarifa 15 Sur: Propias Costo + 0.015, Colab Costo + 0.024 (ABRERA Precio Especial). Con IVA = Sin IVA * 1.21'
                         : block.description}
                     </p>
                   </div>
@@ -2323,6 +2421,201 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
                                     )}
                                     <span>{t30.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : block.id === 'sur_benito' ? (
+                  /* TABLA DEDICADA: TARIFAS SUR (BENITO: 27 SUR & 15 SUR) */
+                  <div className="overflow-x-auto max-h-[70vh] mt-4">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-slate-950 z-10">
+                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
+                          <th className="py-2.5 px-3" rowSpan={2}>EESS DE SERVICIO</th>
+                          <th colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
+                            TARIFA 27 SUR
+                          </th>
+                          <th colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
+                            TARIFA 15 SUR
+                          </th>
+                        </tr>
+                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono">
+                        {filteredStations.map((st, idx) => {
+                          const isPropia = st.type === 'PROPIA';
+                          const t27 = getTarifa27SurPrices(st.name, isPropia);
+                          const t15 = getTarifa15SurPrices(st.name, isPropia);
+                          const isFirstColab =
+                            typeFilter === 'ALL' &&
+                            !searchFilter &&
+                            st.type === 'COLABORADORA' &&
+                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
+                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
+
+                          return (
+                            <React.Fragment key={st.name}>
+                              {isFirstColab && (
+                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
+                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
+                                    COLABORADORAS
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                </tr>
+                              )}
+
+                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
+                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
+                                  isPropia ? 'text-blue-300' : 'text-purple-300'
+                                }`}>
+                                  <div className="flex items-center space-x-1.5">
+                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
+                                    <span>{st.name}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 27 SUR SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t27.sinIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 27 Sur (Sin IVA)`,
+                                      defaultValue: t27.defaultSinIva,
+                                      currentFormula: t27.customSinIva?.rawFormula,
+                                      columnLabel: `Tarifa 27 Sur Sin IVA (${t27.isOrange ? 'Naranja: Especial' : isPropia ? 'Propias: Costo+0.027' : 'Colab: Costo+0.036'})`,
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t27.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : t27.isOrange
+                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={
+                                    t27.customSinIva
+                                      ? `Fórmula: ${t27.customSinIva.rawFormula}`
+                                      : t27.isOrange
+                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
+                                      : isPropia
+                                      ? 'Propias: Costo Total GOA + 0.027'
+                                      : 'Colaboradoras: Costo Total GOA + 0.036'
+                                  }
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t27.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t27.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 27 SUR CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t27.conIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 27 Sur (Con IVA)`,
+                                      defaultValue: t27.defaultConIva,
+                                      currentFormula: t27.customConIva?.rawFormula,
+                                      columnLabel: 'Tarifa 27 Sur Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t27.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={t27.customConIva ? `Fórmula: ${t27.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t27.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t27.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 15 SUR SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t15.sinIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 15 Sur (Sin IVA)`,
+                                      defaultValue: t15.defaultSinIva,
+                                      currentFormula: t15.customSinIva?.rawFormula,
+                                      columnLabel: `Tarifa 15 Sur Sin IVA (${t15.isOrange ? 'Naranja: Especial' : isPropia ? 'Propias: Costo+0.015' : 'Colab: Costo+0.024'})`,
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t15.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : t15.isOrange
+                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={
+                                    t15.customSinIva
+                                      ? `Fórmula: ${t15.customSinIva.rawFormula}`
+                                      : t15.isOrange
+                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
+                                      : isPropia
+                                      ? 'Propias: Costo Total GOA + 0.015'
+                                      : 'Colaboradoras: Costo Total GOA + 0.024'
+                                  }
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t15.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t15.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 15 SUR CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t15.conIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 15 Sur (Con IVA)`,
+                                      defaultValue: t15.defaultConIva,
+                                      currentFormula: t15.customConIva?.rawFormula,
+                                      columnLabel: 'Tarifa 15 Sur Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t15.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={t15.customConIva ? `Fórmula: ${t15.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t15.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t15.conIva.toFixed(3).replace('.', ',')}</span>
                                   </div>
                                 </td>
                               </tr>
