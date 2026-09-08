@@ -258,7 +258,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       }
     }
 
-    if (item?.sale) {
+    if (item?.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000') {
       const val = parseFloat(item.sale.toString().replace(',', '.'));
       if (!isNaN(val) && val > 0) return val;
     }
@@ -279,7 +279,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     }
 
     // 4. Fallback con Costo Total del Excel si nada coincide
-    const costs = STATION_EXCEL_COSTS[stName] || {
+    const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[cleanTarget] || {
       porte: 0.0050,
       pase: 0.0100,
       fin: 0.0100,
@@ -334,6 +334,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   };
 
   // Obtener Precio Actual / Especial de Tarifas Especiales de Compras
+  // Por defecto (y según instrucción directa del usuario): Las celdas anaranjadas toman directamente
+  // la columna P. VENTA SUGERIDO de su respectiva estación en la subventana Gasóleo A (GOA) de Compras
   const getSpecialRateActualPrice = (stName: string): number => {
     if (specialRates && specialRates.length > 0) {
       const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
@@ -341,11 +343,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
         return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
       });
-      if (row && row.actualPrice) {
+      if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
         const p = parseFloat(row.actualPrice.toString().replace(',', '.'));
         if (!isNaN(p) && p > 0) return p;
       }
     }
+    // Por defecto: Copia directa de la columna P. VENTA SUGERIDO de Gasóleo A (GOA) de Compras
     return getStationBasePrice(stName);
   };
 
@@ -1314,8 +1317,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isOrange: p.isOrange,
               sinIvaTitle: `${stName} — Especial Javi (Sin IVA)`,
               conIvaTitle: `${stName} — Especial Javi (Con IVA)`,
-              columnLabel: `Especial Javi Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+              columnLabel: `Especial Javi Sin IVA (${p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.024',
             };
           },
         },
@@ -1336,8 +1339,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isOrange: p.isOrange,
               sinIvaTitle: `${stName} — Especial Carreras (Sin IVA)`,
               conIvaTitle: `${stName} — Especial Carreras (Con IVA)`,
-              columnLabel: `Especial Carreras Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.018'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.018',
+              columnLabel: `Especial Carreras Sin IVA (${p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.018'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.018',
             };
           },
         },
@@ -1361,8 +1364,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isOrange: p.isOrange,
               sinIvaTitle: `${stName} — Especial Transfrired (Sin IVA)`,
               conIvaTitle: `${stName} — Especial Transfrired (Con IVA)`,
-              columnLabel: `Especial Transfrired Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+              columnLabel: `Especial Transfrired Sin IVA (${p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.024',
             };
           },
         },
@@ -1386,8 +1389,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isOrange: p.isOrange,
               sinIvaTitle: `${stName} — Especial General C-0 (Sin IVA)`,
               conIvaTitle: `${stName} — Especial General C-0 (Con IVA)`,
-              columnLabel: `Especial General C-0 Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+              columnLabel: `Especial General C-0 Sin IVA (${p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.024',
             };
           },
         },
@@ -1412,8 +1415,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isGreen: p.isGreen,
               sinIvaTitle: `${stName} — Especial ROR (Sin IVA)`,
               conIvaTitle: `${stName} — Especial ROR (Con IVA)`,
-              columnLabel: `Especial ROR Sin IVA (${p.isGreen ? 'Verde: Tarifa 24' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: Tarifa 24 Sin IVA' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+              columnLabel: `Especial ROR Sin IVA (${p.isGreen ? 'Verde: Tarifa 24' : p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: Tarifa 24 Sin IVA' : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.024',
             };
           },
         },
@@ -1435,8 +1438,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isGreen: p.isGreen,
               sinIvaTitle: `${stName} — Especial Esteban (Sin IVA)`,
               conIvaTitle: `${stName} — Especial Esteban (Con IVA)`,
-              columnLabel: `Especial Esteban Sin IVA (${p.isGreen ? 'Verde: Tarifa 24' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: Tarifa 24 Sin IVA' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+              columnLabel: `Especial Esteban Sin IVA (${p.isGreen ? 'Verde: Tarifa 24' : p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: Tarifa 24 Sin IVA' : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.024',
             };
           },
         },
@@ -1528,8 +1531,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isGreen: p.isGreen,
               sinIvaTitle: `${stName} — Tarifa 27 Sur (Sin IVA)`,
               conIvaTitle: `${stName} — Tarifa 27 Sur (Con IVA)`,
-              columnLabel: `Tarifa 27 Sur Sin IVA (${p.isGreen ? 'Verde: P.Venta+0.036' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.027'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: P. Venta Sugerido GOA + 0.036' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.027',
+              columnLabel: `Tarifa 27 Sur Sin IVA (${p.isGreen ? 'Verde: P.Venta+0.036' : p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.027'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: P. Venta Sugerido GOA + 0.036' : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.027',
             };
           },
         },
@@ -1551,8 +1554,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               isGreen: p.isGreen,
               sinIvaTitle: `${stName} — Tarifa 15 Sur (Sin IVA)`,
               conIvaTitle: `${stName} — Tarifa 15 Sur (Con IVA)`,
-              columnLabel: `Tarifa 15 Sur Sin IVA (${p.isGreen ? 'Verde: P.Venta+0.024' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.015'})`,
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: P. Venta Sugerido GOA + 0.024' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.015',
+              columnLabel: `Tarifa 15 Sur Sin IVA (${p.isGreen ? 'Verde: P.Venta+0.024' : p.isOrange ? 'Naranja: P.Venta Sugerido GOA' : 'Blanco: P.Venta+0.015'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: P. Venta Sugerido GOA + 0.024' : p.isOrange ? 'Naranja: Copiado de P. Venta Sugerido Gasóleo A (GOA)' : 'Blanco: P. Venta Sugerido GOA + 0.015',
             };
           },
         },
@@ -2161,17 +2164,17 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                       </div>
                       <p className="text-xs text-slate-400 mt-0.5">
                         {block.id === 'los_javi'
-                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024 (Javi) / + 0.018 (Carreras). Con IVA = Sin IVA * 1.21'
+                          ? 'Celdas anaranjadas: Copia de P. Venta Sugerido Gasóleo A (GOA) de Compras. Celdas blancas: P. Venta Sugerido GOA + 0.024 (Javi) / + 0.018 (Carreras). Con IVA = Sin IVA * 1.21'
                           : block.id === 'transfrired'
-                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                          ? 'Celdas anaranjadas: Copia de P. Venta Sugerido Gasóleo A (GOA) de Compras. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
                           : block.id === 'c0_general'
-                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                          ? 'Celdas anaranjadas: Copia de P. Venta Sugerido Gasóleo A (GOA) de Compras. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
                           : block.id === 'ror_esteban'
-                          ? 'Celdas anaranjadas toman Precio Actual / Especial. Celdas verdes: Tarifa 24 Sin IVA. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                          ? 'Celdas anaranjadas: Copia de P. Venta Sugerido Gasóleo A (GOA) de Compras. Celdas verdes: Tarifa 24 Sin IVA. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
                           : block.id === 'miki_ecotrans_tarifa30'
                           ? 'Miki: P. Venta Sugerido GOA + 0.09. ECOTRANS: P. Venta Sugerido GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto P. Venta Sugerido GOA + 0.03. Con IVA = Sin IVA * 1.21'
                           : block.id === 'sur_benito'
-                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas verdes: P. Venta Sugerido GOA + 0.036 (Tarifa 27) / + 0.024 (Tarifa 15). Celdas blancas: P. Venta Sugerido GOA + 0.027 (Tarifa 27) / + 0.015 (Tarifa 15). Con IVA = Sin IVA * 1.21'
+                          ? 'Celdas anaranjadas: Copia de P. Venta Sugerido Gasóleo A (GOA) de Compras. Celdas verdes: P. Venta Sugerido GOA + 0.036 (Tarifa 27) / + 0.024 (Tarifa 15). Celdas blancas: P. Venta Sugerido GOA + 0.027 (Tarifa 27) / + 0.015 (Tarifa 15). Con IVA = Sin IVA * 1.21'
                           : block.id === 'tarifa_75'
                           ? 'Celdas blancas: P. Venta Sugerido GOA + 0.038. Con IVA = Sin IVA * 1.21'
                           : block.description}
