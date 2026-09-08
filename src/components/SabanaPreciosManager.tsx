@@ -96,11 +96,11 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     id: 'miki_ecotrans_tarifa30',
     title: 'Tarifa 90 Miki / Milo, ECOTRANS & Tarifa 30',
     description: 'Tarifas corporativas ECOTRANS, flota 90 Miki / Milo y Tarifa 30',
-    columnsRange: 'Cols AS:BA',
+    columnsRange: 'Cols AP:AW',
     tariffs: [
-      { name: 'Tarifa 90 Miki', markup: 0.198 },
-      { name: 'Tarifa ECOTRANS', markup: 0.158 },
-      { name: 'Tarifa 30', markup: 0.138 },
+      { name: 'Tarifa 90 Miki', markup: 0.090 },
+      { name: 'Tarifa ECOTRANS', markup: 0.050 },
+      { name: 'Tarifa 30', markup: 0.030 },
     ],
     borderTheme: 'border-amber-500/30',
     badgeTheme: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
@@ -655,6 +655,106 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
   };
 
+  // Helper para identificar estaciones con celda Naranja en Tarifa 30 (ABRERA toma Precio Actual / Especial de Compras)
+  const isTarifa30Orange = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return u.includes('ABRERA');
+  };
+
+  // Valor por defecto Sin IVA para Tarifa 90 Miki (Costo Total GOA + 0.09)
+  const getMikiSinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    return Number((costoTotal + 0.09).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Tarifa 90 Miki
+  const getMikiPrices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getMikiSinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 90 Miki_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 90 Miki_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+    };
+  };
+
+  // Valor por defecto Sin IVA para Tarifa ECOTRANS (Costo Total GOA + 0.05)
+  const getEcotransSinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    return Number((costoTotal + 0.05).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Tarifa ECOTRANS
+  const getEcotransPrices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getEcotransSinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECOTRANS_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECOTRANS_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+    };
+  };
+
+  // Valor por defecto Sin IVA para Tarifa 30 (ABRERA = Precio Especial, Resto = Costo Total GOA + 0.03)
+  const getTarifa30SinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    if (isTarifa30Orange(stName)) {
+      return Number(getSpecialRateActualPrice(stName).toFixed(3));
+    }
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    return Number((costoTotal + 0.03).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Tarifa 30
+  const getTarifa30Prices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getTarifa30SinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 30_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 30_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+      isOrange: isTarifa30Orange(stName),
+    };
+  };
+
   const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
 
   const filteredStations = allStations.filter((st) => {
@@ -875,6 +975,28 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         csv += `${st.name};${ror.sinIva.toFixed(3).replace('.', ',')};${ror.conIva.toFixed(3).replace('.', ',')};${esteban.sinIva.toFixed(3).replace('.', ',')};${esteban.conIva.toFixed(3).replace('.', ',')};\n`;
       });
       triggerDownload(`TARIFA_ESPECIAL_ROR_Y_ESTEBAN_${selectedDate}.csv`, csv);
+      return;
+    }
+
+    if (block.id === 'miki_ecotrans_tarifa30') {
+      let csv = 'EESS DE SERVICIO;TARIFA 90 MIKI SIN IVA;CON IVA;TARIFA ECOTRANS SIN IVA;CON IVA;TARIFA 30 SIN IVA;CON IVA;\n';
+      // Propias
+      PROPIAS_STATIONS.forEach((st) => {
+        const miki = getMikiPrices(st.name, true);
+        const eco = getEcotransPrices(st.name, true);
+        const t30 = getTarifa30Prices(st.name, true);
+        csv += `${st.name};${miki.sinIva.toFixed(3).replace('.', ',')};${miki.conIva.toFixed(3).replace('.', ',')};${eco.sinIva.toFixed(3).replace('.', ',')};${eco.conIva.toFixed(3).replace('.', ',')};${t30.sinIva.toFixed(3).replace('.', ',')};${t30.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      // Separador COLABORADORAS
+      csv += 'COLABORADORAS;-;0,000;-;0,000;-;0,000;\n';
+      // Colaboradoras
+      COLABORADORA_STATIONS.forEach((st) => {
+        const miki = getMikiPrices(st.name, false);
+        const eco = getEcotransPrices(st.name, false);
+        const t30 = getTarifa30Prices(st.name, false);
+        csv += `${st.name};${miki.sinIva.toFixed(3).replace('.', ',')};${miki.conIva.toFixed(3).replace('.', ',')};${eco.sinIva.toFixed(3).replace('.', ',')};${eco.conIva.toFixed(3).replace('.', ',')};${t30.sinIva.toFixed(3).replace('.', ',')};${t30.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      triggerDownload(`TARIFA_90_MIKI_ECOTRANS_TARIFA30_${selectedDate}.csv`, csv);
       return;
     }
 
@@ -1288,7 +1410,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             <div
               key={block.id}
               className={`bg-slate-900 border ${block.borderTheme} rounded-3xl p-6 shadow-xl space-y-4 flex flex-col justify-between ${
-                block.id === 'los_javi' || block.id === 'ror_esteban' ? 'lg:col-span-2' : ''
+                block.id === 'los_javi' || block.id === 'ror_esteban' || block.id === 'miki_ecotrans_tarifa30' ? 'lg:col-span-2' : ''
               }`}
             >
               <div>
@@ -1310,6 +1432,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                         ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: Costo Total GOA + 0.024. Con IVA = Sin IVA * 1.21'
                         : block.id === 'ror_esteban'
                         ? 'Celdas anaranjadas toman Precio Actual / Especial. Celdas verdes: Tarifa 24 Sin IVA. Celdas blancas: Costo Total GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                        : block.id === 'miki_ecotrans_tarifa30'
+                        ? 'Miki: Costo Total GOA + 0.09. ECOTRANS: Costo Total GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto Costo Total GOA + 0.03. Con IVA = Sin IVA * 1.21'
                         : block.description}
                     </p>
                   </div>
@@ -1950,6 +2074,255 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
                                     )}
                                     <span>{esteban.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : block.id === 'miki_ecotrans_tarifa30' ? (
+                  /* TABLA DEDICADA: TARIFA 90 MIKI, ECOTRANS & TARIFA 30 */
+                  <div className="overflow-x-auto max-h-[70vh] mt-4">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-slate-950 z-20">
+                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
+                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30" rowSpan={2}>
+                            EESS DE SERVICIO
+                          </th>
+                          <th colSpan={2} className="py-2 px-3 text-center text-amber-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
+                            TARIFA 90 MIKI
+                          </th>
+                          <th colSpan={2} className="py-2 px-3 text-center text-emerald-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
+                            TARIFA ECOTRANS
+                          </th>
+                          <th colSpan={2} className="py-2 px-3 text-center text-[#FFC000] font-extrabold border-l border-slate-800 bg-slate-900/90">
+                            TARIFA 30
+                          </th>
+                        </tr>
+                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono">
+                        {filteredStations.map((st, idx) => {
+                          const isPropia = st.type === 'PROPIA';
+                          const miki = getMikiPrices(st.name, isPropia);
+                          const eco = getEcotransPrices(st.name, isPropia);
+                          const t30 = getTarifa30Prices(st.name, isPropia);
+                          const isFirstColab =
+                            typeFilter === 'ALL' &&
+                            !searchFilter &&
+                            st.type === 'COLABORADORA' &&
+                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
+                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
+
+                          return (
+                            <React.Fragment key={st.name}>
+                              {isFirstColab && (
+                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
+                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
+                                    COLABORADORAS
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                </tr>
+                              )}
+
+                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
+                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
+                                  isPropia ? 'text-blue-300' : 'text-purple-300'
+                                }`}>
+                                  <div className="flex items-center space-x-1.5">
+                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
+                                    <span>{st.name}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 90 MIKI SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: miki.sinIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 90 Miki (Sin IVA)`,
+                                      defaultValue: miki.defaultSinIva,
+                                      currentFormula: miki.customSinIva?.rawFormula,
+                                      columnLabel: 'Tarifa 90 Miki Sin IVA (Costo Total + 0.09)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    miki.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={miki.customSinIva ? `Fórmula: ${miki.customSinIva.rawFormula}` : 'Costo Total GOA + 0.09'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {miki.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{miki.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 90 MIKI CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: miki.conIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 90 Miki (Con IVA)`,
+                                      defaultValue: miki.defaultConIva,
+                                      currentFormula: miki.customConIva?.rawFormula,
+                                      columnLabel: 'Tarifa 90 Miki Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    miki.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={miki.customConIva ? `Fórmula: ${miki.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {miki.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{miki.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA ECOTRANS SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: eco.sinIvaKey,
+                                      cellTitle: `${st.name} — Tarifa ECOTRANS (Sin IVA)`,
+                                      defaultValue: eco.defaultSinIva,
+                                      currentFormula: eco.customSinIva?.rawFormula,
+                                      columnLabel: 'Tarifa ECOTRANS Sin IVA (Costo Total + 0.05)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    eco.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={eco.customSinIva ? `Fórmula: ${eco.customSinIva.rawFormula}` : 'Costo Total GOA + 0.05'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {eco.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{eco.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA ECOTRANS CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: eco.conIvaKey,
+                                      cellTitle: `${st.name} — Tarifa ECOTRANS (Con IVA)`,
+                                      defaultValue: eco.defaultConIva,
+                                      currentFormula: eco.customConIva?.rawFormula,
+                                      columnLabel: 'Tarifa ECOTRANS Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    eco.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={eco.customConIva ? `Fórmula: ${eco.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {eco.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{eco.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 30 SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t30.sinIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 30 (Sin IVA)`,
+                                      defaultValue: t30.defaultSinIva,
+                                      currentFormula: t30.customSinIva?.rawFormula,
+                                      columnLabel: `Tarifa 30 Sin IVA (${t30.isOrange ? 'Naranja: Especial' : 'Blanco: Costo+0.03'})`,
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t30.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : t30.isOrange
+                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={
+                                    t30.customSinIva
+                                      ? `Fórmula: ${t30.customSinIva.rawFormula}`
+                                      : t30.isOrange
+                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
+                                      : 'Blanco: Costo Total GOA + 0.03'
+                                  }
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t30.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t30.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 30 CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t30.conIvaKey,
+                                      cellTitle: `${st.name} — Tarifa 30 (Con IVA)`,
+                                      defaultValue: t30.defaultConIva,
+                                      currentFormula: t30.customConIva?.rawFormula,
+                                      columnLabel: 'Tarifa 30 Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t30.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={t30.customConIva ? `Fórmula: ${t30.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t30.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t30.conIva.toFixed(3).replace('.', ',')}</span>
                                   </div>
                                 </td>
                               </tr>
