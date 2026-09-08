@@ -84,7 +84,7 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     id: 'ror_esteban',
     title: 'Tarifa Especial ROR & Esteban',
     description: 'Tarifas especiales para transporte internacional ROR y flota Esteban',
-    columnsRange: 'Cols AM:AQ',
+    columnsRange: 'Cols AJ:AN',
     tariffs: [
       { name: 'Especial ROR', markup: 0.132 },
       { name: 'Especial Esteban', markup: 0.132 },
@@ -527,6 +527,134 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
   };
 
+  // Helper para identificar estaciones con celda Naranja en ROR (copian Precio Actual / Especial de Tarifas Especiales de Compras)
+  const isRorOrange = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return (
+      u.includes('ALFAJARIN') ||
+      u.includes('TORREMOCHA') ||
+      u.includes('CATARROJA') ||
+      u.includes('MANISES') ||
+      u.includes('ABRERA')
+    );
+  };
+
+  // Valor por defecto Sin IVA para Especial ROR
+  const getRorSinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    if (isRorOrange(stName)) {
+      return Number(getSpecialRateActualPrice(stName).toFixed(3));
+    }
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    return Number((costoTotal + 0.024).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Especial ROR
+  const getRorPrices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getRorSinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_ror_esteban_${stName}_Especial ROR_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_ror_esteban_${stName}_Especial ROR_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+      isOrange: isRorOrange(stName),
+    };
+  };
+
+  // Helper para identificar estaciones con celda Verde en Esteban (copian Tarifa 24 Sin IVA)
+  const isEstebanGreen = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return (
+      u.includes('PUERTO DE BARCELONA') ||
+      u.includes('GIRONA') ||
+      u.includes('FEGOBLAN') ||
+      u.includes('VEGA DE VALCARCE') ||
+      u.includes('HOILA TOLEDO')
+    );
+  };
+
+  // Helper para identificar estaciones con celda Naranja en Esteban (copian Precio Actual / Especial de Tarifas Especiales de Compras)
+  const isEstebanOrange = (stName: string): boolean => {
+    if (isEstebanGreen(stName)) return false;
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return (
+      u.includes('ARCOS') ||
+      u.includes('ALFAJARIN') ||
+      u.includes('TORREMOCHA') ||
+      u.includes('MADRID') ||
+      u.includes('PAMPLONA') ||
+      u.includes('UCLES') ||
+      u.includes('ALCUBILLAS') ||
+      u.includes('RIBA-ROJA') ||
+      u.includes('PISTA DE SILLA') ||
+      u.includes('REAL DE GANDIA') ||
+      u.includes('CHIVA') ||
+      u.includes('ALBERIC') ||
+      u.includes('CATARROJA') ||
+      u.includes('MANISES') ||
+      u.includes('CASAR') ||
+      u.includes('OLIVERAL') ||
+      u.includes('GUARROMAN') ||
+      u.includes('BERA') ||
+      u.includes('FIGUERES')
+    );
+  };
+
+  // Valor por defecto Sin IVA para Especial Esteban
+  const getEstebanSinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    if (isEstebanGreen(stName)) {
+      const t24Key = `STD_${stName}_T24_sinIva`;
+      if (customFormulas[t24Key]) {
+        return Number(customFormulas[t24Key].evaluatedValue.toFixed(3));
+      }
+      const base = getStationBasePrice(stName, isPropia);
+      return Number((base + 0.024).toFixed(3));
+    }
+    if (isEstebanOrange(stName)) {
+      return Number(getSpecialRateActualPrice(stName).toFixed(3));
+    }
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    return Number((costoTotal + 0.024).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Especial Esteban
+  const getEstebanPrices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getEstebanSinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_ror_esteban_${stName}_Especial Esteban_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_ror_esteban_${stName}_Especial Esteban_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+      isGreen: isEstebanGreen(stName),
+      isOrange: isEstebanOrange(stName),
+    };
+  };
+
   const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
 
   const filteredStations = allStations.filter((st) => {
@@ -727,6 +855,26 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         csv += `${st.name};${c0.sinIva.toFixed(3).replace('.', ',')};${c0.conIva.toFixed(3).replace('.', ',')};\n`;
       });
       triggerDownload(`TARIFA_C0_ESPECIAL_GENERAL_${selectedDate}.csv`, csv);
+      return;
+    }
+
+    if (block.id === 'ror_esteban') {
+      let csv = 'EESS DE SERVICIO;ESPECIAL ROR SIN IVA;ESPECIAL ROR CON IVA;ESPECIAL ESTEBAN SIN IVA;ESPECIAL ESTEBAN CON IVA;\n';
+      // Propias
+      PROPIAS_STATIONS.forEach((st) => {
+        const ror = getRorPrices(st.name, true);
+        const esteban = getEstebanPrices(st.name, true);
+        csv += `${st.name};${ror.sinIva.toFixed(3).replace('.', ',')};${ror.conIva.toFixed(3).replace('.', ',')};${esteban.sinIva.toFixed(3).replace('.', ',')};${esteban.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      // Separador COLABORADORAS
+      csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
+      // Colaboradoras
+      COLABORADORA_STATIONS.forEach((st) => {
+        const ror = getRorPrices(st.name, false);
+        const esteban = getEstebanPrices(st.name, false);
+        csv += `${st.name};${ror.sinIva.toFixed(3).replace('.', ',')};${ror.conIva.toFixed(3).replace('.', ',')};${esteban.sinIva.toFixed(3).replace('.', ',')};${esteban.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      triggerDownload(`TARIFA_ESPECIAL_ROR_Y_ESTEBAN_${selectedDate}.csv`, csv);
       return;
     }
 
@@ -1140,7 +1288,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             <div
               key={block.id}
               className={`bg-slate-900 border ${block.borderTheme} rounded-3xl p-6 shadow-xl space-y-4 flex flex-col justify-between ${
-                block.id === 'los_javi' ? 'lg:col-span-2' : ''
+                block.id === 'los_javi' || block.id === 'ror_esteban' ? 'lg:col-span-2' : ''
               }`}
             >
               <div>
@@ -1160,6 +1308,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                         ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: Costo Total GOA + 0.024. Con IVA = Sin IVA * 1.21'
                         : block.id === 'c0_general'
                         ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: Costo Total GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                        : block.id === 'ror_esteban'
+                        ? 'Celdas anaranjadas toman Precio Actual / Especial. Celdas verdes: Tarifa 24 Sin IVA. Celdas blancas: Costo Total GOA + 0.024. Con IVA = Sin IVA * 1.21'
                         : block.description}
                     </p>
                   </div>
@@ -1601,6 +1751,205 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
                                     )}
                                     <span>{c0.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : block.id === 'ror_esteban' ? (
+                  /* TABLA DEDICADA: TARIFA ESPECIAL ROR & ESTEBAN */
+                  <div className="overflow-x-auto max-h-[70vh] mt-4">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-slate-950 z-20">
+                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
+                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30" rowSpan={2}>
+                            EESS DE SERVICIO
+                          </th>
+                          <th colSpan={2} className="py-2 px-3 text-center text-cyan-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
+                            ESPECIAL ROR
+                          </th>
+                          <th colSpan={2} className="py-2 px-3 text-center text-cyan-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
+                            ESPECIAL ESTEBAN
+                          </th>
+                        </tr>
+                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono">
+                        {filteredStations.map((st, idx) => {
+                          const isPropia = st.type === 'PROPIA';
+                          const ror = getRorPrices(st.name, isPropia);
+                          const esteban = getEstebanPrices(st.name, isPropia);
+                          const isFirstColab =
+                            typeFilter === 'ALL' &&
+                            !searchFilter &&
+                            st.type === 'COLABORADORA' &&
+                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
+                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
+
+                          return (
+                            <React.Fragment key={st.name}>
+                              {isFirstColab && (
+                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
+                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
+                                    COLABORADORAS
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                </tr>
+                              )}
+
+                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
+                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
+                                  isPropia ? 'text-blue-300' : 'text-purple-300'
+                                }`}>
+                                  <div className="flex items-center space-x-1.5">
+                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
+                                    <span>{st.name}</span>
+                                  </div>
+                                </td>
+
+                                {/* ESPECIAL ROR SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: ror.sinIvaKey,
+                                      cellTitle: `${st.name} — Especial ROR (Sin IVA)`,
+                                      defaultValue: ror.defaultSinIva,
+                                      currentFormula: ror.customSinIva?.rawFormula,
+                                      columnLabel: `Especial ROR Sin IVA (${ror.isOrange ? 'Naranja: Especial' : 'Blanco: Costo+0.024'})`,
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    ror.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : ror.isOrange
+                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={
+                                    ror.customSinIva
+                                      ? `Fórmula: ${ror.customSinIva.rawFormula}`
+                                      : ror.isOrange
+                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
+                                      : 'Blanco: Costo Total GOA + 0.024'
+                                  }
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {ror.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{ror.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* ESPECIAL ROR CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: ror.conIvaKey,
+                                      cellTitle: `${st.name} — Especial ROR (Con IVA)`,
+                                      defaultValue: ror.defaultConIva,
+                                      currentFormula: ror.customConIva?.rawFormula,
+                                      columnLabel: 'Especial ROR Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    ror.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={ror.customConIva ? `Fórmula: ${ror.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {ror.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{ror.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* ESPECIAL ESTEBAN SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: esteban.sinIvaKey,
+                                      cellTitle: `${st.name} — Especial Esteban (Sin IVA)`,
+                                      defaultValue: esteban.defaultSinIva,
+                                      currentFormula: esteban.customSinIva?.rawFormula,
+                                      columnLabel: `Especial Esteban Sin IVA (${
+                                        esteban.isGreen ? 'Verde: Tarifa 24' : esteban.isOrange ? 'Naranja: Especial' : 'Blanco: Costo+0.024'
+                                      })`,
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    esteban.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : esteban.isGreen
+                                      ? 'bg-[#92D050] text-slate-950 font-black shadow-sm'
+                                      : esteban.isOrange
+                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={
+                                    esteban.customSinIva
+                                      ? `Fórmula: ${esteban.customSinIva.rawFormula}`
+                                      : esteban.isGreen
+                                      ? 'Verde: Tarifa 24 Sin IVA'
+                                      : esteban.isOrange
+                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
+                                      : 'Blanco: Costo Total GOA + 0.024'
+                                  }
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {esteban.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{esteban.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* ESPECIAL ESTEBAN CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: esteban.conIvaKey,
+                                      cellTitle: `${st.name} — Especial Esteban (Con IVA)`,
+                                      defaultValue: esteban.defaultConIva,
+                                      currentFormula: esteban.customConIva?.rawFormula,
+                                      columnLabel: 'Especial Esteban Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    esteban.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={esteban.customConIva ? `Fórmula: ${esteban.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {esteban.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{esteban.conIva.toFixed(3).replace('.', ',')}</span>
                                   </div>
                                 </td>
                               </tr>
