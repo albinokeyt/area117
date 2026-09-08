@@ -144,6 +144,17 @@ const isPurpleHighlightedStation = (stName: string): boolean => {
   );
 };
 
+// Helper para identificar estaciones con fondo azul especial (Alfajarín, Benamejí, Riba-roja, Pista de Silla)
+const isBlueSpecialStation = (stName: string): boolean => {
+  const upper = stName.toUpperCase();
+  return (
+    upper.includes('ALFAJARIN') ||
+    upper.includes('BENAMEJI') ||
+    upper.includes('RIBA-ROJA') ||
+    upper.includes('PISTA DE SILLA')
+  );
+};
+
 export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [searchFilter, setSearchFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
@@ -1260,6 +1271,511 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     triggerDownload(`${cleanName}_${selectedDate}.csv`, csv);
   };
 
+  const renderSpecialBlockTable = (block: SpecialTariffGroupDef) => {
+    let columns: {
+      name: string;
+      headerTheme: string;
+      getPrices: (stName: string, isPropia: boolean) => {
+        sinIvaKey: string;
+        conIvaKey: string;
+        sinIva: number;
+        defaultSinIva: number;
+        conIva: number;
+        defaultConIva: number;
+        customSinIva?: CellFormula;
+        customConIva?: CellFormula;
+        isOrange?: boolean;
+        isGreen?: boolean;
+        sinIvaTitle: string;
+        conIvaTitle: string;
+        columnLabel: string;
+        conIvaLabel?: string;
+        tooltip: string;
+      };
+    }[] = [];
+
+    if (block.id === 'los_javi') {
+      columns = [
+        {
+          name: 'ESPECIAL JAVI',
+          headerTheme: 'text-amber-300 bg-amber-950/20 border-b border-amber-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getJaviPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              sinIvaTitle: `${stName} — Especial Javi (Sin IVA)`,
+              conIvaTitle: `${stName} — Especial Javi (Con IVA)`,
+              columnLabel: `Especial Javi Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+            };
+          },
+        },
+        {
+          name: 'ESPECIAL CARRERAS',
+          headerTheme: 'text-amber-300 bg-amber-950/20 border-b border-amber-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getCarrerasPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              sinIvaTitle: `${stName} — Especial Carreras (Sin IVA)`,
+              conIvaTitle: `${stName} — Especial Carreras (Con IVA)`,
+              columnLabel: `Especial Carreras Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.018'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.018',
+            };
+          },
+        },
+      ];
+    } else if (block.id === 'transfrired') {
+      columns = [
+        {
+          name: 'ESPECIAL TRANSFRIRED',
+          headerTheme: 'text-emerald-400 bg-emerald-950/20 border-b border-emerald-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getTransfriredPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              sinIvaTitle: `${stName} — Especial Transfrired (Sin IVA)`,
+              conIvaTitle: `${stName} — Especial Transfrired (Con IVA)`,
+              columnLabel: `Especial Transfrired Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+            };
+          },
+        },
+      ];
+    } else if (block.id === 'c0_general') {
+      columns = [
+        {
+          name: 'ESPECIAL GENERAL C-0',
+          headerTheme: 'text-emerald-400 bg-emerald-950/20 border-b border-emerald-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getC0Prices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              sinIvaTitle: `${stName} — Especial General C-0 (Sin IVA)`,
+              conIvaTitle: `${stName} — Especial General C-0 (Con IVA)`,
+              columnLabel: `Especial General C-0 Sin IVA (${p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+            };
+          },
+        },
+      ];
+    } else if (block.id === 'ror_esteban') {
+      columns = [
+        {
+          name: 'ESPECIAL ROR',
+          headerTheme: 'text-cyan-300 bg-cyan-950/20 border-b border-cyan-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getRorPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              isGreen: p.isGreen,
+              sinIvaTitle: `${stName} — Especial ROR (Sin IVA)`,
+              conIvaTitle: `${stName} — Especial ROR (Con IVA)`,
+              columnLabel: `Especial ROR Sin IVA (${p.isGreen ? 'Verde: Tarifa 24' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: Tarifa 24 Sin IVA' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+            };
+          },
+        },
+        {
+          name: 'ESPECIAL ESTEBAN',
+          headerTheme: 'text-cyan-300 bg-cyan-950/20 border-b border-cyan-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getEstebanPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              isGreen: p.isGreen,
+              sinIvaTitle: `${stName} — Especial Esteban (Sin IVA)`,
+              conIvaTitle: `${stName} — Especial Esteban (Con IVA)`,
+              columnLabel: `Especial Esteban Sin IVA (${p.isGreen ? 'Verde: Tarifa 24' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: Tarifa 24 Sin IVA' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.024',
+            };
+          },
+        },
+      ];
+    } else if (block.id === 'miki_ecotrans_tarifa30') {
+      columns = [
+        {
+          name: 'TARIFA 90 MIKI',
+          headerTheme: 'text-amber-300 bg-amber-950/20 border-b border-amber-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getMikiPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              sinIvaTitle: `${stName} — Tarifa 90 Miki (Sin IVA)`,
+              conIvaTitle: `${stName} — Tarifa 90 Miki (Con IVA)`,
+              columnLabel: 'Tarifa 90 Miki Sin IVA (=P.Venta+0.090)',
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : 'Blanco: P. Venta Sugerido GOA + 0.090',
+            };
+          },
+        },
+        {
+          name: 'TARIFA ECOTRANS',
+          headerTheme: 'text-emerald-400 bg-emerald-950/20 border-b border-emerald-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getEcotransPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              sinIvaTitle: `${stName} — Tarifa ECOTRANS (Sin IVA)`,
+              conIvaTitle: `${stName} — Tarifa ECOTRANS (Con IVA)`,
+              columnLabel: 'Tarifa ECOTRANS Sin IVA (=P.Venta+0.050)',
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : 'Blanco: P. Venta Sugerido GOA + 0.050',
+            };
+          },
+        },
+        {
+          name: 'TARIFA 30',
+          headerTheme: 'text-amber-300 bg-amber-950/20 border-b border-amber-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getTarifa30Prices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              sinIvaTitle: `${stName} — Tarifa 30 (Sin IVA)`,
+              conIvaTitle: `${stName} — Tarifa 30 (Con IVA)`,
+              columnLabel: `Tarifa 30 Sin IVA (${p.isOrange ? 'Naranja: Abrera Especial' : 'Blanco: P.Venta+0.030'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : 'Naranja: ABRERA toma Precio Especial | Blanco: P. Venta Sugerido GOA + 0.030',
+            };
+          },
+        },
+      ];
+    } else if (block.id === 'sur_benito') {
+      columns = [
+        {
+          name: 'TARIFA 27 SUR',
+          headerTheme: 'text-purple-300 bg-purple-950/20 border-b border-purple-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getTarifa27SurPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              isGreen: p.isGreen,
+              sinIvaTitle: `${stName} — Tarifa 27 Sur (Sin IVA)`,
+              conIvaTitle: `${stName} — Tarifa 27 Sur (Con IVA)`,
+              columnLabel: `Tarifa 27 Sur Sin IVA (${p.isGreen ? 'Verde: P.Venta+0.036' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.027'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: P. Venta Sugerido GOA + 0.036' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.027',
+            };
+          },
+        },
+        {
+          name: 'TARIFA 15 SUR',
+          headerTheme: 'text-purple-300 bg-purple-950/20 border-b border-purple-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getTarifa15SurPrices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              isOrange: p.isOrange,
+              isGreen: p.isGreen,
+              sinIvaTitle: `${stName} — Tarifa 15 Sur (Sin IVA)`,
+              conIvaTitle: `${stName} — Tarifa 15 Sur (Con IVA)`,
+              columnLabel: `Tarifa 15 Sur Sin IVA (${p.isGreen ? 'Verde: P.Venta+0.024' : p.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.015'})`,
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : p.isGreen ? 'Verde: P. Venta Sugerido GOA + 0.024' : p.isOrange ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales' : 'Blanco: P. Venta Sugerido GOA + 0.015',
+            };
+          },
+        },
+      ];
+    } else if (block.id === 'tarifa_75') {
+      columns = [
+        {
+          name: 'TARIFA ESPECIAL 75',
+          headerTheme: 'text-cyan-300 bg-cyan-950/20 border-b border-cyan-500/30',
+          getPrices: (stName: string, isPropia: boolean) => {
+            const p = getTarifa75Prices(stName, isPropia);
+            return {
+              sinIvaKey: p.sinIvaKey,
+              conIvaKey: p.conIvaKey,
+              sinIva: p.sinIva,
+              defaultSinIva: p.defaultSinIva,
+              conIva: p.conIva,
+              defaultConIva: p.defaultConIva,
+              customSinIva: p.customSinIva,
+              customConIva: p.customConIva,
+              sinIvaTitle: `${stName} — Tarifa 75 (Sin IVA)`,
+              conIvaTitle: `${stName} — Tarifa 75 (Con IVA)`,
+              columnLabel: 'Tarifa 75 Sin IVA (=P.Venta+0.038)',
+              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : 'Blanco: P. Venta Sugerido GOA + 0.038',
+            };
+          },
+        },
+      ];
+    } else {
+      columns = block.tariffs.map((t) => ({
+        name: t.name,
+        headerTheme: 'text-amber-300 bg-amber-950/20 border-b border-amber-500/30',
+        getPrices: (stName: string, isPropia: boolean) => {
+          const base = getStationBasePrice(stName, isPropia);
+          const defaultSinIva = Number((base + t.markup).toFixed(3));
+          const sinIvaKey = `SPEC_${block.id}_${stName}_${t.name}_sinIva`;
+          const customSinIva = customFormulas[sinIvaKey];
+          const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+          const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+          const conIvaKey = `SPEC_${block.id}_${stName}_${t.name}_conIva`;
+          const customConIva = customFormulas[conIvaKey];
+          const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+          return {
+            sinIvaKey,
+            conIvaKey,
+            sinIva,
+            defaultSinIva,
+            conIva,
+            defaultConIva,
+            customSinIva,
+            customConIva,
+            sinIvaTitle: `${stName} — ${block.title} > ${t.name} (Sin IVA)`,
+            conIvaTitle: `${stName} — ${block.title} > ${t.name} (Con IVA)`,
+            columnLabel: `${block.title} - ${t.name} Sin IVA`,
+            tooltip: customSinIva ? `Fórmula: ${customSinIva.rawFormula}` : `Sin IVA: Base + ${t.markup}`,
+          };
+        },
+      }));
+    }
+
+    return (
+      <div className="overflow-x-auto max-h-[70vh] mt-4 rounded-2xl border border-slate-800 shadow-inner">
+        <table className="w-full text-left border-collapse text-xs">
+          <thead className="sticky top-0 bg-slate-950 z-20">
+            <tr className="border-b border-slate-800 text-slate-400 text-[11px] uppercase tracking-wider font-bold">
+              <th className="py-3 px-4 w-12 text-center" rowSpan={2}>
+                Nº
+              </th>
+              <th className="py-3 px-6 sticky left-0 bg-slate-950 z-30 border-r border-slate-800" rowSpan={2}>
+                Estación
+              </th>
+              {columns.map((col, cIdx) => (
+                <th
+                  key={cIdx}
+                  colSpan={2}
+                  className={`py-2.5 px-6 text-center font-extrabold uppercase text-xs tracking-wider border-l border-slate-800 ${col.headerTheme}`}
+                >
+                  {col.name}
+                </th>
+              ))}
+            </tr>
+            <tr className="border-b border-slate-800 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+              {columns.map((col, cIdx) => (
+                <React.Fragment key={cIdx}>
+                  <th className="py-2 px-3 text-center text-slate-300 bg-slate-950 border-l border-slate-800">
+                    Sin IVA
+                  </th>
+                  <th className="py-2 px-3 text-center text-emerald-400 bg-slate-950/90 border-r border-slate-800">
+                    Con IVA
+                  </th>
+                </React.Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/60 font-mono">
+            {filteredStations.map((st, idx) => {
+              const isPropia = st.type === 'PROPIA';
+              const isFirstColab =
+                typeFilter === 'ALL' &&
+                !searchFilter &&
+                st.type === 'COLABORADORA' &&
+                (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
+              const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
+
+              return (
+                <React.Fragment key={st.name}>
+                  {isFirstColab && (
+                    <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
+                      <td className="py-2 px-4 text-center font-black text-slate-950 bg-yellow-400">-</td>
+                      <td
+                        className="py-2 px-6 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10"
+                        colSpan={1 + columns.length * 2}
+                      >
+                        COLABORADORAS
+                      </td>
+                    </tr>
+                  )}
+
+                  <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
+                    {/* 1. Nº */}
+                    <td className="py-2.5 px-4 text-center font-bold text-slate-500 font-mono text-xs">
+                      {idx + 1}
+                    </td>
+
+                    {/* 2. Estación */}
+                    <td
+                      className={`py-2.5 px-6 font-bold sticky left-0 z-10 border-r border-slate-800 font-sans ${
+                        isBlueSpecialStation(st.name)
+                          ? 'bg-blue-900/50 text-blue-200 border-l-4 border-l-blue-400 font-black'
+                          : 'bg-slate-900 text-white'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
+                        <span>{st.name}</span>
+                      </div>
+                    </td>
+
+                    {/* Columnas de Tarifas */}
+                    {columns.map((col, cIdx) => {
+                      const data = col.getPrices(st.name, isPropia);
+
+                      return (
+                        <React.Fragment key={cIdx}>
+                          {/* Sin IVA */}
+                          <td
+                            onClick={() => {
+                              setActiveModalCell({
+                                cellKey: data.sinIvaKey,
+                                cellTitle: data.sinIvaTitle,
+                                defaultValue: data.defaultSinIva,
+                                currentFormula: data.customSinIva?.rawFormula,
+                                columnLabel: data.columnLabel,
+                              });
+                            }}
+                            className={`py-2.5 px-4 text-center border-l border-slate-800/50 ${
+                              isFormulaMode ? 'cursor-pointer hover:scale-105 transition-transform' : 'cursor-pointer'
+                            }`}
+                            title={data.tooltip}
+                          >
+                            <div className="inline-flex items-center justify-center">
+                              <div
+                                className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all ${
+                                  data.customSinIva
+                                    ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-md font-black'
+                                    : data.isGreen
+                                    ? 'bg-[#92D050] text-slate-950 font-black shadow-sm'
+                                    : data.isOrange
+                                    ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                    : 'bg-slate-950 border border-slate-700/60 text-slate-200 hover:border-slate-500'
+                                }`}
+                              >
+                                {data.customSinIva && (
+                                  <span className="mr-1 text-[9px] font-black bg-slate-950 text-amber-400 px-1 rounded">fx</span>
+                                )}
+                                {data.sinIva.toFixed(3).replace('.', ',')}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Con IVA */}
+                          <td
+                            onClick={() => {
+                              setActiveModalCell({
+                                cellKey: data.conIvaKey,
+                                cellTitle: data.conIvaTitle,
+                                defaultValue: data.defaultConIva,
+                                currentFormula: data.customConIva?.rawFormula,
+                                columnLabel: data.conIvaLabel || `${col.name} Con IVA (=Sin IVA * 1.21)`,
+                              });
+                            }}
+                            className={`py-2.5 px-4 text-center border-r border-slate-800/50 ${
+                              isFormulaMode ? 'cursor-pointer hover:scale-105 transition-transform' : 'cursor-pointer'
+                            }`}
+                            title={data.customConIva ? `Fórmula: ${data.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                          >
+                            <div className="inline-flex items-center justify-center">
+                              <div
+                                className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all ${
+                                  data.customConIva
+                                    ? 'bg-emerald-500 text-white ring-2 ring-emerald-400 shadow-md font-black'
+                                    : 'bg-slate-950 border border-emerald-500/40 text-emerald-400 font-bold hover:border-emerald-400'
+                                }`}
+                              >
+                                {data.customConIva && (
+                                  <span className="mr-1 text-[9px] font-black bg-slate-950 text-emerald-300 px-1 rounded">fx</span>
+                                )}
+                                {data.conIva.toFixed(3).replace('.', ',')}
+                              </div>
+                            </div>
+                          </td>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tr>
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
       {/* Top Banner */}
@@ -1622,31 +2138,44 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             >
               <div>
                 {/* Header with Title and Individual Download Button */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-extrabold text-white text-base">{block.title}</h4>
-                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${block.badgeTheme}`}>
-                        {block.columnsRange}
-                      </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2.5 rounded-xl ${
+                      block.id === 'los_javi' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                      block.id === 'transfrired' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                      block.id === 'c0_general' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                      block.id === 'ror_esteban' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                      block.id === 'miki_ecotrans_tarifa30' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                      block.id === 'sur_benito' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                      'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                    }`}>
+                      <Sparkles className="h-5 w-5" />
                     </div>
-                    <p className="text-xs text-slate-400">
-                      {block.id === 'los_javi'
-                        ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024 (Javi) / + 0.018 (Carreras). Con IVA = Sin IVA * 1.21'
-                        : block.id === 'transfrired'
-                        ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
-                        : block.id === 'c0_general'
-                        ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
-                        : block.id === 'ror_esteban'
-                        ? 'Celdas anaranjadas toman Precio Actual / Especial. Celdas verdes: Tarifa 24 Sin IVA. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
-                        : block.id === 'miki_ecotrans_tarifa30'
-                        ? 'Miki: P. Venta Sugerido GOA + 0.09. ECOTRANS: P. Venta Sugerido GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto P. Venta Sugerido GOA + 0.03. Con IVA = Sin IVA * 1.21'
-                        : block.id === 'sur_benito'
-                        ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas verdes: P. Venta Sugerido GOA + 0.036 (Tarifa 27) / + 0.024 (Tarifa 15). Celdas blancas: P. Venta Sugerido GOA + 0.027 (Tarifa 27) / + 0.015 (Tarifa 15). Con IVA = Sin IVA * 1.21'
-                        : block.id === 'tarifa_75'
-                        ? 'Celdas blancas: P. Venta Sugerido GOA + 0.038. Con IVA = Sin IVA * 1.21'
-                        : block.description}
-                    </p>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-extrabold text-white text-base tracking-tight">{block.title}</h4>
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${block.badgeTheme}`}>
+                          {block.columnsRange}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {block.id === 'los_javi'
+                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024 (Javi) / + 0.018 (Carreras). Con IVA = Sin IVA * 1.21'
+                          : block.id === 'transfrired'
+                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                          : block.id === 'c0_general'
+                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                          : block.id === 'ror_esteban'
+                          ? 'Celdas anaranjadas toman Precio Actual / Especial. Celdas verdes: Tarifa 24 Sin IVA. Celdas blancas: P. Venta Sugerido GOA + 0.024. Con IVA = Sin IVA * 1.21'
+                          : block.id === 'miki_ecotrans_tarifa30'
+                          ? 'Miki: P. Venta Sugerido GOA + 0.09. ECOTRANS: P. Venta Sugerido GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto P. Venta Sugerido GOA + 0.03. Con IVA = Sin IVA * 1.21'
+                          : block.id === 'sur_benito'
+                          ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas verdes: P. Venta Sugerido GOA + 0.036 (Tarifa 27) / + 0.024 (Tarifa 15). Celdas blancas: P. Venta Sugerido GOA + 0.027 (Tarifa 27) / + 0.015 (Tarifa 15). Con IVA = Sin IVA * 1.21'
+                          : block.id === 'tarifa_75'
+                          ? 'Celdas blancas: P. Venta Sugerido GOA + 0.038. Con IVA = Sin IVA * 1.21'
+                          : block.description}
+                      </p>
+                    </div>
                   </div>
 
                   <button
@@ -1660,1320 +2189,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                 </div>
 
                 {/* Table for this Special Tariff */}
-                {block.id === 'los_javi' ? (
-                  /* TABLA DEDICADA: TARIFA ESPECIAL LOS JAVI & CARRERAS */
-                  <div className="overflow-x-auto max-h-[70vh] mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-20">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30" rowSpan={2}>
-                            EESS DE SERVICIO
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-amber-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            ESPECIAL JAVI
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-amber-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            ESPECIAL CARRERAS
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st, idx) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const javi = getJaviPrices(st.name, isPropia);
-                          const carreras = getCarrerasPrices(st.name, isPropia);
-                          const isFirstColab =
-                            typeFilter === 'ALL' &&
-                            !searchFilter &&
-                            st.type === 'COLABORADORA' &&
-                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
-                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
-
-                          return (
-                            <React.Fragment key={st.name}>
-                              {isFirstColab && (
-                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
-                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
-                                    COLABORADORAS
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                </tr>
-                              )}
-
-                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
-                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
-                                  isPropia ? 'text-blue-300' : 'text-purple-300'
-                                }`}>
-                                  <div className="flex items-center space-x-1.5">
-                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
-                                    <span>{st.name}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL JAVI SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: javi.sinIvaKey,
-                                      cellTitle: `${st.name} — Especial Javi (Sin IVA)`,
-                                      defaultValue: javi.defaultSinIva,
-                                      currentFormula: javi.customSinIva?.rawFormula,
-                                      columnLabel: `Especial Javi Sin IVA (${javi.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    javi.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : javi.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    javi.customSinIva
-                                      ? `Fórmula: ${javi.customSinIva.rawFormula}`
-                                      : javi.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.024'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {javi.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{javi.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL JAVI CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: javi.conIvaKey,
-                                      cellTitle: `${st.name} — Especial Javi (Con IVA)`,
-                                      defaultValue: javi.defaultConIva,
-                                      currentFormula: javi.customConIva?.rawFormula,
-                                      columnLabel: 'Especial Javi Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    javi.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={javi.customConIva ? `Fórmula: ${javi.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {javi.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{javi.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL CARRERAS SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: carreras.sinIvaKey,
-                                      cellTitle: `${st.name} — Especial Carreras (Sin IVA)`,
-                                      defaultValue: carreras.defaultSinIva,
-                                      currentFormula: carreras.customSinIva?.rawFormula,
-                                      columnLabel: `Especial Carreras Sin IVA (${carreras.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.018'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    carreras.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : carreras.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    carreras.customSinIva
-                                      ? `Fórmula: ${carreras.customSinIva.rawFormula}`
-                                      : carreras.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.018'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {carreras.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{carreras.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL CARRERAS CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: carreras.conIvaKey,
-                                      cellTitle: `${st.name} — Especial Carreras (Con IVA)`,
-                                      defaultValue: carreras.defaultConIva,
-                                      currentFormula: carreras.customConIva?.rawFormula,
-                                      columnLabel: 'Especial Carreras Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    carreras.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={carreras.customConIva ? `Fórmula: ${carreras.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {carreras.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{carreras.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : block.id === 'transfrired' ? (
-                  /* TABLA DEDICADA: TARIFA ESPECIAL TRANSFRIRED */
-                  <div className="overflow-x-auto max-h-[70vh] mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-20">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30" rowSpan={2}>
-                            EESS DE SERVICIO
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-green-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            ESPECIAL TRANSFRIRED
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st, idx) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const tf = getTransfriredPrices(st.name, isPropia);
-                          const isFirstColab =
-                            typeFilter === 'ALL' &&
-                            !searchFilter &&
-                            st.type === 'COLABORADORA' &&
-                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
-                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
-
-                          return (
-                            <React.Fragment key={st.name}>
-                              {isFirstColab && (
-                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
-                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
-                                    COLABORADORAS
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                </tr>
-                              )}
-
-                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
-                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
-                                  isPropia ? 'text-blue-300' : 'text-purple-300'
-                                }`}>
-                                  <div className="flex items-center space-x-1.5">
-                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
-                                    <span>{st.name}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL TRANSFRIRED SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: tf.sinIvaKey,
-                                      cellTitle: `${st.name} — Especial Transfrired (Sin IVA)`,
-                                      defaultValue: tf.defaultSinIva,
-                                      currentFormula: tf.customSinIva?.rawFormula,
-                                      columnLabel: `Especial Transfrired Sin IVA (${tf.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    tf.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : tf.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    tf.customSinIva
-                                      ? `Fórmula: ${tf.customSinIva.rawFormula}`
-                                      : tf.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.024'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {tf.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{tf.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL TRANSFRIRED CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: tf.conIvaKey,
-                                      cellTitle: `${st.name} — Especial Transfrired (Con IVA)`,
-                                      defaultValue: tf.defaultConIva,
-                                      currentFormula: tf.customConIva?.rawFormula,
-                                      columnLabel: 'Especial Transfrired Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    tf.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={tf.customConIva ? `Fórmula: ${tf.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {tf.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{tf.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : block.id === 'c0_general' ? (
-                  /* TABLA DEDICADA: TARIFA C-0 (ESPECIAL GENERAL) */
-                  <div className="overflow-x-auto max-h-[70vh] mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-20">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30" rowSpan={2}>
-                            EESS DE SERVICIO
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-amber-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            ESPECIAL GENERAL C-0
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st, idx) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const c0 = getC0Prices(st.name, isPropia);
-                          const isFirstColab =
-                            typeFilter === 'ALL' &&
-                            !searchFilter &&
-                            st.type === 'COLABORADORA' &&
-                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
-                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
-
-                          return (
-                            <React.Fragment key={st.name}>
-                              {isFirstColab && (
-                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
-                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
-                                    COLABORADORAS
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                </tr>
-                              )}
-
-                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
-                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
-                                  isPropia ? 'text-blue-300' : 'text-purple-300'
-                                }`}>
-                                  <div className="flex items-center space-x-1.5">
-                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
-                                    <span>{st.name}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL GENERAL C-0 SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: c0.sinIvaKey,
-                                      cellTitle: `${st.name} — Especial General C-0 (Sin IVA)`,
-                                      defaultValue: c0.defaultSinIva,
-                                      currentFormula: c0.customSinIva?.rawFormula,
-                                      columnLabel: `Especial General C-0 Sin IVA (${c0.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    c0.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : c0.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    c0.customSinIva
-                                      ? `Fórmula: ${c0.customSinIva.rawFormula}`
-                                      : c0.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.024'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {c0.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{c0.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL GENERAL C-0 CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: c0.conIvaKey,
-                                      cellTitle: `${st.name} — Especial General C-0 (Con IVA)`,
-                                      defaultValue: c0.defaultConIva,
-                                      currentFormula: c0.customConIva?.rawFormula,
-                                      columnLabel: 'Especial General C-0 Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    c0.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={c0.customConIva ? `Fórmula: ${c0.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {c0.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{c0.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : block.id === 'ror_esteban' ? (
-                  /* TABLA DEDICADA: TARIFA ESPECIAL ROR & ESTEBAN */
-                  <div className="overflow-x-auto max-h-[70vh] mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-20">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30" rowSpan={2}>
-                            EESS DE SERVICIO
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-cyan-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            ESPECIAL ROR
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-cyan-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            ESPECIAL ESTEBAN
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st, idx) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const ror = getRorPrices(st.name, isPropia);
-                          const esteban = getEstebanPrices(st.name, isPropia);
-                          const isFirstColab =
-                            typeFilter === 'ALL' &&
-                            !searchFilter &&
-                            st.type === 'COLABORADORA' &&
-                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
-                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
-
-                          return (
-                            <React.Fragment key={st.name}>
-                              {isFirstColab && (
-                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
-                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
-                                    COLABORADORAS
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                </tr>
-                              )}
-
-                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
-                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
-                                  isPropia ? 'text-blue-300' : 'text-purple-300'
-                                }`}>
-                                  <div className="flex items-center space-x-1.5">
-                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
-                                    <span>{st.name}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL ROR SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: ror.sinIvaKey,
-                                      cellTitle: `${st.name} — Especial ROR (Sin IVA)`,
-                                      defaultValue: ror.defaultSinIva,
-                                      currentFormula: ror.customSinIva?.rawFormula,
-                                      columnLabel: `Especial ROR Sin IVA (${ror.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    ror.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : ror.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    ror.customSinIva
-                                      ? `Fórmula: ${ror.customSinIva.rawFormula}`
-                                      : ror.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.024'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {ror.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{ror.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL ROR CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: ror.conIvaKey,
-                                      cellTitle: `${st.name} — Especial ROR (Con IVA)`,
-                                      defaultValue: ror.defaultConIva,
-                                      currentFormula: ror.customConIva?.rawFormula,
-                                      columnLabel: 'Especial ROR Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    ror.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={ror.customConIva ? `Fórmula: ${ror.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {ror.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{ror.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL ESTEBAN SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: esteban.sinIvaKey,
-                                      cellTitle: `${st.name} — Especial Esteban (Sin IVA)`,
-                                      defaultValue: esteban.defaultSinIva,
-                                      currentFormula: esteban.customSinIva?.rawFormula,
-                                      columnLabel: `Especial Esteban Sin IVA (${
-                                        esteban.isGreen ? 'Verde: Tarifa 24' : esteban.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.024'
-                                      })`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    esteban.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : esteban.isGreen
-                                      ? 'bg-[#92D050] text-slate-950 font-black shadow-sm'
-                                      : esteban.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    esteban.customSinIva
-                                      ? `Fórmula: ${esteban.customSinIva.rawFormula}`
-                                      : esteban.isGreen
-                                      ? 'Verde: Tarifa 24 Sin IVA'
-                                      : esteban.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.024'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {esteban.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{esteban.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* ESPECIAL ESTEBAN CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: esteban.conIvaKey,
-                                      cellTitle: `${st.name} — Especial Esteban (Con IVA)`,
-                                      defaultValue: esteban.defaultConIva,
-                                      currentFormula: esteban.customConIva?.rawFormula,
-                                      columnLabel: 'Especial Esteban Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    esteban.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={esteban.customConIva ? `Fórmula: ${esteban.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {esteban.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{esteban.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : block.id === 'miki_ecotrans_tarifa30' ? (
-                  /* TABLA DEDICADA: TARIFA 90 MIKI, ECOTRANS & TARIFA 30 */
-                  <div className="overflow-x-auto max-h-[70vh] mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-20">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30" rowSpan={2}>
-                            EESS DE SERVICIO
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-amber-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            TARIFA 90 MIKI
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-emerald-300 font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            TARIFA ECOTRANS
-                          </th>
-                          <th colSpan={2} className="py-2 px-3 text-center text-[#FFC000] font-extrabold border-l border-slate-800 bg-slate-900/90">
-                            TARIFA 30
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st, idx) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const miki = getMikiPrices(st.name, isPropia);
-                          const eco = getEcotransPrices(st.name, isPropia);
-                          const t30 = getTarifa30Prices(st.name, isPropia);
-                          const isFirstColab =
-                            typeFilter === 'ALL' &&
-                            !searchFilter &&
-                            st.type === 'COLABORADORA' &&
-                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
-                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
-
-                          return (
-                            <React.Fragment key={st.name}>
-                              {isFirstColab && (
-                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
-                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
-                                    COLABORADORAS
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                </tr>
-                              )}
-
-                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
-                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
-                                  isPropia ? 'text-blue-300' : 'text-purple-300'
-                                }`}>
-                                  <div className="flex items-center space-x-1.5">
-                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
-                                    <span>{st.name}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 90 MIKI SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: miki.sinIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 90 Miki (Sin IVA)`,
-                                      defaultValue: miki.defaultSinIva,
-                                      currentFormula: miki.customSinIva?.rawFormula,
-                                      columnLabel: 'Tarifa 90 Miki Sin IVA (P. Venta Sugerido + 0.09)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    miki.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={miki.customSinIva ? `Fórmula: ${miki.customSinIva.rawFormula}` : 'P. Venta Sugerido GOA + 0.09'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {miki.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{miki.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 90 MIKI CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: miki.conIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 90 Miki (Con IVA)`,
-                                      defaultValue: miki.defaultConIva,
-                                      currentFormula: miki.customConIva?.rawFormula,
-                                      columnLabel: 'Tarifa 90 Miki Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    miki.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={miki.customConIva ? `Fórmula: ${miki.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {miki.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{miki.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA ECOTRANS SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: eco.sinIvaKey,
-                                      cellTitle: `${st.name} — Tarifa ECOTRANS (Sin IVA)`,
-                                      defaultValue: eco.defaultSinIva,
-                                      currentFormula: eco.customSinIva?.rawFormula,
-                                      columnLabel: 'Tarifa ECOTRANS Sin IVA (P. Venta Sugerido + 0.05)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    eco.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={eco.customSinIva ? `Fórmula: ${eco.customSinIva.rawFormula}` : 'P. Venta Sugerido GOA + 0.05'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {eco.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{eco.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA ECOTRANS CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: eco.conIvaKey,
-                                      cellTitle: `${st.name} — Tarifa ECOTRANS (Con IVA)`,
-                                      defaultValue: eco.defaultConIva,
-                                      currentFormula: eco.customConIva?.rawFormula,
-                                      columnLabel: 'Tarifa ECOTRANS Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    eco.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={eco.customConIva ? `Fórmula: ${eco.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {eco.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{eco.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 30 SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t30.sinIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 30 (Sin IVA)`,
-                                      defaultValue: t30.defaultSinIva,
-                                      currentFormula: t30.customSinIva?.rawFormula,
-                                      columnLabel: `Tarifa 30 Sin IVA (${t30.isOrange ? 'Naranja: Especial' : 'Blanco: P.Venta+0.03'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t30.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : t30.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    t30.customSinIva
-                                      ? `Fórmula: ${t30.customSinIva.rawFormula}`
-                                      : t30.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.03'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t30.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t30.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 30 CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t30.conIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 30 (Con IVA)`,
-                                      defaultValue: t30.defaultConIva,
-                                      currentFormula: t30.customConIva?.rawFormula,
-                                      columnLabel: 'Tarifa 30 Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t30.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={t30.customConIva ? `Fórmula: ${t30.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t30.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t30.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : block.id === 'sur_benito' ? (
-                  /* TABLA DEDICADA: TARIFAS SUR (BENITO: 27 SUR & 15 SUR) */
-                  <div className="overflow-x-auto max-h-[70vh] mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-10">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3" rowSpan={2}>EESS DE SERVICIO</th>
-                          <th colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
-                            TARIFA 27 SUR
-                          </th>
-                          <th colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
-                            TARIFA 15 SUR
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st, idx) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const t27 = getTarifa27SurPrices(st.name, isPropia);
-                          const t15 = getTarifa15SurPrices(st.name, isPropia);
-                          const isFirstColab =
-                            typeFilter === 'ALL' &&
-                            !searchFilter &&
-                            st.type === 'COLABORADORA' &&
-                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
-                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
-
-                          return (
-                            <React.Fragment key={st.name}>
-                              {isFirstColab && (
-                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
-                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
-                                    COLABORADORAS
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                </tr>
-                              )}
-
-                              {isRedAccent && (
-                                <tr className="bg-rose-600 h-2.5">
-                                  <td colSpan={5} className="p-0 bg-rose-600 h-2.5 border-y border-rose-700" />
-                                </tr>
-                              )}
-
-                              <tr className="hover:bg-slate-800/40 transition-colors">
-                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
-                                  isPropia ? 'text-blue-300' : 'text-purple-300'
-                                }`}>
-                                  <div className="flex items-center space-x-1.5">
-                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
-                                    <span>{st.name}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 27 SUR SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t27.sinIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 27 Sur (Sin IVA)`,
-                                      defaultValue: t27.defaultSinIva,
-                                      currentFormula: t27.customSinIva?.rawFormula,
-                                      columnLabel: `Tarifa 27 Sur Sin IVA (${t27.isOrange ? 'Naranja: Especial' : t27.isGreen ? 'Verde: P.Venta+0.036' : 'Blanco: P.Venta+0.027'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t27.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : t27.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : t27.isGreen
-                                      ? 'bg-[#92D050] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    t27.customSinIva
-                                      ? `Fórmula: ${t27.customSinIva.rawFormula}`
-                                      : t27.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : t27.isGreen
-                                      ? 'Verde: P. Venta Sugerido GOA + 0.036'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.027'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t27.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t27.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 27 SUR CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t27.conIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 27 Sur (Con IVA)`,
-                                      defaultValue: t27.defaultConIva,
-                                      currentFormula: t27.customConIva?.rawFormula,
-                                      columnLabel: 'Tarifa 27 Sur Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t27.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={t27.customConIva ? `Fórmula: ${t27.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t27.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t27.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 15 SUR SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t15.sinIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 15 Sur (Sin IVA)`,
-                                      defaultValue: t15.defaultSinIva,
-                                      currentFormula: t15.customSinIva?.rawFormula,
-                                      columnLabel: `Tarifa 15 Sur Sin IVA (${t15.isOrange ? 'Naranja: Especial' : t15.isGreen ? 'Verde: P.Venta+0.024' : 'Blanco: P.Venta+0.015'})`,
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t15.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : t15.isOrange
-                                      ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
-                                      : t15.isGreen
-                                      ? 'bg-[#92D050] text-slate-950 font-black shadow-sm'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    t15.customSinIva
-                                      ? `Fórmula: ${t15.customSinIva.rawFormula}`
-                                      : t15.isOrange
-                                      ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : t15.isGreen
-                                      ? 'Verde: P. Venta Sugerido GOA + 0.024'
-                                      : 'Blanco: P. Venta Sugerido GOA + 0.015'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t15.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t15.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 15 SUR CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t15.conIvaKey,
-                                      cellTitle: `${st.name} — Tarifa 15 Sur (Con IVA)`,
-                                      defaultValue: t15.defaultConIva,
-                                      currentFormula: t15.customConIva?.rawFormula,
-                                      columnLabel: 'Tarifa 15 Sur Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t15.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={t15.customConIva ? `Fórmula: ${t15.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t15.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t15.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : block.id === 'tarifa_75' ? (
-                  /* TABLA DEDICADA: TARIFA ESPECIAL 75 */
-                  <div className="overflow-x-auto max-h-[70vh] mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-10">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3" rowSpan={2}>EESS DE SERVICIO</th>
-                          <th colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
-                            TARIFA 75
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
-                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st, idx) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const t75 = getTarifa75Prices(st.name, isPropia);
-                          const isFirstColab =
-                            typeFilter === 'ALL' &&
-                            !searchFilter &&
-                            st.type === 'COLABORADORA' &&
-                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
-                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
-
-                          return (
-                            <React.Fragment key={st.name}>
-                              {isFirstColab && (
-                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
-                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
-                                    COLABORADORAS
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
-                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
-                                </tr>
-                              )}
-
-                              {isRedAccent && (
-                                <tr className="bg-rose-600 h-2.5">
-                                  <td colSpan={3} className="p-0 bg-rose-600 h-2.5 border-y border-rose-700" />
-                                </tr>
-                              )}
-
-                              <tr className="hover:bg-slate-800/40 transition-colors">
-                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
-                                  isPropia ? 'text-blue-300' : 'text-purple-300'
-                                }`}>
-                                  <div className="flex items-center space-x-1.5">
-                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
-                                    <span>{st.name}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 75 SIN IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t75.sinIvaKey,
-                                      cellTitle: `${st.name} — Tarifa Especial 75 (Sin IVA)`,
-                                      defaultValue: t75.defaultSinIva,
-                                      currentFormula: t75.customSinIva?.rawFormula,
-                                      columnLabel: 'Tarifa Especial 75 Sin IVA (P. Venta Sugerido + 0.038)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t75.customSinIva
-                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
-                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
-                                  }`}
-                                  title={
-                                    t75.customSinIva
-                                      ? `Fórmula: ${t75.customSinIva.rawFormula}`
-                                      : 'Blanco: P. Venta Sugerido Gasóleo A + 0.038'
-                                  }
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t75.customSinIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t75.sinIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-
-                                {/* TARIFA 75 CON IVA */}
-                                <td
-                                  onClick={() => {
-                                    setActiveModalCell({
-                                      cellKey: t75.conIvaKey,
-                                      cellTitle: `${st.name} — Tarifa Especial 75 (Con IVA)`,
-                                      defaultValue: t75.defaultConIva,
-                                      currentFormula: t75.customConIva?.rawFormula,
-                                      columnLabel: 'Tarifa Especial 75 Con IVA (=Sin IVA * 1.21)',
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
-                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
-                                  } ${
-                                    t75.customConIva
-                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
-                                      : 'text-emerald-400 bg-slate-900/10'
-                                  }`}
-                                  title={t75.customConIva ? `Fórmula: ${t75.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
-                                >
-                                  <div className="flex items-center justify-end space-x-1">
-                                    {t75.customConIva && (
-                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                    )}
-                                    <span>{t75.conIva.toFixed(3).replace('.', ',')}</span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  /* TABLAS GENÉRICAS PARA EL RESTO DE TARIFAS ESPECIALES */
-                  <div className="overflow-x-auto max-h-64 mt-4">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="sticky top-0 bg-slate-950 z-10">
-                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
-                          <th className="py-2.5 px-3" rowSpan={2}>EESS DE SERVICIO</th>
-                          {block.tariffs.map((t, idx) => (
-                            <th key={idx} colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
-                              {t.name}
-                            </th>
-                          ))}
-                        </tr>
-                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
-                          {block.tariffs.map((t, idx) => (
-                            <React.Fragment key={idx}>
-                              <th className="py-1 px-2 text-right border-l border-slate-800 text-slate-400">Sin IVA</th>
-                              <th className="py-1 px-2 text-right text-emerald-400">Con IVA</th>
-                            </React.Fragment>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono">
-                        {filteredStations.map((st) => {
-                          const isPropia = st.type === 'PROPIA';
-                          const base = getStationBasePrice(st.name, isPropia);
-
-                          return (
-                            <tr key={st.name} className="hover:bg-slate-800/40">
-                              <td className={`py-2 px-3 font-sans font-bold ${
-                                isPropia ? 'text-blue-300' : 'text-purple-300'
-                              }`}>
-                                {st.name}
-                              </td>
-                              {block.tariffs.map((t, idx) => {
-                                const defaultSinIva = Number((base + t.markup).toFixed(3));
-                                const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
-                                const customSinIva = customFormulas[sinIvaKey];
-                                const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
-
-                                const defaultConIva = Number((sinIva * 1.21).toFixed(3));
-                                const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
-                                const customConIva = customFormulas[conIvaKey];
-                                const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
-
-                                return (
-                                  <React.Fragment key={idx}>
-                                    <td
-                                      onClick={() => {
-                                        setActiveModalCell({
-                                          cellKey: sinIvaKey,
-                                          cellTitle: `${st.name} — ${block.title} > ${t.name} (Sin IVA)`,
-                                          defaultValue: defaultSinIva,
-                                          currentFormula: customSinIva?.rawFormula,
-                                          columnLabel: `${block.title} - ${t.name} Sin IVA`,
-                                        });
-                                      }}
-                                      className={`py-2 px-2 text-right border-l border-slate-800/50 transition-all ${
-                                        isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
-                                      } ${
-                                        customSinIva ? 'bg-amber-500/20 text-amber-200 font-bold ring-1 ring-amber-400 shadow-sm' : 'text-slate-300'
-                                      }`}
-                                      title={customSinIva ? `Fórmula: ${customSinIva.rawFormula}` : 'Haz clic para formular esta celda'}
-                                    >
-                                      <div className="flex items-center justify-end space-x-1">
-                                        {customSinIva && (
-                                          <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
-                                        )}
-                                        <span>{sinIva.toFixed(3).replace('.', ',')}</span>
-                                      </div>
-                                    </td>
-                                    <td
-                                      onClick={() => {
-                                        setActiveModalCell({
-                                          cellKey: conIvaKey,
-                                          cellTitle: `${st.name} — ${block.title} > ${t.name} (Con IVA)`,
-                                          defaultValue: defaultConIva,
-                                          currentFormula: customConIva?.rawFormula,
-                                          columnLabel: `${block.title} - ${t.name} Con IVA`,
-                                        });
-                                      }}
-                                      className={`py-2 px-2 text-right font-bold transition-all ${
-                                        isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
-                                      } ${
-                                        customConIva ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm' : 'text-emerald-400'
-                                      }`}
-                                      title={customConIva ? `Fórmula: ${customConIva.rawFormula}` : 'Haz clic para formular esta celda'}
-                                    >
-                                      <div className="flex items-center justify-end space-x-1">
-                                        {customConIva && (
-                                          <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
-                                        )}
-                                        <span>{conIva.toFixed(3).replace('.', ',')}</span>
-                                      </div>
-                                    </td>
-                                  </React.Fragment>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                {renderSpecialBlockTable(block)}
               </div>
             </div>
           ))}
