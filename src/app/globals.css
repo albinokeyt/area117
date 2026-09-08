@@ -40,19 +40,25 @@ body {
   }
 
   @page {
-    margin: 10mm 8mm;
+    margin: 0 !important;
     size: A4 portrait;
+  }
+
+  /* Eliminar cualquier anotacion de enlace o url al imprimir */
+  a[href]:after {
+    content: none !important;
   }
 
   .printable-document {
     background: #ffffff !important;
     color: #000000 !important;
-    padding: 0 !important;
+    padding: 12mm 10mm !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
     width: 100% !important;
     display: block !important;
+    box-sizing: border-box !important;
   }
 
   table {

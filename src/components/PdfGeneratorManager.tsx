@@ -343,9 +343,21 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     .filter((st) => isStationActive(st.name))
     .filter((st) => st.name.toLowerCase().includes(searchFilter.toLowerCase()));
 
+  // Formateador de fecha en orden DIA, MES, AÑO (DD/MM/YYYY)
+  const formatDateDDMMYYYY = (isoDate: string): string => {
+    if (!isoDate) return '';
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}/${month}/${year}`;
+    }
+    return isoDate;
+  };
+
   const handlePrintPdf = () => {
     const cleanTariffName = selectedTariff.replace(/\s+/g, '_').toUpperCase();
-    const fileName = `${cleanTariffName}_VALIDO_A_PARTIR_DE_${targetDate}.pdf`;
+    const formattedDate = formatDateDDMMYYYY(targetDate).replace(/\//g, '-');
+    const fileName = `${cleanTariffName}_VALIDO_A_PARTIR_DE_${formattedDate}.pdf`;
 
     const originalTitle = document.title;
     document.title = fileName.replace('.pdf', '');
@@ -514,48 +526,61 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       <div className="printable-document bg-white text-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-300 space-y-6 print:p-0 print:border-none print:shadow-none print:m-0">
         
         {/* Document Header */}
-        <div className="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl font-black tracking-tight text-slate-950">AREA 117</span>
-              <span className="text-xs bg-slate-900 text-white font-bold px-2 py-0.5 rounded">RED PETRÓLEO</span>
+        <div className="border-b-2 border-slate-900 pb-4 flex flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <img
+              src="/logo_area117.png"
+              alt="Área 117"
+              className="h-16 w-auto object-contain rounded-lg shadow-sm print:shadow-none"
+            />
+            <div>
+              <h1 className="text-2xl font-black text-slate-950 uppercase tracking-tight">
+                {selectedTariff}
+              </h1>
             </div>
-            <h1 className="text-xl font-extrabold text-slate-900 mt-1 uppercase tracking-tight">
-              CONDICIONES DE SUMINISTRO — {selectedTariff}
-            </h1>
           </div>
-          <div className="text-right sm:text-right">
+          <div className="text-right">
             <span className="text-xs font-bold text-slate-500 uppercase block">Fecha de Aplicación:</span>
-            <span className="text-base font-black text-slate-950 font-mono">{targetDate}</span>
+            <span className="text-base font-black text-slate-950 font-mono">
+              {formatDateDDMMYYYY(targetDate)}
+            </span>
           </div>
         </div>
 
         {/* HVO Banner Highlights (Opcional por tarifa) */}
         {isHvoIncluded && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
-              <div>
-                <span className="font-black text-amber-900 block text-[11px] uppercase">
-                  GASÓLEO HVO EN ALFAJARÍN — ALFA ENERGÍA
+          <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto text-[11px] print:grid-cols-2">
+            <div className="bg-amber-50/90 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-sm print:shadow-none">
+              <div className="pr-2">
+                <span className="font-black text-amber-950 block text-[10px] uppercase leading-tight">
+                  HVO ALFAJARÍN
                 </span>
-                <span className="text-slate-600 text-[10px]">Hidrobiodiésel Renovable</span>
+                <span className="text-slate-600 text-[9px] block">Alfa Energía</span>
               </div>
-              <div className="text-right font-mono">
-                <span className="text-xs font-bold text-amber-950 block">SIN IVA: {hvoPrices.alfajarinSinIva.replace('.', ',')} €/L</span>
-                <span className="text-[10px] text-amber-800">CON IVA: {hvoPrices.alfajarinConIva.replace('.', ',')} €/L</span>
+              <div className="text-right font-mono shrink-0">
+                <span className="text-[11px] font-bold text-amber-950 block leading-tight">
+                  SIN IVA: {hvoPrices.alfajarinSinIva.replace('.', ',')} €/L
+                </span>
+                <span className="text-[9px] text-amber-800 leading-tight">
+                  CON IVA: {hvoPrices.alfajarinConIva.replace('.', ',')} €/L
+                </span>
               </div>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
-              <div>
-                <span className="font-black text-amber-900 block text-[11px] uppercase">
-                  GASÓLEO HVO EN VALDEMORO — AREA 117
+            <div className="bg-amber-50/90 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-sm print:shadow-none">
+              <div className="pr-2">
+                <span className="font-black text-amber-950 block text-[10px] uppercase leading-tight">
+                  HVO VALDEMORO
                 </span>
-                <span className="text-slate-600 text-[10px]">Hidrobiodiésel Renovable</span>
+                <span className="text-slate-600 text-[9px] block">Área 117</span>
               </div>
-              <div className="text-right font-mono">
-                <span className="text-xs font-bold text-amber-950 block">SIN IVA: {hvoPrices.valdemoroSinIva.replace('.', ',')} €/L</span>
-                <span className="text-[10px] text-amber-800">CON IVA: {hvoPrices.valdemoroConIva.replace('.', ',')} €/L</span>
+              <div className="text-right font-mono shrink-0">
+                <span className="text-[11px] font-bold text-amber-950 block leading-tight">
+                  SIN IVA: {hvoPrices.valdemoroSinIva.replace('.', ',')} €/L
+                </span>
+                <span className="text-[9px] text-amber-800 leading-tight">
+                  CON IVA: {hvoPrices.valdemoroConIva.replace('.', ',')} €/L
+                </span>
               </div>
             </div>
           </div>
@@ -574,7 +599,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 <th className="py-2.5 px-3">Bandera</th>
                 <th className="py-2.5 px-3">Ubicación</th>
                 <th className="py-2.5 px-3 text-right">Sin IVA</th>
-                <th className="py-2.5 px-3 text-right">Con IVA 21%</th>
+                <th className="py-2.5 px-3 text-right">Con IVA</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-900">
@@ -623,8 +648,20 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                           {meta.bandera}
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-slate-600 text-[11px]">
-                        {meta.ubicacion}
+                      <td className="py-2 px-3 text-slate-700 text-[11px]">
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            meta.ubicacion.includes('Red de Estaciones')
+                              ? `${st.name}, España`
+                              : `${st.name}, ${meta.ubicacion}`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 hover:underline transition-colors block text-[11px] print:text-blue-700"
+                          title={`Ver ${st.name} en Google Maps`}
+                        >
+                          {meta.ubicacion}
+                        </a>
                       </td>
                       <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs">
                         {prices.sinIva.toFixed(3).replace('.', ',')} €
@@ -637,12 +674,6 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 })}
             </tbody>
           </table>
-        </div>
-
-        {/* Document Footer */}
-        <div className="pt-4 border-t border-slate-200 text-slate-500 text-[10px] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <span>Área 117 — Sistema Automatizado de Gestión de Tarifas Petrolíferas</span>
-          <span>Validez sujeta a variaciones de mercado. IVA 21% incluido en columna correspondiente.</span>
         </div>
       </div>
 
