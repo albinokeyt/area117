@@ -634,6 +634,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         };
       });
 
+      const cleanedSpecialRates = specialRates.map((row) => ({
+        ...row,
+        isCustomActual: false,
+        isCustomRef: false,
+        isCustomBase: false,
+      }));
+      setSpecialRates(cleanedSpecialRates);
+
       const timestamp = new Date().toISOString();
       try {
         // 2) Guardar y sincronizar todas las ventanas del sistema (compras, postes, sabana de precios, pdfs y clientes, efi export)
@@ -647,7 +655,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           modified: [],
           updatedAt: timestamp,
         }));
-        localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
+        localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(cleanedSpecialRates));
         localStorage.setItem('efi_compras_valid_from', validFromDate);
         localStorage.setItem('efi_global_valid_from_date', validFromDate);
         localStorage.setItem('efi_last_cierre_date', selectedDate);
@@ -659,7 +667,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           selectedDate,
           validFromDate,
           purchases: nextPurchases,
-          specialRates,
+          specialRates: cleanedSpecialRates,
           gasolinaBronco,
           closedAt: timestamp,
         }));
@@ -675,7 +683,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       // Descargar archivo Excel (.xlsx) con formato idéntico al oficial consolidado
       try {
-        generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, specialRates, gasolinaBronco);
+        generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, cleanedSpecialRates, gasolinaBronco);
       } catch (e) {
         console.error('Error al generar libro Excel de Cierre:', e);
       }
@@ -684,7 +692,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     });
 
     setModifiedKeys(new Set());
-    setToastMessage('¡Cierre de Día Completado! Datos guardados en todos los módulos y Excel descargado.');
+    setToastMessage('¡Cierre de Día Completado! Marcas de modificación limpiadas en todos los módulos y Excel descargado.');
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -1554,11 +1562,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
                   <th className="py-3 px-4 w-12 text-center">Nº</th>
                   <th className="py-3 px-6 sticky left-0 bg-slate-950 z-30">Estación</th>
-                  <th className="py-3 px-6 text-center text-amber-300 bg-amber-950/20 border-b border-amber-500/30">
-                    PRECIO REFERENCIA
-                  </th>
                   <th className="py-3 px-6 text-center text-rose-400 bg-rose-950/20 border-b border-rose-500/30">
                     PRECIO ACTUAL / ESPECIAL
+                  </th>
+                  <th className="py-3 px-6 text-center text-amber-300 bg-amber-950/20 border-b border-amber-500/30">
+                    PRECIO REFERENCIA
                   </th>
                   <th className="py-3 px-6 text-center text-slate-300">
                     Precio Base / Coste (€)
@@ -1592,24 +1600,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         {row.name}
                       </td>
 
-                      {/* 2. PRECIO REFERENCIA (€) - Columna Amarilla */}
-                      <td className="py-2.5 px-6 text-center">
-                        <div className="inline-flex items-center justify-center">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={displayRef}
-                            onChange={(e) => handleSpecialRateChange(row.id, 'refPrice', e.target.value)}
-                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all focus:outline-none ${
-                              isRefMod
-                                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-md font-black'
-                                : 'bg-slate-950 border border-amber-500/40 text-amber-300 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
-                            }`}
-                          />
-                        </div>
-                      </td>
-
-                      {/* 3. PRECIO ACTUAL / ESPECIAL (€) - Columna Roja */}
+                      {/* 2. PRECIO ACTUAL / ESPECIAL (€) - Columna Roja */}
                       <td className="py-2.5 px-6 text-center">
                         <div className="inline-flex items-center justify-center">
                           <input
@@ -1621,6 +1612,23 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                               isActMod
                                 ? 'bg-rose-500 text-white ring-2 ring-rose-400 shadow-md font-black'
                                 : 'bg-slate-950 border border-rose-500/40 text-rose-400 font-bold focus:border-rose-400 focus:ring-1 focus:ring-rose-400'
+                            }`}
+                          />
+                        </div>
+                      </td>
+
+                      {/* 3. PRECIO REFERENCIA (€) - Columna Amarilla */}
+                      <td className="py-2.5 px-6 text-center">
+                        <div className="inline-flex items-center justify-center">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={displayRef}
+                            onChange={(e) => handleSpecialRateChange(row.id, 'refPrice', e.target.value)}
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all focus:outline-none ${
+                              isRefMod
+                                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-md font-black'
+                                : 'bg-slate-950 border border-amber-500/40 text-amber-300 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
                             }`}
                           />
                         </div>

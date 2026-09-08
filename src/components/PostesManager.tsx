@@ -341,6 +341,23 @@ export function PostesManager() {
     } catch (e) {
       console.error(e);
     }
+
+    const handleCierreDia = () => {
+      setModifiedKeys(new Set());
+      try {
+        const saved = localStorage.getItem('efi_postes_data_v2');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.modified = [];
+          localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('efi_cierre_dia', handleCierreDia);
+    return () => {
+      window.removeEventListener('efi_cierre_dia', handleCierreDia);
+    };
   }, []);
 
   const handlePosteChange = (stName: string, field: 'goa' | 'gasolina' | 'gasolinaGain', val: string) => {
