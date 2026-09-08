@@ -5,6 +5,7 @@ import {
   X, Calculator, Search, Check, AlertCircle, RotateCcw,
   Layers, Fuel, Table, Star, Flame, FileSpreadsheet
 } from 'lucide-react';
+import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import {
   getProgramVariables,
   evaluateFormula
@@ -47,6 +48,16 @@ export function SabanaFormulaModal({
     return getProgramVariables(selectedDate);
   }, [selectedDate]);
 
+  const stationName = useMemo(() => {
+    const all = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+    for (const st of all) {
+      if (cellKey.includes(st.name) || cellTitle.includes(st.name)) {
+        return st.name;
+      }
+    }
+    return undefined;
+  }, [cellKey, cellTitle]);
+
   useEffect(() => {
     if (isOpen) {
       const initial = currentFormula && currentFormula.trim() !== ''
@@ -63,10 +74,10 @@ export function SabanaFormulaModal({
     }
   }, [isOpen, currentFormula, cellDefaultValue]);
 
-  // Evaluación en tiempo real
+  // Evaluación en tiempo real con contexto de estación
   const evalResult = useMemo(() => {
-    return evaluateFormula(formulaInput, variablesMap);
-  }, [formulaInput, variablesMap]);
+    return evaluateFormula(formulaInput, variablesMap, { stationName });
+  }, [formulaInput, variablesMap, stationName]);
 
   if (!isOpen) return null;
 

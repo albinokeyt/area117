@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
 import {
   FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check,
@@ -14,7 +14,8 @@ import {
   clearAllSabanaFormulas,
   CellFormula,
   getProgramVariables,
-  evaluateFormula
+  evaluateFormula,
+  reevaluateAllSabanaFormulas
 } from '@/lib/sabanaFormulaEngine';
 
 interface SabanaProps {
@@ -176,6 +177,29 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [customFormulas, setCustomFormulas] = useState<Record<string, CellFormula>>(() => {
     return loadSabanaFormulas(selectedDate);
   });
+
+  // Reevaluación dinámica y reactiva de TODAS las fórmulas de la Sábana en función de los precios en vivo de Compras y celdas
+  const resolvedFormulas = useMemo(() => {
+    return reevaluateAllSabanaFormulas(customFormulas, selectedDate, comprasPurchases, specialRates);
+  }, [customFormulas, selectedDate, comprasPurchases, specialRates]);
+
+  // Sincronizar fórmulas recalculadas a localStorage si cambiaron por variaciones en Compras
+  useEffect(() => {
+    let hasDiff = false;
+    for (const [key, item] of Object.entries(resolvedFormulas)) {
+      if (customFormulas[key]?.evaluatedValue !== item.evaluatedValue) {
+        hasDiff = true;
+        break;
+      }
+    }
+    if (hasDiff) {
+      try {
+        localStorage.setItem(`efi_sabana_custom_formulas_${selectedDate}`, JSON.stringify(resolvedFormulas));
+        localStorage.setItem('efi_sabana_custom_formulas_global', JSON.stringify(resolvedFormulas));
+      } catch (e) {}
+    }
+  }, [resolvedFormulas, selectedDate, customFormulas]);
+
   const [activeModalCell, setActiveModalCell] = useState<{
     cellKey: string;
     cellTitle: string;
@@ -223,6 +247,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       loadSpecialRates();
     };
     const onSabanaUpdated = () => loadFormulas();
+    const onPostesUpdated = () => loadComprasData();
+    const onValidDateChanged = () => loadComprasData();
     const onStorage = () => {
       loadComprasData();
       loadSpecialRates();
@@ -231,11 +257,15 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
     window.addEventListener('efi_compras_updated', onComprasUpdated);
     window.addEventListener('efi_sabana_updated', onSabanaUpdated);
+    window.addEventListener('efi_postes_updated', onPostesUpdated);
+    window.addEventListener('efi_valid_date_changed', onValidDateChanged);
     window.addEventListener('storage', onStorage);
 
     return () => {
       window.removeEventListener('efi_compras_updated', onComprasUpdated);
       window.removeEventListener('efi_sabana_updated', onSabanaUpdated);
+      window.removeEventListener('efi_postes_updated', onPostesUpdated);
+      window.removeEventListener('efi_valid_date_changed', onValidDateChanged);
       window.removeEventListener('storage', onStorage);
     };
   }, [selectedDate]);
@@ -388,9 +418,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     }
     const costoTotal = getStationBasePrice(stName, isPropia);
     if (stName.toUpperCase().includes('PUERTO DE BARCELONA')) {
-      const tarifa24Key = 'TAR_24_PUERTO DE BARCELONA_sinIva';
-      if (customFormulas[tarifa24Key]) {
-        return Number(customFormulas[tarifa24Key].evaluatedValue.toFixed(3));
+      const f24 = resolvedFormulas['STD_PUERTO DE BARCELONA_T24_sinIva'] || resolvedFormulas['TAR_24_PUERTO DE BARCELONA_sinIva'];
+      if (f24) {
+        return Number(f24.evaluatedValue.toFixed(3));
       }
     }
     return Number((costoTotal + 0.024).toFixed(3));
@@ -403,9 +433,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     }
     const costoTotal = getStationBasePrice(stName, isPropia);
     if (stName.toUpperCase().includes('PUERTO DE BARCELONA')) {
-      const tarifa18Key = 'TAR_18_PUERTO DE BARCELONA_sinIva';
-      if (customFormulas[tarifa18Key]) {
-        return Number(customFormulas[tarifa18Key].evaluatedValue.toFixed(3));
+      const f18 = resolvedFormulas['STD_PUERTO DE BARCELONA_T18_sinIva'] || resolvedFormulas['TAR_18_PUERTO DE BARCELONA_sinIva'];
+      if (f18) {
+        return Number(f18.evaluatedValue.toFixed(3));
       }
     }
     return Number((costoTotal + 0.018).toFixed(3));
@@ -415,12 +445,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getJaviPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getJaviSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_los_javi_${stName}_Especial Javi_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_los_javi_${stName}_Especial Javi_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -440,12 +470,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getCarrerasPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getCarrerasSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_los_javi_${stName}_Especial Carreras_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_los_javi_${stName}_Especial Carreras_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -503,12 +533,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getTransfriredPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getTransfriredSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_transfrired_${stName}_Especial Transfrired_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_transfrired_${stName}_Especial Transfrired_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -575,12 +605,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getC0Prices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getC0SinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_c0_general_${stName}_Especial General C-0_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_c0_general_${stName}_Especial General C-0_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -621,12 +651,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getRorPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getRorSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_ror_esteban_${stName}_Especial ROR_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_ror_esteban_${stName}_Especial ROR_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -686,8 +716,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getEstebanSinIvaDefault = (stName: string, isPropia?: boolean): number => {
     if (isEstebanGreen(stName)) {
       const t24Key = `STD_${stName}_T24_sinIva`;
-      if (customFormulas[t24Key]) {
-        return Number(customFormulas[t24Key].evaluatedValue.toFixed(3));
+      if (resolvedFormulas[t24Key]) {
+        return Number(resolvedFormulas[t24Key].evaluatedValue.toFixed(3));
       }
       const base = getStationBasePrice(stName, isPropia);
       return Number((base + 0.024).toFixed(3));
@@ -703,12 +733,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getEstebanPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getEstebanSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_ror_esteban_${stName}_Especial Esteban_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_ror_esteban_${stName}_Especial Esteban_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -741,12 +771,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getMikiPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getMikiSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 90 Miki_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 90 Miki_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -771,12 +801,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getEcotransPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getEcotransSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECOTRANS_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECOTRANS_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -804,12 +834,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getTarifa30Prices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getTarifa30SinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 30_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 30_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -877,12 +907,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getTarifa27SurPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getTarifa27SurSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_sur_benito_${stName}_Tarifa 27 Sur_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_sur_benito_${stName}_Tarifa 27 Sur_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -916,12 +946,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getTarifa15SurPrices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getTarifa15SurSinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_sur_benito_${stName}_Tarifa 15 Sur_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_sur_benito_${stName}_Tarifa 15 Sur_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -948,12 +978,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const getTarifa75Prices = (stName: string, isPropia?: boolean) => {
     const defaultSinIva = getTarifa75SinIvaDefault(stName, isPropia);
     const sinIvaKey = `SPEC_tarifa_75_${stName}_Tarifa 75_sinIva`;
-    const customSinIva = customFormulas[sinIvaKey];
+    const customSinIva = resolvedFormulas[sinIvaKey];
     const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
     const defaultConIva = Number((sinIva * 1.21).toFixed(3));
     const conIvaKey = `SPEC_tarifa_75_${stName}_Tarifa 75_conIva`;
-    const customConIva = customFormulas[conIvaKey];
+    const customConIva = resolvedFormulas[conIvaKey];
     const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
     return {
@@ -1007,22 +1037,32 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   };
 
   // Aplicar fórmula a toda la columna de Tarifas Estándar
-  const handleApplyFormulaToStandardColumn = (tariffId: string, isConIva: boolean, rawFormula: string) => {
+  const handleApplyFormulaToStandardColumn = (tariffId: string, isConIva: boolean, rawFormula: string, sourceStationName?: string) => {
     const field = isConIva ? 'conIva' : 'sinIva';
-    const { map } = getProgramVariables(selectedDate);
+    const { map } = getProgramVariables(selectedDate, comprasPurchases, specialRates, customFormulas);
     const updatedFormulas = { ...customFormulas };
+
+    const sourceNorm = sourceStationName ? sourceStationName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase() : '';
 
     allStations.forEach((st) => {
       const cellKey = `STD_${st.name}_T${tariffId}_${field}`;
-      const evalRes = evaluateFormula(rawFormula, map);
+      const targetNorm = st.name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+
+      let adaptedFormula = rawFormula;
+      if (sourceNorm && sourceStationName && targetNorm !== sourceNorm) {
+        adaptedFormula = adaptedFormula.split(sourceNorm).join(targetNorm);
+        adaptedFormula = adaptedFormula.split(sourceStationName).join(st.name);
+      }
+
+      const evalRes = evaluateFormula(adaptedFormula, map, { stationName: st.name });
       if (evalRes.success) {
         saveSabanaFormula(selectedDate, cellKey, {
-          rawFormula,
+          rawFormula: adaptedFormula,
           evaluatedValue: evalRes.value,
           updatedAt: new Date().toISOString(),
         });
         updatedFormulas[cellKey] = {
-          rawFormula,
+          rawFormula: adaptedFormula,
           evaluatedValue: evalRes.value,
           updatedAt: new Date().toISOString(),
         };
@@ -1052,7 +1092,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     setTimeout(() => setDownloadToast(null), 3500);
   };
 
-  // Descarga de la tabla de Tarifas Estándar con valores efectivos
+  // Descarga de la tabla de Tarifas Estándar con valores efectivos dinámicos
   const handleExportStandardCsv = () => {
     const validDate = (() => {
       try {
@@ -1074,11 +1114,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       STANDARD_TARIFFS.forEach((t) => {
         const defaultSinIva = Number((base + t.markup).toFixed(3));
         const sinIvaKey = `STD_${st.name}_T${t.id}_sinIva`;
-        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+        const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
 
         const defaultConIva = Number((sinIva * 1.21).toFixed(3));
         const conIvaKey = `STD_${st.name}_T${t.id}_conIva`;
-        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+        const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
 
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
@@ -1099,11 +1139,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       STANDARD_TARIFFS.forEach((t) => {
         const defaultSinIva = Number((base + t.markup).toFixed(3));
         const sinIvaKey = `STD_${st.name}_T${t.id}_sinIva`;
-        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+        const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
 
         const defaultConIva = Number((sinIva * 1.21).toFixed(3));
         const conIvaKey = `STD_${st.name}_T${t.id}_conIva`;
-        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+        const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
 
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
@@ -1264,11 +1304,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       block.tariffs.forEach((t) => {
         const defaultSinIva = Number((base + t.markup).toFixed(3));
         const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
-        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+        const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
 
         const defaultConIva = Number((sinIva * 1.21).toFixed(3));
         const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
-        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+        const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
 
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
@@ -1289,11 +1329,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       block.tariffs.forEach((t) => {
         const defaultSinIva = Number((base + t.markup).toFixed(3));
         const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
-        const sinIva = customFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+        const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
 
         const defaultConIva = Number((sinIva * 1.21).toFixed(3));
         const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
-        const conIva = customFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+        const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
 
         csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
       });
@@ -1621,11 +1661,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
           const base = getStationBasePrice(stName, isPropia);
           const defaultSinIva = Number((base + t.markup).toFixed(3));
           const sinIvaKey = `SPEC_${block.id}_${stName}_${t.name}_sinIva`;
-          const customSinIva = customFormulas[sinIvaKey];
+          const customSinIva = resolvedFormulas[sinIvaKey];
           const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
           const defaultConIva = Number((sinIva * 1.21).toFixed(3));
           const conIvaKey = `SPEC_${block.id}_${stName}_${t.name}_conIva`;
-          const customConIva = customFormulas[conIvaKey];
+          const customConIva = resolvedFormulas[conIvaKey];
           const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
           return {
             sinIvaKey,
@@ -2066,12 +2106,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                     {STANDARD_TARIFFS.map((tariff) => {
                       const defaultSinIva = Number((base + tariff.markup).toFixed(3));
                       const sinIvaKey = `STD_${st.name}_T${tariff.id}_sinIva`;
-                      const customSinIva = customFormulas[sinIvaKey];
+                      const customSinIva = resolvedFormulas[sinIvaKey];
                       const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
 
                       const defaultConIva = Number((sinIva * 1.21).toFixed(3));
                       const conIvaKey = `STD_${st.name}_T${tariff.id}_conIva`;
-                      const customConIva = customFormulas[conIvaKey];
+                      const customConIva = resolvedFormulas[conIvaKey];
                       const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
 
                       const isPurplePrice = isPurple && ['18', '36', '60'].includes(tariff.id);
@@ -2087,7 +2127,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                 defaultValue: defaultSinIva,
                                 currentFormula: customSinIva?.rawFormula,
                                 columnLabel: `Tarifa ${tariff.name} Sin IVA`,
-                                onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(tariff.id, false, f),
+                                onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(tariff.id, false, f, st.name),
                               });
                             }}
                             className={`py-2 px-2 text-right font-mono relative transition-all group ${
@@ -2120,7 +2160,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                 defaultValue: defaultConIva,
                                 currentFormula: customConIva?.rawFormula,
                                 columnLabel: `Tarifa ${tariff.name} Con IVA`,
-                                onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(tariff.id, true, f),
+                                onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(tariff.id, true, f, st.name),
                               });
                             }}
                             className={`py-2 px-2 text-right font-bold font-mono border-r relative transition-all group ${
