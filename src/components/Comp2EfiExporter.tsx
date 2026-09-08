@@ -1,20 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, PRODUCTS } from '@/lib/dataSeed';
-import { Download, CheckCircle2, FileSpreadsheet, Send, MessageSquare, Copy, Check, Calculator, Fuel } from 'lucide-react';
+import {
+  Download, CheckCircle2, FileSpreadsheet, Send, MessageSquare,
+  Copy, Check, Calculator, Fuel, Calendar, FileDown, Layers
+} from 'lucide-react';
+import {
+  downloadImportacionXlsx,
+  downloadImportacionCsv,
+  buildImportacionTable
+} from '@/lib/excelExportService';
 
 interface Comp2Props {
   selectedDate: string;
 }
 
 export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
+  const [validFromDate, setValidFromDate] = useState<string>(() => {
+    try {
+      return localStorage.getItem('efi_compras_valid_from') || selectedDate || '2026-09-05';
+    } catch (e) {
+      return selectedDate;
+    }
+  });
+  const [finalDate, setFinalDate] = useState<string>('2026-09-20');
+
   const [fixedStationPrices, setFixedStationPrices] = useState<Record<string, number>>({
     'BENAVENTE': 1.1790,
     'IRUN ZAISA III': 1.1920,
     'AVILESINA': 1.1880,
     'MERIDA': 1.1820,
-      'SAN VICENTE DEL PALACIO': 1.1810,
+    'SAN VICENTE DEL PALACIO': 1.1810,
     'WATERY ARANDA': 1.1890,
     'PUERTO DE BARCELONA': 1.1940,
     'FEGOBLAN PONTEVEDRA': 1.1870,
@@ -42,35 +59,21 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
     }));
   };
 
-  const handleExportEfi = () => {
-    // Generar archivo CSV para importar directamente a EFI DATA OIL (Hoja IMPORTACION)
-    const headers = ['CODIGO_ESTACION', 'NOMBRE_ESTACION', 'PRODUCTO', 'PRECIO_SIN_IVA', 'PRECIO_CON_IVA', 'FECHA'];
-    const rows: string[] = [headers.join(';')];
-
-    PROPIAS_STATIONS.forEach((st) => {
-      PRODUCTS.slice(0, 2).forEach((prod) => {
-        const pSinIva = 1.1950;
-        const pConIva = Number((pSinIva * 1.21).toFixed(4));
-        rows.push(`${st.name};${st.name};${prod.code};${pSinIva};${pConIva};${selectedDate}`);
-      });
-    });
-
-    Object.entries(fixedStationPrices).forEach(([stName, price]) => {
-      const pConIva = Number((price * 1.21).toFixed(4));
-      rows.push(`${stName};${stName};GOA;${price};${pConIva};${selectedDate}`);
-    });
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(rows.join('\n'));
-    const link = document.createElement('a');
-    link.setAttribute('href', csvContent);
-    link.setAttribute('download', `IMPORTACION_EFI_${selectedDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
+  const handleExportXlsx = () => {
+    downloadImportacionXlsx(selectedDate, validFromDate, finalDate);
     setIsExported(true);
     setTimeout(() => setIsExported(false), 4000);
   };
+
+  const handleExportCsv = () => {
+    downloadImportacionCsv(selectedDate, validFromDate, finalDate);
+    setIsExported(true);
+    setTimeout(() => setIsExported(false), 4000);
+  };
+
+  const previewRows = useMemo(() => {
+    return buildImportacionTable(selectedDate, validFromDate, finalDate);
+  }, [selectedDate, validFromDate, finalDate]);
 
   const whatsappMessage = `⛽ *ACTUALIZACIÓN DE PRECIOS - EFI DATA OIL* ⛽
 📅 Fecha: ${selectedDate}
@@ -83,7 +86,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
 🔹 *VALCARCE:* ${valcarceDirectPrice.toFixed(4)} €
 🔹 *Colaboradoras Fijas (Columna J):* 13 estaciones sincronizadas.
 
-✅ Archivo IMPORTACION generado con éxito.`;
+✅ Archivo IMPORTACION (1.204 filas, 22 bloques) generado con éxito.`;
 
   const handleCopyWhatsApp = () => {
     navigator.clipboard.writeText(whatsappMessage);
@@ -96,31 +99,83 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
       
       {/* Banner */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-1">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
               <CheckCircle2 className="h-4 w-4" />
               <span>Gestión de Compañeros 2 y 3 - Validación & EFI</span>
             </div>
             <h2 className="text-2xl font-bold text-white tracking-tight">
-              Exportación e Integración EFI DATA OIL
+              Exportación e Integración EFI DATA OIL (Hoja IMPORTACION)
             </h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Revisa los precios finales de la Columna K (<code className="bg-slate-800 px-2 py-0.5 rounded text-amber-300 font-mono text-xs">H2:L21</code> y <code className="bg-slate-800 px-2 py-0.5 rounded text-amber-300 font-mono text-xs">H23:L58</code>), proveedores con fórmulas y genera el archivo <code className="bg-slate-800 px-2 py-0.5 rounded text-emerald-400 font-mono text-xs">IMPORTACION</code>.
+            <p className="text-slate-400 text-sm">
+              Genera el archivo <code className="bg-slate-800 px-2 py-0.5 rounded text-emerald-400 font-mono text-xs">IMPORTACION</code> con los precios finales Con IVA de Sábana de Precios (Producto 1), Gasolina Bronco (Producto 2) y Gasóleo B Transfrired (Producto 5).
             </p>
+            <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+              <span className="bg-slate-800/80 text-amber-300 font-mono px-2.5 py-1 rounded-lg border border-slate-700">
+                1.204 Filas Totales
+              </span>
+              <span className="bg-slate-800/80 text-blue-300 font-mono px-2.5 py-1 rounded-lg border border-slate-700">
+                22 Bloques de Tarifas
+              </span>
+              <span className="bg-slate-800/80 text-emerald-300 font-mono px-2.5 py-1 rounded-lg border border-slate-700">
+                56 Estaciones Sincronizadas
+              </span>
+            </div>
           </div>
 
-          <button
-            onClick={handleExportEfi}
-            className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-xs font-bold shadow-xl transition-all active:scale-95 ${
-              isExported
-                ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/30'
-                : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-400 hover:to-indigo-400 shadow-blue-500/25'
-            }`}
-          >
-            <Download className="h-4 w-4" />
-            <span>{isExported ? '¡Archivo CSV Generado!' : 'Generar & Exportar a EFI DATA OIL'}</span>
-          </button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <button
+              onClick={handleExportXlsx}
+              className={`flex items-center justify-center space-x-2 px-5 py-3 rounded-xl text-xs font-bold shadow-xl transition-all active:scale-95 ${
+                isExported
+                  ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/30'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 shadow-emerald-500/25'
+              }`}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>{isExported ? '¡Excel IMPORTACION Generado!' : 'Descargar Excel (.xlsx)'}</span>
+            </button>
+
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow-md transition-all active:scale-95"
+            >
+              <FileDown className="h-4 w-4 text-amber-400" />
+              <span>Descargar CSV</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Date Selector Row */}
+        <div className="mt-5 pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+          <div>
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center space-x-1">
+              <Calendar className="h-3.5 w-3.5 text-amber-400" />
+              <span>Fecha Inicial (Columna INICIAL):</span>
+            </label>
+            <input
+              type="text"
+              value={validFromDate}
+              onChange={(e) => setValidFromDate(e.target.value)}
+              placeholder="DD/MM/YYYY o YYYY-MM-DD"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:border-amber-400 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center space-x-1">
+              <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Fecha Final (Columna FINAL):</span>
+            </label>
+            <input
+              type="text"
+              value={finalDate}
+              onChange={(e) => setFinalDate(e.target.value)}
+              placeholder="DD/MM/YYYY o YYYY-MM-DD"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 
@@ -253,20 +308,72 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
       </div>
 
       {/* Summary Preview */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <h3 className="text-base font-bold text-white mb-3 flex items-center space-x-2">
-          <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
-          <span>Vista Previa de Estructura de Exportación (`IMPORTACION`)</span>
-        </h3>
-        
-        <div className="bg-slate-950 rounded-xl p-4 font-mono text-xs text-emerald-400 border border-slate-800/80 overflow-x-auto space-y-1">
-          <div className="text-slate-500 border-b border-slate-800 pb-2">
-            CODIGO_ESTACION ; NOMBRE_ESTACION ; PRODUCTO ; PRECIO_SIN_IVA ; PRECIO_CON_IVA ; FECHA
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center space-x-2 text-emerald-400 font-bold text-base">
+            <FileSpreadsheet className="h-5 w-5" />
+            <span>Vista Previa de Estructura de Exportación (`IMPORTACION` - 9 Columnas Oficiales)</span>
           </div>
-          <div>ARCOS ; ARCOS ; GOA ; 1.1950 ; 1.4460 ; {selectedDate}</div>
-          <div>ALCUBILLAS ; ALCUBILLAS ; GOA ; 1.1950 ; 1.4460 ; {selectedDate}</div>
-                    <div>BENAVENTE ; BENAVENTE ; GOA ; {fixedStationPrices['BENAVENTE'].toFixed(4)} ; {(fixedStationPrices['BENAVENTE'] * 1.21).toFixed(4)} ; {selectedDate}</div>
-          <div className="text-slate-600 italic">... +{PROPIAS_STATIONS.length + COLABORADORA_STATIONS.length - 4} filas de estaciones listas para EFI ...</div>
+          <span className="text-xs font-mono text-slate-400 bg-slate-950 px-3 py-1 rounded-xl border border-slate-800">
+            {previewRows.length} Filas en el Documento Final
+          </span>
+        </div>
+
+        <div className="overflow-x-auto max-h-96 rounded-xl border border-slate-800">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="sticky top-0 bg-slate-950 z-10 border-b border-slate-800 text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+              <tr>
+                <th className="py-2.5 px-3 text-center w-12">Col A</th>
+                <th className="py-2.5 px-3">ESTACION (ID)</th>
+                <th className="py-2.5 px-3 text-center">PRODUCTO</th>
+                <th className="py-2.5 px-3 text-center">INICIAL</th>
+                <th className="py-2.5 px-3 text-center">FINAL</th>
+                <th className="py-2.5 px-3 text-right text-emerald-400">PVP (Con IVA)</th>
+                <th className="py-2.5 px-3">ESTACION (NOMBRE)</th>
+                <th className="py-2.5 px-3 text-center">PAGO</th>
+                <th className="py-2.5 px-3 text-amber-300">TARIFA</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-mono text-xs bg-slate-950/70">
+              {previewRows.slice(1, 45).map((row, idx) => {
+                const isEmpty = row.every((c) => c === null || c === undefined || c === '');
+                if (isEmpty) {
+                  return (
+                    <tr key={idx} className="bg-slate-900/40">
+                      <td colSpan={9} className="py-1 text-center text-[10px] text-slate-600 font-sans italic">
+                        --- Separador de Bloque Vacío ---
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="py-1.5 px-3 text-center font-bold text-slate-500">{row[0]}</td>
+                    <td className="py-1.5 px-3 text-white font-bold">{row[1]}</td>
+                    <td className="py-1.5 px-3 text-center">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        row[2] === 1 ? 'bg-blue-500/20 text-blue-300' :
+                        row[2] === 2 ? 'bg-amber-500/20 text-amber-300' : 'bg-purple-500/20 text-purple-300'
+                      }`}>
+                        {row[2] === 1 ? '1 (GOA)' : row[2] === 2 ? '2 (GAS)' : '5 (GOB)'}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-3 text-center text-slate-400">{row[3]}</td>
+                    <td className="py-1.5 px-3 text-center text-slate-400">{row[4]}</td>
+                    <td className="py-1.5 px-3 text-right font-bold text-emerald-400">
+                      {typeof row[5] === 'number' ? row[5].toFixed(row[2] === 5 ? 5 : 3) : row[5]}
+                    </td>
+                    <td className="py-1.5 px-3 text-slate-200 font-sans">{row[6]}</td>
+                    <td className="py-1.5 px-3 text-center text-slate-400">{row[7] || '-'}</td>
+                    <td className="py-1.5 px-3 font-bold text-amber-300 font-sans">{row[8]}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="text-[11px] text-slate-500 italic text-right">
+          Mostrando las primeras filas representativas de las {previewRows.length} filas totales generadas para el archivo IMPORTACION.
         </div>
       </div>
 

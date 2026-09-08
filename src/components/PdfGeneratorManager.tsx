@@ -5,7 +5,7 @@ import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/
 import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
-  Plus, CheckSquare, Square, Trash2, X, Flame
+  Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
@@ -23,80 +23,60 @@ const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> 
   'MANISES - EXOIL': { bandera: 'EXOIL', ubicacion: 'Avinguda de la Cova, 62, 46940 Manises, Valencia' },
   'TORREJON': { bandera: 'VALCARCE', ubicacion: 'Avenida ronda sur 3, Pol. Ind. Los Almendros, Torrejón de Ardoz, Madrid' },
   'ARCOS JALON': { bandera: 'AREA 117', ubicacion: 'Calle Malita, 15 - Arcos de Jalón, Soria' },
-  'ALFAJARIN': { bandera: 'ALFA ENERGIA', ubicacion: 'Pl. del Saco, 12 - 50172 Alfajarín, Zaragoza' },
-  'TORREMOCHA': { bandera: 'AREA 117', ubicacion: 'Área de Servicio A2, KM 117, 19268 Torremocha del Campo, Guadalajara' },
-  'MADRID': { bandera: 'AREA 117', ubicacion: 'Vía de Servicio A-3, KM 11, 28031 Madrid' },
-  'VALLECAS': { bandera: 'AREA 117', ubicacion: 'Av. de la Democracia, 15, 28031 Madrid' },
-  'VALDEMORO': { bandera: 'AREA 117', ubicacion: 'C/ Narciso Monturiol 28, Pol. Ind. Rompecubas, Valdemoro, Madrid' },
-  'PAMPLONA': { bandera: 'ALAITZ', ubicacion: 'N-121, KM 11,3 - 31398 Muruarte de Reta, Navarra' },
-  'HUMILLADERO': { bandera: 'AREA 117', ubicacion: 'Autovía A92, KM 138,20, 29531 Humilladero, Málaga' },
-  'UCLES': { bandera: 'VALCARCE', ubicacion: 'Autovía del Este, KM 90, 16420 Villarrubio, Cuenca' },
-  'BENAMEJI': { bandera: 'AREA 117', ubicacion: 'E.S. Cepsa El Berrocal, N-331, PK 96, Benamejí, Córdoba' },
-  'SORIA ALCUBILLAS': { bandera: 'AREA 117', ubicacion: 'A-15, KM 13, 42213 Alcubilla de las Peñas, Soria' },
-  'ABRERA': { bandera: 'HAM', ubicacion: 'Carrer del Treball, 1, 08630 Abrera, Barcelona' },
-  'VALDEHERRERA': { bandera: 'PETROBIL', ubicacion: 'Área de Servicio Valdeherrera A2, KM 231, Calatayud, Zaragoza' },
-  'EL CASAR': { bandera: 'VALCARCE', ubicacion: 'Cam. Pilón, 2, 45614 El Casar de Talavera, Toledo' },
-  'LA JOYOSA': { bandera: 'VALCARCE', ubicacion: 'Autovía de Logroño, A-68 - Salida 257, Zaragoza' },
-  'JUNDIZ NORPETROL': { bandera: 'NORPETROL', ubicacion: 'Margarita Entitatea, 16, 01195 Margarita, Álava' },
-  'OLIVERAL': { bandera: 'ALZ', ubicacion: 'Carrer A, 57 - 46394 Ribarroja de Túria, Valencia' },
-  'GUARROMAN': { bandera: 'VALCARCE', ubicacion: 'Carretera N-IV, Salida 280, Guarromán, Jaén' },
-  'VALDEPEÑAS': { bandera: 'VALCARCE', ubicacion: 'Autovía A-4, KM 200, Valdepeñas, Ciudad Real' },
-  'OPEN': { bandera: 'OPEN', ubicacion: 'Polígono Industrial Las Quemadas, Córdoba' },
-  'TJOIL SEVILLA': { bandera: 'TJOIL', ubicacion: 'Autovía A-92, KM 15, Alcalá de Guadaíra, Sevilla' },
-  'BENAVENTE': { bandera: 'VALCARCE', ubicacion: 'A-6, KM 262, Benavente, Zamora' },
-  'IRUN ZAISA III': { bandera: 'VALCARCE', ubicacion: 'Centro de Transportes Zaisa III, Behobia, Irún, Guipúzcoa' },
-  'TARRAGONA': { bandera: 'PETROMIRALLES', ubicacion: 'Pol. Ind. Riu Clar, Carrer de la Química, Tarragona' },
-  'LACHAR': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, KM 221, Láchar, Granada' },
-  'LA CAMPANA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-4, KM 480, La Campana, Sevilla' },
-  'AVILESINA': { bandera: 'AVILESINA', ubicacion: 'Polígono Industrial PEPA, Avilés, Asturias' },
-  'GOR': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92N, KM 20, Gor, Granada' },
-  'LLERS': { bandera: 'PADROSA', ubicacion: 'Autopista AP-7, Salida 3, 17740 Llers, Girona' },
-  'DARRO - A92': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, KM 292, Darro, Granada' },
-  'MERIDA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-5, KM 341, Mérida, Badajoz' },
-  'MURCIA': { bandera: 'ANDAMUR', ubicacion: 'Polígono Industrial Oeste, Alcantarilla, Murcia' },
-  'NORIOIL': { bandera: 'NORIOIL', ubicacion: 'Autovía A-7, KM 585, Lorca, Murcia' },
-  'SAN VICENTE DEL PALACIO': { bandera: 'VALCARCE', ubicacion: 'A-6, KM 147, San Vicente del Palacio, Valladolid' },
-  'WATERY ARANDA': { bandera: 'WATERY', ubicacion: 'Pol. Ind. Allendeduero, Aranda de Duero, Burgos' },
-  'BERA': { bandera: 'BERA', ubicacion: 'Carretera NA-1310, KM 2, Bera, Navarra' },
-  'PUERTO DE BARCELONA': { bandera: 'AUTONET', ubicacion: 'Moll Sud, Tram VI, Puerto de Barcelona, Barcelona' },
-  'GIRONA-CALSINA': { bandera: 'CALSINA', ubicacion: 'Pol. Ind. Pont Xetmar, Cornellà del Terri, Girona' },
-  'FEGOBLAN PONTEVEDRA': { bandera: 'FEGOBLAN', ubicacion: 'Polígono Industrial do Campiño, Pontevedra' },
-  'VEGA DE VALCARCE': { bandera: 'VALCARCE', ubicacion: 'A-6, KM 419, Vega de Valcarce, León' },
-  'HOILA TOLEDO': { bandera: 'HOILA', ubicacion: 'Autovía A-42, KM 65, Olías del Rey, Toledo' },
-  'PETREM FIGUERES': { bandera: 'PETREM', ubicacion: 'Carretera N-IIa, KM 756, Figueres, Girona' },
+  'ALFAJARIN': { bandera: 'AREA 117', ubicacion: 'Polígono El Saco, Parcela 1, Alfajarín, Zaragoza' },
+  'TORREMOCHA': { bandera: 'AREA 117', ubicacion: 'Carretera Nacional II, Km 167, Torremocha del Campo, Guadalajara' },
+  'MADRID': { bandera: 'AREA 117', ubicacion: 'Calle de Alfonso Gómez, 19, San Blas-Canillejas, Madrid' },
+  'VALLECAS': { bandera: 'AREA 117', ubicacion: 'Calle de Jesús del Pino, 28, Villa de Vallecas, Madrid' },
+  'ES VALDEMORO': { bandera: 'AREA 117', ubicacion: 'Avenida de las Canteras, 1, Valdemoro, Madrid' },
+  'PAMPLONA': { bandera: 'AREA 117', ubicacion: 'Polígono Agustinos, Calle G, Parcela 2, Pamplona, Navarra' },
+  'HUMILLADERO': { bandera: 'AREA 117', ubicacion: 'A-384, Km 132, 29531 Humilladero, Málaga' },
+  'UCLES': { bandera: 'AREA 117', ubicacion: 'Autovía A-3, Km 91, Uclés, Cuenca' },
+  'BENAMEJI': { bandera: 'AREA 117', ubicacion: 'Autovía A-45, Km 87, Benamejí, Córdoba' },
+  'SORIA ALCUBILLAS': { bandera: 'AREA 117', ubicacion: 'Carretera N-111, Km 189, Alcubilla de las Peñas, Soria' },
+  'ABRERA': { bandera: 'AREA 117', ubicacion: 'Polígono Industrial Sant Ermengol, Abrera, Barcelona' },
+  'VALDEHERRERA': { bandera: 'AREA 117', ubicacion: 'Carretera N-II, Km 198, Santa María de Huerta, Soria' },
+  'EL CASAR': { bandera: 'AREA 117', ubicacion: 'Carretera de Fuente el Saz, Km 1, El Casar, Guadalajara' },
+  'LA JOYOSA': { bandera: 'AREA 117', ubicacion: 'Autovía A-68, Km 258, La Joyosa, Zaragoza' },
+  'JUNDIZ NORPETROL': { bandera: 'NORPETROL', ubicacion: 'Polígono Industrial de Júndiz, Vitoria-Gasteiz, Álava' },
+  'OLIVERAL': { bandera: 'AREA 117', ubicacion: 'Sector 13, Calle C, Parcela 15, Riba-roja de Túria, Valencia' },
+  'GUARROMAN': { bandera: 'AREA 117', ubicacion: 'Autovía A-4, Km 283, Guarromán, Jaén' },
+  'VALDEPEÑAS': { bandera: 'AREA 117', ubicacion: 'Autovía A-4, Km 200, Valdepeñas, Ciudad Real' },
+  'OPEN': { bandera: 'AREA 117', ubicacion: 'Polígono Industrial Cobo Calleja, Fuenlabrada, Madrid' },
+  'TJOIL SEVILLA': { bandera: 'TJ OIL', ubicacion: 'Polígono Industrial La Red, Alcalá de Guadaíra, Sevilla' },
+  'BENAVENTE': { bandera: 'VALCARCE', ubicacion: 'A-6, Km 262, Benavente, Zamora' },
+  'IRUN ZAISA III': { bandera: 'VALCARCE', ubicacion: 'Zaisa III, Behobia, Irun, Gipuzkoa' },
+  'TARRAGONA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial Francolí, Tarragona' },
+  'LACHAR': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, Km 221, Láchar, Granada' },
+  'LA CAMPANA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-4, Km 486, La Campana, Sevilla' },
+  'AVILESINA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial PEPA, Avilés, Asturias' },
+  'GOR': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92N, Km 20, Gor, Granada' },
+  'LLERS': { bandera: 'VALCARCE', ubicacion: 'Carretera N-II, Km 760, Llers, Girona' },
+  'DARRO - A92': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, Km 282, Darro, Granada' },
+  'MERIDA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-5, Km 341, Mérida, Badajoz' },
+  'MURCIA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial Oeste, San Ginés, Murcia' },
+  'NORIOIL': { bandera: 'NORPETROL', ubicacion: 'Polígono Industrial Bayas, Miranda de Ebro, Burgos' },
+  'SAN VICENTE DEL PALACIO': { bandera: 'VALCARCE', ubicacion: 'Autovía A-6, Km 147, San Vicente del Palacio, Valladolid' },
+  'WATERY ARANDA': { bandera: 'WATERY', ubicacion: 'Polígono Industrial Prado Marina, Aranda de Duero, Burgos' },
+  'BERA': { bandera: 'VALCARCE', ubicacion: 'Carretera N-121A, Km 67, Bera, Navarra' },
+  'PUERTO DE BARCELONA': { bandera: 'VALCARCE', ubicacion: 'Moll Álvarez de la Campa, Puerto de Barcelona' },
+  'GIRONA-CALSINA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial Pont Xetmar, Cornellà del Terri, Girona' },
+  'FEGOBLAN PONTEVEDRA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial O Campiño, Pontevedra' },
+  'VEGA DE VALCARCE': { bandera: 'VALCARCE', ubicacion: 'Autovía A-6, Km 419, Vega de Valcarce, León' },
+  'HOILA TOLEDO': { bandera: 'HOILA', ubicacion: 'Polígono Industrial Toledo, Toledo' },
+  'PETREM TRUCKS FIGUERES': { bandera: 'PETREM', ubicacion: 'Polígono Industrial El Far, Figueres, Girona' },
 };
 
-// Lista Oficial Limpia (Sin Noriega, Sin Tarifa 15, Sin Tarifa 27, Sin Tarifa Soya)
-const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
-  { name: 'TARIFA 12', markup: 0.0120 },
-  { name: 'TARIFA 18', markup: 0.0180 },
-  { name: 'T18 - PISTA DE SILLA', markup: 0.0180 },
-  { name: 'TARIFA 24', markup: 0.0240 },
-  { name: 'TARIFA 36', markup: 0.0360 },
-  { name: 'T36 - PISTA DE SILLA', markup: 0.0360 },
-  { name: 'ESPECIAL COMPLETO', markup: 0.0116 },
-  { name: 'TARIFA 40', markup: 0.0400 },
-  { name: 'TARIFA 42', markup: 0.0420 },
+// Catálogo Inicial de Tarifas
+const INITIAL_TARIFFS_LIST = [
+  { name: 'TARIFA 12', markup: 0.012 },
+  { name: 'TARIFA 18', markup: 0.018 },
+  { name: 'TARIFA 24', markup: 0.024 },
+  { name: 'TARIFA 36', markup: 0.036 },
+  { name: 'TARIFA 40', markup: 0.040 },
+  { name: 'TARIFA 42', markup: 0.042 },
   { name: 'TARIFA 47', markup: 0.0470 },
-  { name: 'TARIFA 50', markup: 0.0600 },
-  { name: 'TARIFA 60', markup: 0.0800 },
-  { name: 'T60 - PISTA DE SILLA', markup: 0.0800 },
-  { name: 'AMAEXO', markup: 0.0120 },
-  { name: 'E100', markup: 0.0130 },
-  { name: 'TARIFA ECO', markup: 0.0158 },
-  { name: 'DORADO', markup: 0.0135 },
-  { name: 'HIQI', markup: 0.0128 },
-  { name: 'NORPETROL 24', markup: 0.0132 },
-  { name: 'ROR', markup: 0.0132 },
-  { name: 'TARJETERA', markup: 0.0140 },
-  { name: 'TAX MOVING 24', markup: 0.0132 },
-  { name: 'TORTUGA', markup: 0.0125 },
-  { name: 'EXOIL', markup: 0.0110 },
-  { name: 'NORPETROL', markup: 0.0110 },
-  { name: 'LOS JAVI', markup: 0.0116 },
-  { name: 'CARRERAS', markup: 0.0116 },
-  { name: 'TRANSFRIRED', markup: 0.0116 },
-  { name: 'BENITO', markup: 0.0120 },
+  { name: 'TARIFA 50', markup: 0.060 },
+  { name: 'TARIFA 60', markup: 0.080 },
   { name: 'C-0 GENERAL', markup: 0.0116 },
   { name: 'ESTEBAN', markup: 0.0132 },
   { name: 'MIKI 90', markup: 0.0198 },
@@ -110,16 +90,8 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       const saved = localStorage.getItem('efi_custom_tariffs_list');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // Reconciliar con INITIAL_TARIFFS_LIST para asegurar markups oficiales exactos
-          // Asegurar siempre los markups oficiales de INITIAL_TARIFFS_LIST (ej. TARIFA 47 = +0.0470)
-          const merged = [...INITIAL_TARIFFS_LIST];
-          parsed.forEach((p) => {
-            if (!merged.some((m) => m.name === p.name)) {
-              merged.push(p);
-            }
-          });
-          return merged;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {}
@@ -127,6 +99,16 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   });
 
   const [selectedTariff, setSelectedTariff] = useState('TARIFA 12');
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    tariffName: string;
+    step: 1 | 2;
+  }>({
+    isOpen: false,
+    tariffName: '',
+    step: 1,
+  });
+
   const [targetDate, setTargetDate] = useState<string>(() => {
     try {
       return localStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
@@ -449,17 +431,41 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 max-h-48 overflow-y-auto pr-1">
             {tariffsList.map((t) => (
-              <button
+              <div
                 key={t.name}
-                onClick={() => setSelectedTariff(t.name)}
-                className={`p-2.5 rounded-xl text-left border transition-all text-xs font-bold truncate ${
+                className={`group relative flex items-center justify-between p-2 rounded-xl border transition-all text-xs font-bold ${
                   selectedTariff === t.name
                     ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20 scale-[1.02]'
                     : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
                 }`}
               >
-                {t.name}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTariff(t.name)}
+                  className="flex-1 text-left truncate mr-1 focus:outline-none"
+                >
+                  {t.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteModalState({
+                      isOpen: true,
+                      tariffName: t.name,
+                      step: 1,
+                    });
+                  }}
+                  className={`p-1 rounded-lg transition-all opacity-40 group-hover:opacity-100 ${
+                    selectedTariff === t.name
+                      ? 'text-slate-950 hover:bg-black/10'
+                      : 'text-slate-500 hover:text-rose-400 hover:bg-rose-500/10'
+                  }`}
+                  title={`Eliminar tarifa ${t.name}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -739,6 +745,107 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Doble Confirmación de Eliminación de Tarifa */}
+      {deleteModalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            {deleteModalState.step === 1 ? (
+              <>
+                <div className="flex items-center space-x-3 text-amber-400">
+                  <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                    <AlertTriangle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">¿Eliminar Tarifa?</h3>
+                    <p className="text-xs text-slate-400">Paso 1 de 2: Confirmación inicial</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
+                  <p>
+                    ¿Estás seguro de que deseas eliminar la tarifa{' '}
+                    <span className="text-amber-400 font-bold font-mono">
+                      "{deleteModalState.tariffName}"
+                    </span>
+                    ?
+                  </p>
+                  <p className="text-slate-400 text-[11px]">
+                    Esta acción retirará la tarifa del selector de clientes y no estará disponible para imprimir o exportar PDFs.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalState({ isOpen: false, tariffName: '', step: 1 })}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalState((prev) => ({ ...prev, step: 2 }))}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center space-x-1.5"
+                  >
+                    <span>Continuar al Paso 2</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center space-x-3 text-rose-400">
+                  <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                    <ShieldAlert className="h-6 w-6 text-rose-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Confirmación de Seguridad Final</h3>
+                    <p className="text-xs text-rose-400/80">Paso 2 de 2: Acción irreversible</p>
+                  </div>
+                </div>
+
+                <div className="bg-rose-950/20 border border-rose-500/30 rounded-2xl p-4 text-xs text-rose-200 space-y-2">
+                  <p className="font-bold">
+                    ⚠️ ATENCIÓN: Esta acción no se puede deshacer.
+                  </p>
+                  <p className="text-slate-300 text-[11px]">
+                    Se borrará de forma permanente la tarifa{' '}
+                    <strong className="text-white font-mono font-bold">"{deleteModalState.tariffName}"</strong> del sistema.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalState((prev) => ({ ...prev, step: 1 }))}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Volver atrás
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newTariffs = tariffsList.filter((t) => t.name !== deleteModalState.tariffName);
+                      setTariffsList(newTariffs);
+                      try {
+                        localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(newTariffs));
+                      } catch (e) {}
+                      if (selectedTariff === deleteModalState.tariffName && newTariffs.length > 0) {
+                        setSelectedTariff(newTariffs[0].name);
+                      }
+                      setDeleteModalState({ isOpen: false, tariffName: '', step: 1 });
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/25 transition-all flex items-center space-x-1.5"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Sí, Eliminar Definitivamente</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

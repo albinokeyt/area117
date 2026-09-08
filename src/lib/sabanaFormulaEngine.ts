@@ -82,6 +82,7 @@ export function getProgramVariables(selectedDate: string): {
     const porte = itemGoa ? parseNum(itemGoa.porte) : costs.porte;
     const pase = itemGoa ? parseNum(itemGoa.pase) : costs.pase;
     const fin = itemGoa ? parseNum(itemGoa.fin) : costs.fin;
+    const totalCostGoa = round3(currGoa + porte + pase + fin);
     const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
     const defaultSug = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? totalCostGoa;
     const pVentaGoa = itemGoa?.sale ? parseNum(itemGoa.sale) : defaultSug;
@@ -199,6 +200,129 @@ export function getProgramVariables(selectedDate: string): {
       }
     });
   }
+
+  // 5. SABANA DE PRECIOS (Variables directas de celdas de Sábana)
+  let sabanaFormulas: Record<string, CellFormula> = {};
+  try {
+    const fDate = localStorage.getItem(`efi_sabana_formulas_${selectedDate}`);
+    const fGlob = localStorage.getItem("efi_sabana_formulas_v1");
+    if (fDate) sabanaFormulas = JSON.parse(fDate);
+    else if (fGlob) sabanaFormulas = JSON.parse(fGlob);
+  } catch (e) {}
+
+  const standardTariffDefs = [
+    { id: '12', markup: 0.012 },
+    { id: '18', markup: 0.018 },
+    { id: '24', markup: 0.024 },
+    { id: '36', markup: 0.036 },
+    { id: '40', markup: 0.040 },
+    { id: '42', markup: 0.042 },
+    { id: '47', markup: 0.047 },
+    { id: '50', markup: 0.060 },
+    { id: '60', markup: 0.080 },
+  ];
+
+  allStations.forEach((st) => {
+    const group = st.type === "PROPIA" ? "Sábana - Estaciones Propias" : "Sábana - Estaciones Colaboradoras";
+    const normName = st.name.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+
+    // Costo base / venta GOA
+    const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+    const costs = STATION_EXCEL_COSTS[st.name] || {
+      porte: 0.005,
+      pase: 0.01,
+      fin: 0.01,
+      defaultPrev: 1.2,
+      defaultCurr: 1.2,
+    };
+    const keyGoa = st.name + "_GOA";
+    const itemGoa = purchasesData[keyGoa];
+    const currGoa = itemGoa ? parseNum(itemGoa.curr) : costs.defaultCurr;
+    const porte = itemGoa ? parseNum(itemGoa.porte) : costs.porte;
+    const pase = itemGoa ? parseNum(itemGoa.pase) : costs.pase;
+    const fin = itemGoa ? parseNum(itemGoa.fin) : costs.fin;
+    const totalCostGoa = round3(currGoa + porte + pase + fin);
+    const defaultSug = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? totalCostGoa;
+    const pVentaGoa = itemGoa?.sale ? parseNum(itemGoa.sale) : defaultSug;
+
+    // Special rate actual price if applicable
+    let specialActual = pVentaGoa;
+    if (Array.isArray(specialRates)) {
+      const matchSpecial = specialRates.find((r) => {
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
+      });
+      if (matchSpecial && matchSpecial.actualPrice) {
+        specialActual = parseNum(matchSpecial.actualPrice);
+      }
+    }
+
+    // Tarifas Estándar
+    standardTariffDefs.forEach((td) => {
+      const keySin = `TAR_${td.id}_${st.name}_sinIva`;
+      const keyCon = `TAR_${td.id}_${st.name}_conIva`;
+
+      let valSin = round3(pVentaGoa + td.markup);
+      if (sabanaFormulas[keySin]) valSin = sabanaFormulas[keySin].evaluatedValue;
+
+      let valCon = round3(valSin * 1.21);
+      if (sabanaFormulas[keyCon]) valCon = sabanaFormulas[keyCon].evaluatedValue;
+
+      addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T${td.id}_SIN_IVA`, `T${td.id} Sin IVA (${st.name})`, valSin, st.name);
+      addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T${td.id}_CON_IVA`, `T${td.id} Con IVA (${st.name})`, valCon, st.name);
+    });
+
+    // Tarifas Especiales Populares
+    // Especial Javi
+    const keyJaviSin = `TAR_javi_${st.name}_sinIva`;
+    const keyJaviCon = `TAR_javi_${st.name}_conIva`;
+    let valJaviSin = round3(pVentaGoa + 0.024);
+    if (sabanaFormulas[keyJaviSin]) valJaviSin = sabanaFormulas[keyJaviSin].evaluatedValue;
+    let valJaviCon = round3(valJaviSin * 1.21);
+    if (sabanaFormulas[keyJaviCon]) valJaviCon = sabanaFormulas[keyJaviCon].evaluatedValue;
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:JAVI_SIN_IVA`, `Especial Javi Sin IVA (${st.name})`, valJaviSin, st.name);
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:JAVI_CON_IVA`, `Especial Javi Con IVA (${st.name})`, valJaviCon, st.name);
+
+    // Especial Carreras
+    const keyCarrSin = `TAR_carreras_${st.name}_sinIva`;
+    const keyCarrCon = `TAR_carreras_${st.name}_conIva`;
+    let valCarrSin = round3(pVentaGoa + 0.024);
+    if (sabanaFormulas[keyCarrSin]) valCarrSin = sabanaFormulas[keyCarrSin].evaluatedValue;
+    let valCarrCon = round3(valCarrSin * 1.21);
+    if (sabanaFormulas[keyCarrCon]) valCarrCon = sabanaFormulas[keyCarrCon].evaluatedValue;
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:CARRERAS_SIN_IVA`, `Especial Carreras Sin IVA (${st.name})`, valCarrSin, st.name);
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:CARRERAS_CON_IVA`, `Especial Carreras Con IVA (${st.name})`, valCarrCon, st.name);
+
+    // ECOTRANS
+    const keyEcoSin = `TAR_ecotrans_${st.name}_sinIva`;
+    const keyEcoCon = `TAR_ecotrans_${st.name}_conIva`;
+    let valEcoSin = round3(pVentaGoa + 0.050);
+    if (sabanaFormulas[keyEcoSin]) valEcoSin = sabanaFormulas[keyEcoSin].evaluatedValue;
+    let valEcoCon = round3(valEcoSin * 1.21);
+    if (sabanaFormulas[keyEcoCon]) valEcoCon = sabanaFormulas[keyEcoCon].evaluatedValue;
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:ECOTRANS_SIN_IVA`, `ECOTRANS Sin IVA (${st.name})`, valEcoSin, st.name);
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:ECOTRANS_CON_IVA`, `ECOTRANS Con IVA (${st.name})`, valEcoCon, st.name);
+
+    // Tarifa 30
+    const keyT30Sin = `TAR_t30_${st.name}_sinIva`;
+    const keyT30Con = `TAR_t30_${st.name}_conIva`;
+    let valT30Sin = round3(pVentaGoa + 0.030);
+    if (sabanaFormulas[keyT30Sin]) valT30Sin = sabanaFormulas[keyT30Sin].evaluatedValue;
+    let valT30Con = round3(valT30Sin * 1.21);
+    if (sabanaFormulas[keyT30Con]) valT30Con = sabanaFormulas[keyT30Con].evaluatedValue;
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T30_SIN_IVA`, `Tarifa 30 Sin IVA (${st.name})`, valT30Sin, st.name);
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T30_CON_IVA`, `Tarifa 30 Con IVA (${st.name})`, valT30Con, st.name);
+
+    // Tarifa 75 (Especial 75)
+    const keyT75Sin = `TAR_t75_${st.name}_sinIva`;
+    const keyT75Con = `TAR_t75_${st.name}_conIva`;
+    let valT75Sin = round3(pVentaGoa + 0.038);
+    if (sabanaFormulas[keyT75Sin]) valT75Sin = sabanaFormulas[keyT75Sin].evaluatedValue;
+    let valT75Con = round3(valT75Sin * 1.21);
+    if (sabanaFormulas[keyT75Con]) valT75Con = sabanaFormulas[keyT75Con].evaluatedValue;
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T75_SIN_IVA`, `Tarifa 75 Sin IVA (${st.name})`, valT75Sin, st.name);
+    addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T75_CON_IVA`, `Tarifa 75 Con IVA (${st.name})`, valT75Con, st.name);
+  });
 
   return { list, map };
 }

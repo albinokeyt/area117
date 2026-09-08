@@ -1554,11 +1554,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
                   <th className="py-3 px-4 w-12 text-center">Nº</th>
                   <th className="py-3 px-6 sticky left-0 bg-slate-950 z-30">Estación</th>
-                  <th className="py-3 px-6 text-center text-rose-400 bg-slate-900/60">
-                    Precio Referencia (€)
+                  <th className="py-3 px-6 text-center text-amber-300 bg-amber-950/20 border-b border-amber-500/30">
+                    PRECIO REFERENCIA
                   </th>
-                  <th className="py-3 px-6 text-center text-amber-300 bg-slate-900/80">
-                    Precio Actual / Especial (€)
+                  <th className="py-3 px-6 text-center text-rose-400 bg-rose-950/20 border-b border-rose-500/30">
+                    PRECIO ACTUAL / ESPECIAL
                   </th>
                   <th className="py-3 px-6 text-center text-slate-300">
                     Precio Base / Coste (€)
@@ -1592,7 +1592,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                         {row.name}
                       </td>
 
-                      {/* 2. Precio Referencia (€) */}
+                      {/* 2. PRECIO REFERENCIA (€) - Columna Amarilla */}
                       <td className="py-2.5 px-6 text-center">
                         <div className="inline-flex items-center justify-center">
                           <input
@@ -1602,16 +1602,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             onChange={(e) => handleSpecialRateChange(row.id, 'refPrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all focus:outline-none ${
                               isRefMod
-                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
-                                : row.isRedRef
-                                ? 'bg-slate-950 border border-rose-900/50 text-rose-400 font-bold focus:border-rose-400'
-                                : 'bg-slate-950 border border-slate-700 text-slate-300 focus:border-amber-400'
+                                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-md font-black'
+                                : 'bg-slate-950 border border-amber-500/40 text-amber-300 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
                             }`}
                           />
                         </div>
                       </td>
 
-                      {/* 3. Precio Actual / Especial (€) (= P. Venta Sugerido Gasóleo A) */}
+                      {/* 3. PRECIO ACTUAL / ESPECIAL (€) - Columna Roja */}
                       <td className="py-2.5 px-6 text-center">
                         <div className="inline-flex items-center justify-center">
                           <input
@@ -1621,10 +1619,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             onChange={(e) => handleSpecialRateChange(row.id, 'actualPrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black text-center transition-all focus:outline-none ${
                               isActMod
-                                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-md font-black'
-                                : row.isYellowPrice
-                                ? 'bg-amber-300 text-slate-950 font-black shadow-sm'
-                                : 'bg-slate-950 border border-slate-700 text-slate-100 focus:border-amber-400'
+                                ? 'bg-rose-500 text-white ring-2 ring-rose-400 shadow-md font-black'
+                                : 'bg-slate-950 border border-rose-500/40 text-rose-400 font-bold focus:border-rose-400 focus:ring-1 focus:ring-rose-400'
                             }`}
                           />
                         </div>

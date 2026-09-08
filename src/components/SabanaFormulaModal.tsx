@@ -1,9 +1,9 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X, Calculator, Search, Check, AlertCircle, RotateCcw,
-  Layers, Fuel, Table, Star, Flame
+  Layers, Fuel, Table, Star, Flame, FileSpreadsheet
 } from 'lucide-react';
 import {
   getProgramVariables,
@@ -38,7 +38,7 @@ export function SabanaFormulaModal({
   columnLabel,
 }: SabanaFormulaModalProps) {
   const [formulaInput, setFormulaInput] = useState<string>('');
-  const [activeWindowTab, setActiveWindowTab] = useState<'all' | 'compras' | 'postes' | 'especial' | 'bronco'>('all');
+  const [activeWindowTab, setActiveWindowTab] = useState<'all' | 'compras' | 'postes' | 'especial' | 'sabana' | 'bronco'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -354,6 +354,7 @@ export function SabanaFormulaModal({
                 { id: 'compras', label: '⛽ Compras', icon: Fuel },
                 { id: 'postes', label: '📊 Postes', icon: Table },
                 { id: 'especial', label: '⭐ Tarifas Especiales', icon: Star },
+                { id: 'sabana', label: '📋 Sábana de Precios', icon: FileSpreadsheet },
                 { id: 'bronco', label: '🔥 Bronco', icon: Flame },
               ].map((tab) => {
                 const Icon = tab.icon;
