@@ -761,13 +761,45 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     return u.includes('ABRERA');
   };
 
+  // Helper para identificar estaciones con celda Verde en Tarifas Sur (+0.036 en Tarifa 27 / +0.024 en Tarifa 15)
+  const isSurGreen = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const greenList = [
+      'VALDEHERRERA',
+      'LA JOYOSA',
+      'JUNDIZ NORPETROL',
+      'OLIVERAL',
+      'TJOIL SEVILLA',
+      'BENAVENTE',
+      'IRUN ZAISA III',
+      'TARRAGONA',
+      'AVILESINA',
+      'LLERS',
+      'MERIDA',
+      'MURCIA',
+      'NORIOIL',
+      'SAN VICENTE DEL PALACIO',
+      'WATERY ARANDA',
+      'BERA',
+      'PUERTO DE BARCELONA',
+      'GIRONA-CALSINA',
+      'FEGOBLAN PONTEVEDRA',
+      'VEGA DE VALCARCE',
+      'HOILA TOLEDO',
+    ];
+    return greenList.some((g) => u.includes(g) || g.includes(u));
+  };
+
   // Valor por defecto Sin IVA para Tarifa 27 Sur
+  // Naranja: Precio Actual / Especial de Compras
+  // Verde: Costo Total GOA + 0.036
+  // Blanco: Costo Total GOA + 0.027
   const getTarifa27SurSinIvaDefault = (stName: string, isPropia?: boolean): number => {
     if (isSurOrange(stName)) {
       return Number(getSpecialRateActualPrice(stName).toFixed(3));
     }
     const costoTotal = getStationBasePrice(stName, isPropia);
-    const markup = isPropia ? 0.027 : 0.036;
+    const markup = isSurGreen(stName) ? 0.036 : 0.027;
     return Number((costoTotal + markup).toFixed(3));
   };
 
@@ -793,16 +825,20 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       conIva,
       defaultConIva,
       isOrange: isSurOrange(stName),
+      isGreen: isSurGreen(stName),
     };
   };
 
   // Valor por defecto Sin IVA para Tarifa 15 Sur
+  // Naranja: Precio Actual / Especial de Compras
+  // Verde: Costo Total GOA + 0.024
+  // Blanco: Costo Total GOA + 0.015
   const getTarifa15SurSinIvaDefault = (stName: string, isPropia?: boolean): number => {
     if (isSurOrange(stName)) {
       return Number(getSpecialRateActualPrice(stName).toFixed(3));
     }
     const costoTotal = getStationBasePrice(stName, isPropia);
-    const markup = isPropia ? 0.015 : 0.024;
+    const markup = isSurGreen(stName) ? 0.024 : 0.015;
     return Number((costoTotal + markup).toFixed(3));
   };
 
@@ -828,6 +864,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       conIva,
       defaultConIva,
       isOrange: isSurOrange(stName),
+      isGreen: isSurGreen(stName),
     };
   };
 
@@ -1531,7 +1568,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                         : block.id === 'miki_ecotrans_tarifa30'
                         ? 'Miki: Costo Total GOA + 0.09. ECOTRANS: Costo Total GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto Costo Total GOA + 0.03. Con IVA = Sin IVA * 1.21'
                         : block.id === 'sur_benito'
-                        ? 'Tarifa 27 Sur: Propias Costo + 0.027, Colab Costo + 0.036 (ABRERA Precio Especial). Tarifa 15 Sur: Propias Costo + 0.015, Colab Costo + 0.024 (ABRERA Precio Especial). Con IVA = Sin IVA * 1.21'
+                        ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas verdes: Costo Total GOA + 0.036 (Tarifa 27) / + 0.024 (Tarifa 15). Celdas blancas: Costo Total GOA + 0.027 (Tarifa 27) / + 0.015 (Tarifa 15). Con IVA = Sin IVA * 1.21'
                         : block.description}
                     </p>
                   </div>
@@ -2477,7 +2514,13 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                 </tr>
                               )}
 
-                              <tr className={`hover:bg-slate-800/40 transition-colors ${isRedAccent ? 'border-t-2 border-rose-500' : ''}`}>
+                              {isRedAccent && (
+                                <tr className="bg-rose-600 h-2.5">
+                                  <td colSpan={5} className="p-0 bg-rose-600 h-2.5 border-y border-rose-700" />
+                                </tr>
+                              )}
+
+                              <tr className="hover:bg-slate-800/40 transition-colors">
                                 <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
                                   isPropia ? 'text-blue-300' : 'text-purple-300'
                                 }`}>
@@ -2495,7 +2538,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       cellTitle: `${st.name} — Tarifa 27 Sur (Sin IVA)`,
                                       defaultValue: t27.defaultSinIva,
                                       currentFormula: t27.customSinIva?.rawFormula,
-                                      columnLabel: `Tarifa 27 Sur Sin IVA (${t27.isOrange ? 'Naranja: Especial' : isPropia ? 'Propias: Costo+0.027' : 'Colab: Costo+0.036'})`,
+                                      columnLabel: `Tarifa 27 Sur Sin IVA (${t27.isOrange ? 'Naranja: Especial' : t27.isGreen ? 'Verde: Costo+0.036' : 'Blanco: Costo+0.027'})`,
                                     });
                                   }}
                                   className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
@@ -2505,6 +2548,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
                                       : t27.isOrange
                                       ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                      : t27.isGreen
+                                      ? 'bg-[#92D050] text-slate-950 font-black shadow-sm'
                                       : 'text-slate-200 bg-slate-900/30 font-semibold'
                                   }`}
                                   title={
@@ -2512,9 +2557,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       ? `Fórmula: ${t27.customSinIva.rawFormula}`
                                       : t27.isOrange
                                       ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : isPropia
-                                      ? 'Propias: Costo Total GOA + 0.027'
-                                      : 'Colaboradoras: Costo Total GOA + 0.036'
+                                      : t27.isGreen
+                                      ? 'Verde: Costo Total GOA + 0.036'
+                                      : 'Blanco: Costo Total GOA + 0.027'
                                   }
                                 >
                                   <div className="flex items-center justify-end space-x-1">
@@ -2561,7 +2606,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       cellTitle: `${st.name} — Tarifa 15 Sur (Sin IVA)`,
                                       defaultValue: t15.defaultSinIva,
                                       currentFormula: t15.customSinIva?.rawFormula,
-                                      columnLabel: `Tarifa 15 Sur Sin IVA (${t15.isOrange ? 'Naranja: Especial' : isPropia ? 'Propias: Costo+0.015' : 'Colab: Costo+0.024'})`,
+                                      columnLabel: `Tarifa 15 Sur Sin IVA (${t15.isOrange ? 'Naranja: Especial' : t15.isGreen ? 'Verde: Costo+0.024' : 'Blanco: Costo+0.015'})`,
                                     });
                                   }}
                                   className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
@@ -2571,6 +2616,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
                                       : t15.isOrange
                                       ? 'bg-[#FFC000] text-slate-950 font-black shadow-sm'
+                                      : t15.isGreen
+                                      ? 'bg-[#92D050] text-slate-950 font-black shadow-sm'
                                       : 'text-slate-200 bg-slate-900/30 font-semibold'
                                   }`}
                                   title={
@@ -2578,9 +2625,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       ? `Fórmula: ${t15.customSinIva.rawFormula}`
                                       : t15.isOrange
                                       ? 'Naranja: Copiado de Precio Actual / Especial de Tarifas Especiales'
-                                      : isPropia
-                                      ? 'Propias: Costo Total GOA + 0.015'
-                                      : 'Colaboradoras: Costo Total GOA + 0.024'
+                                      : t15.isGreen
+                                      ? 'Verde: Costo Total GOA + 0.024'
+                                      : 'Blanco: Costo Total GOA + 0.015'
                                   }
                                 >
                                   <div className="flex items-center justify-end space-x-1">
