@@ -66,34 +66,67 @@ const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> 
   'PETREM TRUCKS FIGUERES': { bandera: 'PETREM', ubicacion: 'Polígono Industrial El Far, Figueres, Girona' },
 };
 
-// Catálogo Inicial de Tarifas
-const INITIAL_TARIFFS_LIST = [
-  { name: 'TARIFA 12', markup: 0.012 },
-  { name: 'TARIFA 18', markup: 0.018 },
-  { name: 'TARIFA 24', markup: 0.024 },
-  { name: 'TARIFA 36', markup: 0.036 },
-  { name: 'TARIFA 40', markup: 0.040 },
-  { name: 'TARIFA 42', markup: 0.042 },
+// Catálogo Oficial Completo de Tarifas
+const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
+  { name: 'TARIFA 12', markup: 0.0120 },
+  { name: 'TARIFA 18', markup: 0.0180 },
+  { name: 'T18 - PISTA DE SILLA', markup: 0.0180 },
+  { name: 'TARIFA 24', markup: 0.0240 },
+  { name: 'TARIFA 36', markup: 0.0360 },
+  { name: 'T36 - PISTA DE SILLA', markup: 0.0360 },
+  { name: 'ESPECIAL COMPLETO', markup: 0.0116 },
+  { name: 'TARIFA 40', markup: 0.0400 },
+  { name: 'TARIFA 42', markup: 0.0420 },
   { name: 'TARIFA 47', markup: 0.0470 },
-  { name: 'TARIFA 50', markup: 0.060 },
-  { name: 'TARIFA 60', markup: 0.080 },
+  { name: 'TARIFA 50', markup: 0.0600 },
+  { name: 'TARIFA 60', markup: 0.0800 },
+  { name: 'T60 - PISTA DE SILLA', markup: 0.0800 },
+  { name: 'AMAEXO', markup: 0.0120 },
+  { name: 'E100', markup: 0.0130 },
+  { name: 'TARIFA ECO', markup: 0.0158 },
+  { name: 'DORADO', markup: 0.0135 },
+  { name: 'HIQI', markup: 0.0128 },
+  { name: 'NORPETROL 24', markup: 0.0132 },
+  { name: 'ROR', markup: 0.0132 },
+  { name: 'TARJETERA', markup: 0.0140 },
+  { name: 'TAX MOVING 24', markup: 0.0132 },
+  { name: 'TORTUGA', markup: 0.0125 },
+  { name: 'EXOIL', markup: 0.0110 },
+  { name: 'NORPETROL', markup: 0.0110 },
+  { name: 'LOS JAVI', markup: 0.0116 },
+  { name: 'CARRERAS', markup: 0.0116 },
+  { name: 'TRANSFRIRED', markup: 0.0116 },
+  { name: 'BENITO', markup: 0.0120 },
   { name: 'C-0 GENERAL', markup: 0.0116 },
   { name: 'ESTEBAN', markup: 0.0132 },
   { name: 'MIKI 90', markup: 0.0198 },
   { name: 'ECOTRANS', markup: 0.0158 },
   { name: 'TARIFA 30', markup: 0.0138 },
+  { name: 'TARIFA 27 SUR', markup: 0.0270 },
+  { name: 'TARIFA 15 SUR', markup: 0.0150 },
+  { name: 'TARIFA 75', markup: 0.0380 },
 ];
 
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_custom_tariffs_list');
+      const saved = localStorage.getItem('efi_custom_tariffs_list_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
       }
+      // Restauración de catálogo completo inicial
+      const legacySaved = localStorage.getItem('efi_custom_tariffs_list');
+      if (legacySaved) {
+        const parsed = JSON.parse(legacySaved);
+        if (Array.isArray(parsed) && parsed.length >= 30) {
+          return parsed;
+        }
+      }
+      localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(INITIAL_TARIFFS_LIST));
+      localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(INITIAL_TARIFFS_LIST));
     } catch (e) {}
     return INITIAL_TARIFFS_LIST;
   });
@@ -231,6 +264,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     setSelectedTariff(formattedName);
 
     try {
+      localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(nextList));
       localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(nextList));
     } catch (e) {}
 
@@ -429,7 +463,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
             <span className="text-xs text-slate-500 font-mono">Markup: +{currentMarkup.toFixed(4)} €</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 max-h-48 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 max-h-64 overflow-y-auto pr-1">
             {tariffsList.map((t) => (
               <div
                 key={t.name}
@@ -831,6 +865,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                       const newTariffs = tariffsList.filter((t) => t.name !== deleteModalState.tariffName);
                       setTariffsList(newTariffs);
                       try {
+                        localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(newTariffs));
                         localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(newTariffs));
                       } catch (e) {}
                       if (selectedTariff === deleteModalState.tariffName && newTariffs.length > 0) {
