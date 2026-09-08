@@ -117,6 +117,17 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     borderTheme: 'border-purple-500/30',
     badgeTheme: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
   },
+  {
+    id: 'tarifa_75',
+    title: 'Tarifa Especial 75',
+    description: 'Tarifa Especial 75: Costo Total Gasóleo A + 0.038. Con IVA = Sin IVA * 1.21',
+    columnsRange: 'Cols BG:BH',
+    tariffs: [
+      { name: 'Tarifa 75', markup: 0.038 },
+    ],
+    borderTheme: 'border-cyan-500/30',
+    badgeTheme: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  },
 ];
 
 // Helper para identificar estaciones que deben colorearse de morado
@@ -868,6 +879,36 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
   };
 
+  // Valor por defecto Sin IVA para Tarifa Especial 75: Costo Total GOA + 0.038
+  const getTarifa75SinIvaDefault = (stName: string, isPropia?: boolean): number => {
+    const costoTotal = getStationBasePrice(stName, isPropia);
+    return Number((costoTotal + 0.038).toFixed(3));
+  };
+
+  // Datos completos de precios y estado para Tarifa Especial 75
+  const getTarifa75Prices = (stName: string, isPropia?: boolean) => {
+    const defaultSinIva = getTarifa75SinIvaDefault(stName, isPropia);
+    const sinIvaKey = `SPEC_tarifa_75_${stName}_Tarifa 75_sinIva`;
+    const customSinIva = customFormulas[sinIvaKey];
+    const sinIva = customSinIva ? customSinIva.evaluatedValue : defaultSinIva;
+
+    const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+    const conIvaKey = `SPEC_tarifa_75_${stName}_Tarifa 75_conIva`;
+    const customConIva = customFormulas[conIvaKey];
+    const conIva = customConIva ? customConIva.evaluatedValue : defaultConIva;
+
+    return {
+      sinIvaKey,
+      customSinIva,
+      sinIva,
+      defaultSinIva,
+      conIvaKey,
+      customConIva,
+      conIva,
+      defaultConIva,
+    };
+  };
+
   const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
 
   const filteredStations = allStations.filter((st) => {
@@ -1130,6 +1171,24 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         csv += `${st.name};${t27.sinIva.toFixed(3).replace('.', ',')};${t27.conIva.toFixed(3).replace('.', ',')};${t15.sinIva.toFixed(3).replace('.', ',')};${t15.conIva.toFixed(3).replace('.', ',')};\n`;
       });
       triggerDownload(`TARIFA_SUR_BENITO_${selectedDate}.csv`, csv);
+      return;
+    }
+
+    if (block.id === 'tarifa_75') {
+      let csv = 'EESS DE SERVICIO;TARIFA 75 SIN IVA;CON IVA;\n';
+      // Propias
+      PROPIAS_STATIONS.forEach((st) => {
+        const t75 = getTarifa75Prices(st.name, true);
+        csv += `${st.name};${t75.sinIva.toFixed(3).replace('.', ',')};${t75.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      // Separador COLABORADORAS
+      csv += 'COLABORADORAS;-;0,000;\n';
+      // Colaboradoras
+      COLABORADORA_STATIONS.forEach((st) => {
+        const t75 = getTarifa75Prices(st.name, false);
+        csv += `${st.name};${t75.sinIva.toFixed(3).replace('.', ',')};${t75.conIva.toFixed(3).replace('.', ',')};\n`;
+      });
+      triggerDownload(`TARIFA_ESPECIAL_75_${selectedDate}.csv`, csv);
       return;
     }
 
@@ -1569,6 +1628,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                         ? 'Miki: Costo Total GOA + 0.09. ECOTRANS: Costo Total GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto Costo Total GOA + 0.03. Con IVA = Sin IVA * 1.21'
                         : block.id === 'sur_benito'
                         ? 'Celdas anaranjadas toman Precio Actual / Especial de Tarifas Especiales. Celdas verdes: Costo Total GOA + 0.036 (Tarifa 27) / + 0.024 (Tarifa 15). Celdas blancas: Costo Total GOA + 0.027 (Tarifa 27) / + 0.015 (Tarifa 15). Con IVA = Sin IVA * 1.21'
+                        : block.id === 'tarifa_75'
+                        ? 'Celdas blancas: Costo Total GOA + 0.038. Con IVA = Sin IVA * 1.21'
                         : block.description}
                     </p>
                   </div>
@@ -2663,6 +2724,127 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                       <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
                                     )}
                                     <span>{t15.conIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : block.id === 'tarifa_75' ? (
+                  /* TABLA DEDICADA: TARIFA ESPECIAL 75 */
+                  <div className="overflow-x-auto max-h-[70vh] mt-4">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-slate-950 z-10">
+                        <tr className="border-b border-slate-800 text-slate-400 text-[10px] uppercase font-bold">
+                          <th className="py-2.5 px-3" rowSpan={2}>EESS DE SERVICIO</th>
+                          <th colSpan={2} className="py-1 px-2 text-center text-amber-300 font-bold border-l border-slate-800">
+                            TARIFA 75
+                          </th>
+                        </tr>
+                        <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase font-semibold">
+                          <th className="py-1.5 px-2.5 text-right border-l border-slate-800 text-slate-300 bg-slate-950">Sin IVA</th>
+                          <th className="py-1.5 px-2.5 text-right text-emerald-400 bg-slate-950/80">Con IVA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono">
+                        {filteredStations.map((st, idx) => {
+                          const isPropia = st.type === 'PROPIA';
+                          const t75 = getTarifa75Prices(st.name, isPropia);
+                          const isFirstColab =
+                            typeFilter === 'ALL' &&
+                            !searchFilter &&
+                            st.type === 'COLABORADORA' &&
+                            (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
+                          const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
+
+                          return (
+                            <React.Fragment key={st.name}>
+                              {isFirstColab && (
+                                <tr className="bg-yellow-400 text-slate-950 font-black tracking-wider text-xs border-y-2 border-yellow-500 shadow-sm">
+                                  <td className="py-1.5 px-3 font-black text-slate-950 sticky left-0 bg-yellow-400 z-10">
+                                    COLABORADORAS
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">-</td>
+                                  <td className="py-1.5 px-2 text-right font-mono font-bold">0,000</td>
+                                </tr>
+                              )}
+
+                              {isRedAccent && (
+                                <tr className="bg-rose-600 h-2.5">
+                                  <td colSpan={3} className="p-0 bg-rose-600 h-2.5 border-y border-rose-700" />
+                                </tr>
+                              )}
+
+                              <tr className="hover:bg-slate-800/40 transition-colors">
+                                <td className={`py-2 px-3 font-sans font-bold sticky left-0 bg-slate-950 z-10 border-r border-slate-800 ${
+                                  isPropia ? 'text-blue-300' : 'text-purple-300'
+                                }`}>
+                                  <div className="flex items-center space-x-1.5">
+                                    {isRedAccent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />}
+                                    <span>{st.name}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 75 SIN IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t75.sinIvaKey,
+                                      cellTitle: `${st.name} — Tarifa Especial 75 (Sin IVA)`,
+                                      defaultValue: t75.defaultSinIva,
+                                      currentFormula: t75.customSinIva?.rawFormula,
+                                      columnLabel: 'Tarifa Especial 75 Sin IVA (Costo Total + 0.038)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right border-l border-slate-800/50 transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t75.customSinIva
+                                      ? 'bg-amber-500/30 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : 'text-slate-200 bg-slate-900/30 font-semibold'
+                                  }`}
+                                  title={
+                                    t75.customSinIva
+                                      ? `Fórmula: ${t75.customSinIva.rawFormula}`
+                                      : 'Blanco: Costo Total Gasóleo A + 0.038'
+                                  }
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t75.customSinIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t75.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+
+                                {/* TARIFA 75 CON IVA */}
+                                <td
+                                  onClick={() => {
+                                    setActiveModalCell({
+                                      cellKey: t75.conIvaKey,
+                                      cellTitle: `${st.name} — Tarifa Especial 75 (Con IVA)`,
+                                      defaultValue: t75.defaultConIva,
+                                      currentFormula: t75.customConIva?.rawFormula,
+                                      columnLabel: 'Tarifa Especial 75 Con IVA (=Sin IVA * 1.21)',
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2.5 text-right font-bold transition-all ${
+                                    isFormulaMode ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:scale-105' : 'cursor-pointer'
+                                  } ${
+                                    t75.customConIva
+                                      ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
+                                      : 'text-emerald-400 bg-slate-900/10'
+                                  }`}
+                                  title={t75.customConIva ? `Fórmula: ${t75.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {t75.customConIva && (
+                                      <span className="text-[9px] font-mono font-black text-slate-950 bg-emerald-400 px-1 rounded">fx</span>
+                                    )}
+                                    <span>{t75.conIva.toFixed(3).replace('.', ',')}</span>
                                   </div>
                                 </td>
                               </tr>
