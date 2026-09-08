@@ -1,4 +1,4 @@
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from "./dataSeed";
+import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from "./dataSeed";
 
 export interface CellFormula {
   rawFormula: string;
@@ -82,8 +82,9 @@ export function getProgramVariables(selectedDate: string): {
     const porte = itemGoa ? parseNum(itemGoa.porte) : costs.porte;
     const pase = itemGoa ? parseNum(itemGoa.pase) : costs.pase;
     const fin = itemGoa ? parseNum(itemGoa.fin) : costs.fin;
-    const totalCostGoa = round3(currGoa + porte + pase + fin);
-    const pVentaGoa = itemGoa?.isCustomSale && itemGoa.sale ? parseNum(itemGoa.sale) : totalCostGoa;
+    const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+    const defaultSug = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? totalCostGoa;
+    const pVentaGoa = itemGoa?.sale ? parseNum(itemGoa.sale) : defaultSug;
     const pAntGoa = itemGoa ? parseNum(itemGoa.prev) : costs.defaultPrev;
 
     const group = st.type === "PROPIA" ? "Estaciones Propias" : "Estaciones Colaboradoras";

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
+import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
 import { generateAndDownloadCierreWorkbook, GasolinaBroncoRow } from '@/lib/excelExportService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
@@ -199,6 +199,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const goaPrev = costs.defaultPrev;
       const goaCurr = costs.defaultCurr;
       const totalCostGoa = Number((goaCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
+      const suggestedGoa = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? totalCostGoa;
 
       const gasPrev = costs.defaultPrev + 0.1200;
       const gasCurr = costs.defaultCurr + 0.1200;
@@ -211,8 +212,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         porte: formatNum(costs.porte),
         pase: formatNum(costs.pase),
         fin: formatNum(costs.fin),
-        prevSale: formatNum(totalCostGoa),
-        sale: formatNum(totalCostGoa),
+        prevSale: formatNum(suggestedGoa),
+        sale: formatNum(suggestedGoa),
         isCustomSale: false,
       };
 
@@ -871,7 +872,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   const finNum = parseNum(item.fin);
 
                   const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-                  const displaySale = item.isCustomSale && item.sale ? item.sale : totalCost.toFixed(3);
+                  const defaultSale = prod.code === 'GOA' && OFFICIAL_SUGGESTED_SALE_PRICES[st.name]
+                    ? OFFICIAL_SUGGESTED_SALE_PRICES[st.name].toFixed(3)
+                    : totalCost.toFixed(3);
+                  const displaySale = item.sale && item.sale !== '0' && item.sale !== '0.000' ? item.sale : defaultSale;
                   const saleNum = parseNum(displaySale);
                   const margin = Number((saleNum - totalCost).toFixed(3));
                   const displayPrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || totalCost.toFixed(3));
