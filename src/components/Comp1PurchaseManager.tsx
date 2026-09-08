@@ -6,7 +6,7 @@ import { generateAndDownloadCierreWorkbook, GasolinaBroncoRow } from '@/lib/exce
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
-  ShieldCheck, Droplet, Fuel, Flame, Layers, Download, RefreshCw, Star, Calendar
+  ShieldCheck, Droplet, Fuel, Flame, Layers, Download, RefreshCw, Star, Calendar, Copy
 } from 'lucide-react';
 
 const formatToDMY = (dateStr: string): string => {
@@ -658,10 +658,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           ? item.sale
           : defaultSale;
 
-        // 3) los datos de cada fila en la columna costo total se copian en la columna p.ant.compra y los datos de la columna p.venta sugerido se copian en la columna p. venta ant.
+        // 3) los datos de cada fila en la columna precio compra hoy se copian en p.ant.compra y p.venta sugerido en p. venta ant.
         nextPurchases[key] = {
           ...item,
-          prev: formatNum(totalCost),
+          prev: item.curr && item.curr.trim() !== '' ? item.curr : formatNum(currNum),
           prevSale: effectiveSale,
           sale: effectiveSale,
           isCustomSale: false,
@@ -732,6 +732,106 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setModifiedKeys(new Set());
     setToastMessage('¡Cierre de Día Completado! Marcas de modificación limpiadas en todos los módulos y Excel descargado.');
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Botón: Copiar "Precio Compra Hoy" a "P. Ant. Compra" y "P. Venta Sugerido" a "P. Venta Ant."
+  const handleCopyHoyToAnterior = () => {
+    setPurchases((prev) => {
+      const nextPurchases: Record<string, PurchaseRowValues> = { ...prev };
+      const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+
+      allStations.forEach((st) => {
+        const prods = getFilteredProductsForStation(st.name);
+        prods.forEach((prod) => {
+          const key = `${st.name}_${prod.code}`;
+          const item = nextPurchases[key] || {
+            prev: '0.000',
+            curr: '0.000',
+            clh: 'TORREJON',
+            porte: '0.000',
+            pase: '0.000',
+            fin: '0.000',
+            sale: '0.000',
+            prevSale: '0.000',
+            isCustomSale: false,
+          };
+
+          const currNum = parseNum(item.curr);
+          const porteNum = parseNum(item.porte);
+          const paseNum = parseNum(item.pase);
+          const finNum = parseNum(item.fin);
+          const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
+          const cleanName = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+          const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
+          const defaultSale = prod.code === 'GOA' && officialPrice !== undefined
+            ? officialPrice.toFixed(3)
+            : totalCost.toFixed(3);
+          const effectiveSale = item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000'
+            ? item.sale
+            : defaultSale;
+
+          nextPurchases[key] = {
+            ...item,
+            prev: item.curr && item.curr.trim() !== '' ? item.curr : formatNum(currNum),
+            prevSale: effectiveSale,
+          };
+        });
+      });
+
+      // Asegurar también cualquier clave existente en purchases
+      Object.keys(nextPurchases).forEach((key) => {
+        const item = nextPurchases[key];
+        if (!item) return;
+
+        const currNum = parseNum(item.curr);
+        const porteNum = parseNum(item.porte);
+        const paseNum = parseNum(item.pase);
+        const finNum = parseNum(item.fin);
+        const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
+        const stName = key.replace(/_(GOA|GASOLINA|ADBLUE)$/, '');
+        const prodCode = key.split('_').pop() || 'GOA';
+        const cleanName = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
+        const defaultSale = prodCode === 'GOA' && officialPrice !== undefined
+          ? officialPrice.toFixed(3)
+          : totalCost.toFixed(3);
+        const effectiveSale = item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000'
+          ? item.sale
+          : defaultSale;
+
+        nextPurchases[key] = {
+          ...item,
+          prev: item.curr && item.curr.trim() !== '' ? item.curr : formatNum(currNum),
+          prevSale: effectiveSale,
+        };
+      });
+
+      try {
+        const timestamp = new Date().toISOString();
+        localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
+          data: nextPurchases,
+          modified: Array.from(modifiedKeys),
+          updatedAt: timestamp,
+        }));
+        localStorage.setItem('efi_compras_data', JSON.stringify({
+          data: nextPurchases,
+          modified: Array.from(modifiedKeys),
+          updatedAt: timestamp,
+        }));
+        window.dispatchEvent(new Event('efi_compras_updated'));
+      } catch (e) {
+        console.error('Error al guardar copia de precios:', e);
+      }
+
+      return nextPurchases;
+    });
+
+    setIsSaved(true);
+    setToastMessage('¡Precios actualizados! Precio Compra Hoy → P. Ant. Compra y P. Venta Sugerido → P. Venta Ant.');
+    setTimeout(() => {
+      setToastMessage(null);
+      setIsSaved(false);
+    }, 3500);
   };
 
   const handleExportDailyExcel = () => {
@@ -1310,6 +1410,15 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             >
               <Download className="h-4 w-4 text-emerald-400" />
               <span>Descargar Resumen Diario (Excel)</span>
+            </button>
+
+            <button
+              onClick={handleCopyHoyToAnterior}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 rounded-xl text-xs font-bold border border-cyan-500/30 shadow-md transition-all active:scale-95"
+              title="Copiar Precio Compra Hoy a P. Ant. Compra y P. Venta Sugerido a P. Venta Ant."
+            >
+              <Copy className="h-4 w-4 text-cyan-400" />
+              <span>Copiar Hoy a Anterior</span>
             </button>
 
             <button
