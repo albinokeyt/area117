@@ -638,21 +638,24 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       {/* DOCUMENT PREVIEW & PDF CONTAINER */}
       <div className="printable-document bg-white text-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-300 space-y-6 print:p-0 print:border-none print:shadow-none print:m-0">
         
-        {/* Document Header */}
-        <div className="border-b-2 border-slate-900 pb-4 flex flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-3">
-            <img
-              src="/logo_area117.png"
-              alt="Área 117"
-              className="h-16 w-auto object-contain rounded-lg shadow-sm print:shadow-none"
-            />
-            <div>
-              <h1 className="text-2xl font-black text-slate-950 uppercase tracking-tight">
-                {selectedTariff}
-              </h1>
-            </div>
+        {/* Banner Superior Oficial en la Primera Hoja */}
+        <div className="w-full overflow-hidden rounded-xl">
+          <img
+            src="/area117_header_banner.png"
+            alt="Área 117 - Contigo en la carretera"
+            className="w-full h-auto object-cover rounded-xl shadow-sm print:shadow-none print:w-full"
+          />
+        </div>
+
+        {/* Sub-Header con Fecha de Aplicación y Nombre de Tarifa (visible en pantalla, oculto en PDF) */}
+        <div className="border-b-2 border-slate-900 pb-3 flex flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-3 print:hidden">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Tarifa:</span>
+            <h1 className="text-xl font-black text-slate-950 uppercase tracking-tight">
+              {selectedTariff}
+            </h1>
           </div>
-          <div className="text-right">
+          <div className="text-right ml-auto">
             <span className="text-xs font-bold text-slate-500 uppercase block">Fecha de Aplicación:</span>
             <span className="text-base font-black text-slate-950 font-mono">
               {formatDateDDMMYYYY(targetDate)}
