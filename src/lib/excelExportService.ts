@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from './dataSeed';
+import { loadSabanaFormulas, reevaluateAllSabanaFormulas } from './sabanaFormulaEngine';
 
 export interface PurchaseRowValues {
   prev: string;
@@ -573,6 +574,30 @@ export const IMPORT_TARIFF_METADATA: ImportTariffDef[] = [
   { codeA: 89, name: 'TARIFA NUEVA', key: 't75', prod: 1, markup: 0.038 },
 ];
 
+export const resolveSabanaStationName = (importStName: string): string => {
+  const trimmed = importStName.trim();
+  const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+  const exact = allStations.find((s) => s.name === trimmed);
+  if (exact) return exact.name;
+
+  const clean = trimmed.toUpperCase().replace(/^ES\s+/, '').trim();
+  const matchWithoutEs = allStations.find(
+    (s) => s.name.toUpperCase().replace(/^ES\s+/, '').trim() === clean
+  );
+  if (matchWithoutEs) return matchWithoutEs.name;
+
+  if (clean.includes('FIGUERES') || clean.includes('PETREM')) return 'PETREM FIGUERES';
+  if (clean.includes('VALDEMORO')) return 'VALDEMORO';
+  if (clean.includes('TARRAGONA')) return 'TARRAGONA';
+  if (clean.includes('BERA')) return 'BERA';
+
+  const sub = allStations.find((s) => {
+    const sClean = s.name.toUpperCase().replace(/^ES\s+/, '').trim();
+    return sClean.includes(clean) || clean.includes(sClean);
+  });
+  return sub ? sub.name : trimmed;
+};
+
 const formatDateToEs = (dateStr: string): string => {
   if (!dateStr) return '01/08/2025';
   if (dateStr.includes('/')) return dateStr;
@@ -591,7 +616,6 @@ export function buildImportacionTable(
   // 1. Cargar fuentes de datos locales
   let purchasesData: Record<string, any> = {};
   let specialRates: any[] = [];
-  let sabanaFormulas: Record<string, any> = {};
   let broncoData: any = { conIva: '1.690' };
 
   if (typeof window !== 'undefined') {
@@ -604,11 +628,6 @@ export function buildImportacionTable(
       const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
       if (sp) specialRates = JSON.parse(sp);
 
-      const fDate = localStorage.getItem('efi_sabana_formulas_' + selectedDate);
-      const fGlob = localStorage.getItem('efi_sabana_formulas_v1');
-      if (fDate) sabanaFormulas = JSON.parse(fDate);
-      else if (fGlob) sabanaFormulas = JSON.parse(fGlob);
-
       const bDate = localStorage.getItem('efi_purchases_bronco_' + selectedDate);
       const bGlob = localStorage.getItem('efi_compras_gasolina_bronco');
       if (bDate) broncoData = JSON.parse(bDate);
@@ -616,48 +635,102 @@ export function buildImportacionTable(
     } catch (e) {}
   }
 
+  // Cargar fórmulas de Sábana y reevaluarlas reactivamente con Compras y Tarifas Especiales
+  const rawSabanaFormulas = typeof window !== 'undefined' ? loadSabanaFormulas(selectedDate) : {};
+  const resolvedSabanaFormulas = reevaluateAllSabanaFormulas(
+    rawSabanaFormulas,
+    selectedDate,
+    purchasesData,
+    specialRates
+  );
+
   const validFrom = formatDateToEs(userValidFrom || selectedDate || '2025-08-01');
   const validFinal = formatDateToEs(userFinalDate || '2025-08-20');
 
-  const getStationBaseGoa = (stName: string): number => {
-    const keyGoa = stName + '_GOA';
-    const item = purchasesData[keyGoa];
-    if (item?.sale) {
-      const v = parseNum(item.sale);
-      if (v > 0) return v;
+  // Obtener P. Venta Sugerido de Compras para cada estación con resolución idéntica a Sábana
+  const getStationBasePrice = (stName: string): number => {
+    let item = purchasesData[`${stName}_GOA`];
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    if (!item?.sale) {
+      const matchedKey = Object.keys(purchasesData).find((k) => {
+        if (!k.endsWith('_GOA')) return false;
+        const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+      });
+      if (matchedKey) {
+        item = purchasesData[matchedKey];
+      }
     }
-    const clean = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-    if (OFFICIAL_SUGGESTED_SALE_PRICES[clean] !== undefined) {
-      return OFFICIAL_SUGGESTED_SALE_PRICES[clean];
+    if (item?.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000') {
+      const val = parseFloat(item.sale.toString().replace(',', '.'));
+      if (!isNaN(val) && val > 0) return val;
+    }
+    if (OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] !== undefined) {
+      return OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget];
     }
     if (OFFICIAL_SUGGESTED_SALE_PRICES[stName] !== undefined) {
       return OFFICIAL_SUGGESTED_SALE_PRICES[stName];
     }
-    const costs = STATION_EXCEL_COSTS[stName] || {
-      porte: 0.005,
-      pase: 0.01,
-      fin: 0.01,
-      defaultCurr: 1.2,
+    const matchedOfficialKey = Object.keys(OFFICIAL_SUGGESTED_SALE_PRICES).find((k) => {
+      const baseK = k.toUpperCase().replace(/^ES\s+/, '').trim();
+      return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
+    });
+    if (matchedOfficialKey) {
+      return OFFICIAL_SUGGESTED_SALE_PRICES[matchedOfficialKey];
+    }
+    const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[cleanTarget] || {
+      porte: 0.0050,
+      pase: 0.0100,
+      fin: 0.0100,
+      defaultCurr: 1.2000,
     };
-    return round3(costs.defaultCurr + costs.porte + costs.pase + costs.fin);
+    return Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
   };
 
-  const getSpecialRateActual = (stName: string): number => {
-    if (Array.isArray(specialRates)) {
-      const clean = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-      const match = specialRates.find((r) => {
+  // Obtener Precio Referencia de Tarifas Especiales de Compras
+  const getSpecialRateRefPrice = (stName: string): number => {
+    if (specialRates && specialRates.length > 0) {
+      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const row = specialRates.find((r) => {
         const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return rNorm === clean || rNorm.includes(clean) || clean.includes(rNorm);
+        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
       });
-      if (match && match.actualPrice) {
-        const p = parseNum(match.actualPrice);
-        if (p > 0) return p;
+      if (row) {
+        if (row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
+          const p = parseFloat(row.refPrice.toString().replace(',', '.'));
+          if (!isNaN(p) && p > 0) return p;
+        }
+        if (row.refPrice && row.refPrice.trim() !== '') {
+          const p = parseFloat(row.refPrice.toString().replace(',', '.'));
+          if (!isNaN(p) && p > 0) return p;
+        }
+        if (row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
+          const act = parseFloat(row.actualPrice.toString().replace(',', '.'));
+          if (!isNaN(act) && act > 0) return Number((act + 0.0080).toFixed(3));
+        }
       }
     }
-    return getStationBaseGoa(stName);
+    const baseSale = getStationBasePrice(stName);
+    return Number((baseSale + 0.0080).toFixed(3));
   };
 
-  const isOrangeStation = (stName: string): boolean => {
+  // Obtener Precio Actual / Especial de Tarifas Especiales de Compras
+  const getSpecialRateActualPrice = (stName: string): number => {
+    if (specialRates && specialRates.length > 0) {
+      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const row = specialRates.find((r) => {
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
+      });
+      if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
+        const p = parseFloat(row.actualPrice.toString().replace(',', '.'));
+        if (!isNaN(p) && p > 0) return p;
+      }
+    }
+    return getStationBasePrice(stName);
+  };
+
+  const isJaviOrange = (stName: string): boolean => {
     const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
     return (
       u.includes('TORREJON') ||
@@ -689,74 +762,309 @@ export function buildImportacionTable(
     );
   };
 
-  const isCarrerasOrangeStation = (stName: string): boolean => {
+  const isCarrerasOrange = (stName: string): boolean => {
     const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
     if (u.includes('VALDEMORO') || u.includes('OPEN')) return false;
     return (
-      isOrangeStation(stName) ||
+      isJaviOrange(stName) ||
       u.includes('BENAMEJI') ||
       u.includes('IRUN') ||
       u.includes('CAMPANA')
     );
   };
 
-  const isSurGreenStation = (stName: string): boolean => {
+  const isTransfriredOrange = (stName: string): boolean => {
     const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
     return (
-      u.includes('GOR') ||
-      u.includes('DARRO') ||
-      u.includes('LACHAR') ||
-      u.includes('TJOIL') ||
-      u.includes('SEVILLA')
+      u.includes('TORREJON') ||
+      u.includes('ARCOS') ||
+      u.includes('ALFAJARIN') ||
+      u.includes('TORREMOCHA') ||
+      u.includes('MADRID') ||
+      u.includes('HUMILLADERO') ||
+      u.includes('UCLES') ||
+      u.includes('RIBA-ROJA') ||
+      u.includes('PISTA DE SILLA') ||
+      u.includes('REAL DE GANDIA') ||
+      u.includes('CHIVA') ||
+      u.includes('ALBERIC') ||
+      u.includes('CATARROJA') ||
+      u.includes('MANISES') ||
+      u.includes('ABRERA') ||
+      u.includes('CASAR') ||
+      u.includes('JUNDIZ') ||
+      u.includes('OLIVERAL') ||
+      u.includes('GUARROMAN') ||
+      u.includes('VALDEPE') ||
+      u.includes('GIRONA') ||
+      u.includes('FIGUERES')
     );
   };
 
-  // Función para obtener el PVP Con IVA de Sábana de Precios
+  const isC0Orange = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return (
+      u.includes('TORREJON') ||
+      u.includes('ARCOS') ||
+      u.includes('ALFAJARIN') ||
+      u.includes('TORREMOCHA') ||
+      u.includes('MADRID') ||
+      u.includes('VALDEMORO') ||
+      u.includes('PAMPLONA') ||
+      u.includes('HUMILLADERO') ||
+      u.includes('UCLES') ||
+      u.includes('BENAMEJI') ||
+      u.includes('ALCUBILLAS') ||
+      u.includes('RIBA-ROJA') ||
+      u.includes('PISTA DE SILLA') ||
+      u.includes('REAL DE GANDIA') ||
+      u.includes('CHIVA') ||
+      u.includes('ALBERIC') ||
+      u.includes('CATARROJA') ||
+      u.includes('MANISES') ||
+      u.includes('ABRERA') ||
+      u.includes('CASAR') ||
+      u.includes('JUNDIZ') ||
+      u.includes('OLIVERAL') ||
+      u.includes('GUARROMAN') ||
+      u.includes('VALDEPE') ||
+      u.includes('OPEN') ||
+      u.includes('IRUN') ||
+      u.includes('CAMPANA') ||
+      u.includes('LLERS') ||
+      u.includes('BERA') ||
+      u.includes('GIRONA') ||
+      u.includes('FIGUERES')
+    );
+  };
+
+  const isRorOrange = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return (
+      u.includes('ALFAJARIN') ||
+      u.includes('TORREMOCHA') ||
+      u.includes('CATARROJA') ||
+      u.includes('MANISES') ||
+      u.includes('ABRERA')
+    );
+  };
+
+  const isEstebanGreen = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return (
+      u.includes('PUERTO DE BARCELONA') ||
+      u.includes('GIRONA') ||
+      u.includes('FEGOBLAN') ||
+      u.includes('VEGA DE VALCARCE') ||
+      u.includes('HOILA TOLEDO')
+    );
+  };
+
+  const isEstebanOrange = (stName: string): boolean => {
+    if (isEstebanGreen(stName)) return false;
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return (
+      u.includes('ARCOS') ||
+      u.includes('ALFAJARIN') ||
+      u.includes('TORREMOCHA') ||
+      u.includes('MADRID') ||
+      u.includes('PAMPLONA') ||
+      u.includes('UCLES') ||
+      u.includes('ALCUBILLAS') ||
+      u.includes('RIBA-ROJA') ||
+      u.includes('PISTA DE SILLA') ||
+      u.includes('REAL DE GANDIA') ||
+      u.includes('CHIVA') ||
+      u.includes('ALBERIC') ||
+      u.includes('CATARROJA') ||
+      u.includes('MANISES') ||
+      u.includes('CASAR') ||
+      u.includes('OLIVERAL') ||
+      u.includes('GUARROMAN') ||
+      u.includes('BERA') ||
+      u.includes('FIGUERES')
+    );
+  };
+
+  const isTarifa30Orange = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return u.includes('ABRERA');
+  };
+
+  const isSurOrange = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    return u.includes('ABRERA');
+  };
+
+  const isSurGreen = (stName: string): boolean => {
+    const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const greenList = [
+      'VALDEHERRERA',
+      'LA JOYOSA',
+      'JUNDIZ NORPETROL',
+      'OLIVERAL',
+      'TJOIL SEVILLA',
+      'BENAVENTE',
+      'IRUN ZAISA III',
+      'TARRAGONA',
+      'AVILESINA',
+      'LLERS',
+      'MERIDA',
+      'MURCIA',
+      'NORIOIL',
+      'SAN VICENTE DEL PALACIO',
+      'WATERY ARANDA',
+      'BERA',
+      'PUERTO DE BARCELONA',
+      'GIRONA-CALSINA',
+      'FEGOBLAN PONTEVEDRA',
+      'VEGA DE VALCARCE',
+      'HOILA TOLEDO',
+    ];
+    return greenList.some((g) => u.includes(g) || g.includes(u));
+  };
+
+  // Función definitiva que obtiene el precio CON IVA exacto de Sábana de Precios para cada estación y tarifa
   const getPvpConIva = (st: ImportStationDef, tDef: ImportTariffDef): number => {
     if (st.isZero) return 0;
 
-    // 1. Revisar si hay fórmula directa guardada en Sábana para esta celda
-    const cellConKey = `TAR_${tDef.key}_${st.name.trim()}_conIva`;
-    if (sabanaFormulas[cellConKey]) {
-      return Number(sabanaFormulas[cellConKey].evaluatedValue);
-    }
-    const cellSinKey = `TAR_${tDef.key}_${st.name.trim()}_sinIva`;
-    if (sabanaFormulas[cellSinKey]) {
-      return round3(Number(sabanaFormulas[cellSinKey].evaluatedValue) * 1.21);
+    const sabanaName = resolveSabanaStationName(st.name);
+
+    // CASO A: Tarifas Estándar (12, 18, 24, 36, 40, 42, 47, 50, 60)
+    const isStandard = ['12', '18', '24', '36', '40', '42', '47', '50', '60'].includes(tDef.key);
+    if (isStandard) {
+      const conKey = `STD_${sabanaName}_T${tDef.key}_conIva`;
+      if (resolvedSabanaFormulas[conKey]?.evaluatedValue !== undefined) {
+        return resolvedSabanaFormulas[conKey].evaluatedValue;
+      }
+      const legConKey = `TAR_${tDef.key}_${sabanaName}_conIva`;
+      if (resolvedSabanaFormulas[legConKey]?.evaluatedValue !== undefined) {
+        return resolvedSabanaFormulas[legConKey].evaluatedValue;
+      }
+      const sinKey = `STD_${sabanaName}_T${tDef.key}_sinIva`;
+      if (resolvedSabanaFormulas[sinKey]?.evaluatedValue !== undefined) {
+        return round3(resolvedSabanaFormulas[sinKey].evaluatedValue * 1.21);
+      }
+      const legSinKey = `TAR_${tDef.key}_${sabanaName}_sinIva`;
+      if (resolvedSabanaFormulas[legSinKey]?.evaluatedValue !== undefined) {
+        return round3(resolvedSabanaFormulas[legSinKey].evaluatedValue * 1.21);
+      }
+
+      const base = getStationBasePrice(sabanaName);
+      const defaultSinIva = round3(base + (tDef.markup ?? 0.024));
+      return round3(defaultSinIva * 1.21);
     }
 
-    const baseGoa = getStationBaseGoa(st.name);
+    // CASO B: Tarifas Especiales (javi, carreras, transfrired, c0, ror, esteban, miki, ecotrans, t30, t27, t15, t75)
+    let specBlockId = '';
+    let specTariffTitle = '';
+    let defaultSinIva = 0;
 
-    // 2. Cálculos oficiales según tarifa
-    let sinIva = baseGoa + (tDef.markup ?? 0.024);
+    const basePrice = getStationBasePrice(sabanaName);
 
     if (tDef.key === 'javi') {
-      sinIva = isOrangeStation(st.name) ? getSpecialRateActual(st.name) : baseGoa + 0.024;
+      specBlockId = 'los_javi';
+      specTariffTitle = 'Especial Javi';
+      if (isJaviOrange(sabanaName)) {
+        defaultSinIva = getSpecialRateRefPrice(sabanaName);
+      } else if (sabanaName.toUpperCase().includes('PUERTO DE BARCELONA')) {
+        const f24 = resolvedSabanaFormulas['STD_PUERTO DE BARCELONA_T24_sinIva'] || resolvedSabanaFormulas['TAR_24_PUERTO DE BARCELONA_sinIva'];
+        defaultSinIva = f24 ? f24.evaluatedValue : round3(basePrice + 0.024);
+      } else {
+        defaultSinIva = round3(basePrice + 0.024);
+      }
     } else if (tDef.key === 'carreras') {
-      sinIva = isCarrerasOrangeStation(st.name) ? getSpecialRateActual(st.name) : baseGoa + 0.024;
-    } else if (tDef.key === 'transfrired' || tDef.key === 'c0') {
-      sinIva = isOrangeStation(st.name) ? getSpecialRateActual(st.name) : baseGoa + 0.024;
-    } else if (tDef.key === 'ror' || tDef.key === 'esteban') {
-      sinIva = isOrangeStation(st.name) ? getSpecialRateActual(st.name) : baseGoa + 0.024;
+      specBlockId = 'los_javi';
+      specTariffTitle = 'Especial Carreras';
+      if (isCarrerasOrange(sabanaName)) {
+        defaultSinIva = getSpecialRateRefPrice(sabanaName);
+      } else if (sabanaName.toUpperCase().includes('PUERTO DE BARCELONA')) {
+        const f18 = resolvedSabanaFormulas['STD_PUERTO DE BARCELONA_T18_sinIva'] || resolvedSabanaFormulas['TAR_18_PUERTO DE BARCELONA_sinIva'];
+        defaultSinIva = f18 ? f18.evaluatedValue : round3(basePrice + 0.018);
+      } else {
+        defaultSinIva = round3(basePrice + 0.018);
+      }
+    } else if (tDef.key === 'transfrired') {
+      specBlockId = 'transfrired';
+      specTariffTitle = 'Especial Transfrired';
+      defaultSinIva = isTransfriredOrange(sabanaName)
+        ? getSpecialRateRefPrice(sabanaName)
+        : round3(basePrice + 0.024);
+    } else if (tDef.key === 'c0') {
+      specBlockId = 'c0_general';
+      specTariffTitle = 'Especial General C-0';
+      defaultSinIva = isC0Orange(sabanaName)
+        ? getSpecialRateRefPrice(sabanaName)
+        : round3(basePrice + 0.024);
+    } else if (tDef.key === 'ror') {
+      specBlockId = 'ror_esteban';
+      specTariffTitle = 'Especial ROR';
+      defaultSinIva = isRorOrange(sabanaName)
+        ? getSpecialRateRefPrice(sabanaName)
+        : round3(basePrice + 0.024);
+    } else if (tDef.key === 'esteban') {
+      specBlockId = 'ror_esteban';
+      specTariffTitle = 'Especial Esteban';
+      if (isEstebanGreen(sabanaName)) {
+        const t24 = resolvedSabanaFormulas[`STD_${sabanaName}_T24_sinIva`] || resolvedSabanaFormulas[`TAR_24_${sabanaName}_sinIva`];
+        defaultSinIva = t24 ? t24.evaluatedValue : round3(basePrice + 0.024);
+      } else if (isEstebanOrange(sabanaName)) {
+        defaultSinIva = getSpecialRateRefPrice(sabanaName);
+      } else {
+        defaultSinIva = round3(basePrice + 0.024);
+      }
+    } else if (tDef.key === 'miki') {
+      specBlockId = 'miki_ecotrans_tarifa30';
+      specTariffTitle = 'Tarifa 90 Miki';
+      defaultSinIva = round3(basePrice + 0.090);
     } else if (tDef.key === 'ecotrans') {
-      sinIva = baseGoa + 0.050;
+      specBlockId = 'miki_ecotrans_tarifa30';
+      specTariffTitle = 'Tarifa ECOTRANS';
+      defaultSinIva = round3(basePrice + 0.050);
     } else if (tDef.key === 't30') {
-      sinIva = isOrangeStation(st.name) ? getSpecialRateActual(st.name) : baseGoa + 0.030;
+      specBlockId = 'miki_ecotrans_tarifa30';
+      specTariffTitle = 'Tarifa 30';
+      defaultSinIva = isTarifa30Orange(sabanaName)
+        ? getSpecialRateActualPrice(sabanaName)
+        : round3(basePrice + 0.030);
     } else if (tDef.key === 't27') {
-      if (isOrangeStation(st.name)) sinIva = getSpecialRateActual(st.name);
-      else if (isSurGreenStation(st.name)) sinIva = baseGoa + 0.036;
-      else sinIva = baseGoa + 0.027;
+      specBlockId = 'sur_benito';
+      specTariffTitle = 'Tarifa 27 Sur';
+      if (isSurOrange(sabanaName)) {
+        defaultSinIva = getSpecialRateRefPrice(sabanaName);
+      } else if (isSurGreen(sabanaName)) {
+        defaultSinIva = round3(basePrice + 0.036);
+      } else {
+        defaultSinIva = round3(basePrice + 0.027);
+      }
     } else if (tDef.key === 't15') {
-      if (isOrangeStation(st.name)) sinIva = getSpecialRateActual(st.name);
-      else if (isSurGreenStation(st.name)) sinIva = baseGoa + 0.036;
-      else sinIva = baseGoa + 0.015;
+      specBlockId = 'sur_benito';
+      specTariffTitle = 'Tarifa 15 Sur';
+      if (isSurOrange(sabanaName)) {
+        defaultSinIva = getSpecialRateRefPrice(sabanaName);
+      } else if (isSurGreen(sabanaName)) {
+        defaultSinIva = round3(basePrice + 0.024);
+      } else {
+        defaultSinIva = round3(basePrice + 0.015);
+      }
     } else if (tDef.key === 't75') {
-      sinIva = baseGoa + 0.038;
-    } else if (tDef.markup !== undefined) {
-      sinIva = baseGoa + tDef.markup;
+      specBlockId = 'tarifa_75';
+      specTariffTitle = 'Tarifa 75';
+      defaultSinIva = round3(basePrice + 0.038);
     }
 
-    return round3(sinIva * 1.21);
+    if (specBlockId && specTariffTitle) {
+      const conKey = `SPEC_${specBlockId}_${sabanaName}_${specTariffTitle}_conIva`;
+      if (resolvedSabanaFormulas[conKey]?.evaluatedValue !== undefined) {
+        return resolvedSabanaFormulas[conKey].evaluatedValue;
+      }
+      const sinKey = `SPEC_${specBlockId}_${sabanaName}_${specTariffTitle}_sinIva`;
+      if (resolvedSabanaFormulas[sinKey]?.evaluatedValue !== undefined) {
+        return round3(resolvedSabanaFormulas[sinKey].evaluatedValue * 1.21);
+      }
+    }
+
+    return round3(defaultSinIva * 1.21);
   };
 
   const rows: (string | number | null)[][] = [];

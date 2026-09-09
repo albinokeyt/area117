@@ -71,9 +71,28 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
     setTimeout(() => setIsExported(false), 4000);
   };
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setRefreshTrigger((prev) => prev + 1);
+    window.addEventListener('efi_compras_updated', handleUpdate);
+    window.addEventListener('efi_sabana_updated', handleUpdate);
+    window.addEventListener('efi_postes_updated', handleUpdate);
+    window.addEventListener('efi_valid_date_changed', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('efi_compras_updated', handleUpdate);
+      window.removeEventListener('efi_sabana_updated', handleUpdate);
+      window.removeEventListener('efi_postes_updated', handleUpdate);
+      window.removeEventListener('efi_valid_date_changed', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   const previewRows = useMemo(() => {
     return buildImportacionTable(selectedDate, validFromDate, finalDate);
-  }, [selectedDate, validFromDate, finalDate]);
+  }, [selectedDate, validFromDate, finalDate, refreshTrigger]);
 
   const whatsappMessage = `⛽ *ACTUALIZACIÓN DE PRECIOS - EFI DATA OIL* ⛽
 📅 Fecha: ${selectedDate}
