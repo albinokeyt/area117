@@ -42,7 +42,7 @@ const POSTES_PROPIAS_STATIONS: {
   { name: 'VALLECAS', defaultGoa: '1.709', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
   { name: 'GANESHA MADRID', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
   { name: 'GANESHA TORREJON', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'VALDEMORO', defaultGoa: '1.657', defaultGasolina: '1.649', defaultGain: '0.122', hasGasolina: true },
+  { name: 'VALDEMORO', defaultGoa: '1.659', defaultGasolina: '1.649', defaultGain: '0.122', hasGasolina: true },
   { name: 'BENAMEJI', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
   { name: 'HUMILLADERO', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
   { name: 'ES RIBA-ROJA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
@@ -86,26 +86,26 @@ export function PostesManager() {
   const [hvoGeneralBase, setHvoGeneralBase] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoGeneralBase || '1.2000' : '1.2000';
-    } catch (e) { return '1.2000'; }
+      return s ? JSON.parse(s).hvoGeneralBase || '1.285' : '1.285';
+    } catch (e) { return '1.285'; }
   });
   const [hvoGeneralAddition, setHvoGeneralAddition] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoGeneralAddition || '0.3280' : '0.3280';
-    } catch (e) { return '0.3280'; }
+      return s ? JSON.parse(s).hvoGeneralAddition || '0.243' : '0.243';
+    } catch (e) { return '0.243'; }
   });
   const [hvoAlfajarinSinIva, setHvoAlfajarinSinIva] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoAlfajarinSinIva || '1.2560' : '1.2560';
-    } catch (e) { return '1.2560'; }
+      return s ? JSON.parse(s).hvoAlfajarinSinIva || '1.528' : '1.528';
+    } catch (e) { return '1.528'; }
   });
   const [hvoValdemoroAddition, setHvoValdemoroAddition] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoValdemoroAddition || '0.0700' : '0.0700';
-    } catch (e) { return '0.0700'; }
+      return s ? JSON.parse(s).hvoValdemoroAddition || '0.07' : '0.07';
+    } catch (e) { return '0.07'; }
   });
 
   // Gasóleo B Configuration con carga síncrona
@@ -310,16 +310,48 @@ export function PostesManager() {
   const computedHvoGeneralSinIva = Number((parseNum(hvoGeneralBase) + parseNum(hvoGeneralAddition)).toFixed(4));
   const computedHvoGeneralConIva = Number((computedHvoGeneralSinIva * 1.21).toFixed(4));
 
-  // HVO Alfajarín: Por defecto se copia exactamente del HVO Poste General
-  const computedHvoAlfajarinSinIva = hvoAlfajarinSinIva && modifiedKeys.has('hvo_alfajarin')
+  // HVO Alfajarín: Por defecto se copia exactamente del HVO Poste General, o su valor específico
+  const computedHvoAlfajarinSinIva = hvoAlfajarinSinIva && parseNum(hvoAlfajarinSinIva) > 0
     ? parseNum(hvoAlfajarinSinIva)
     : computedHvoGeneralSinIva;
   const computedHvoAlfajarinConIva = Number((computedHvoAlfajarinSinIva * 1.21).toFixed(4));
 
   // HVO Valdemoro: Se le suma el monto al GOA Poste Valdemoro (con IVA) y para calcular sin IVA se divide entre 1.21
-  const goaValdemoroPrice = parseNum(postes['VALDEMORO']?.goa || '1.489');
+  const goaValdemoroPrice = parseNum(postes['VALDEMORO']?.goa || postes['ES VALDEMORO']?.goa || '1.659');
   const computedHvoValdemoroConIva = Number((goaValdemoroPrice + parseNum(hvoValdemoroAddition)).toFixed(4));
   const computedHvoValdemoroSinIva = Number((computedHvoValdemoroConIva / 1.21).toFixed(4));
+
+  // Helper centralizado para persistir Postes y HVO y emitir eventos reactivos al instante
+  const persistPostesData = (
+    currentPostes = postes,
+    currentGenBase = hvoGeneralBase,
+    currentGenAdd = hvoGeneralAddition,
+    currentAlfajarin = hvoAlfajarinSinIva,
+    currentValdemoro = hvoValdemoroAddition,
+    currentModified = modifiedKeys
+  ) => {
+    try {
+      const dataToSave = {
+        postes: currentPostes,
+        hvoGeneralBase: currentGenBase,
+        hvoGeneralAddition: currentGenAdd,
+        hvoAlfajarinSinIva: currentAlfajarin,
+        hvoValdemoroAddition: currentValdemoro,
+        gasoleoBRows,
+        gasoleoBPosteGlobal,
+        adblue: adblueRows,
+        gases: gasesRows,
+        bronco: broncoRow,
+        modified: Array.from(currentModified),
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem('efi_postes_data_v2', JSON.stringify(dataToSave));
+      window.dispatchEvent(new Event('efi_postes_updated'));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -337,6 +369,8 @@ export function PostesManager() {
         if (parsed.gases) setGasesRows(parsed.gases);
         if (parsed.bronco) setBroncoRow(parsed.bronco);
         if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
+      } else {
+        persistPostesData();
       }
     } catch (e) {
       console.error(e);
@@ -350,6 +384,8 @@ export function PostesManager() {
           const parsed = JSON.parse(saved);
           parsed.modified = [];
           localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
+          window.dispatchEvent(new Event('efi_postes_updated'));
+          window.dispatchEvent(new Event('storage'));
         }
       } catch (e) {}
     };
@@ -361,42 +397,25 @@ export function PostesManager() {
   }, []);
 
   const handlePosteChange = (stName: string, field: 'goa' | 'gasolina' | 'gasolinaGain', val: string) => {
-    setPostes((prev) => ({
-      ...prev,
+    const updatedPostes = {
+      ...postes,
       [stName]: {
-        ...prev[stName],
+        ...postes[stName],
         [field]: val,
       },
-    }));
+    };
+    setPostes(updatedPostes);
 
-    setModifiedKeys((prev) => {
-      const next = new Set(prev);
-      next.add(`poste_${stName}_${field}`);
-      return next;
-    });
+    const updatedMods = new Set(modifiedKeys);
+    updatedMods.add(`poste_${stName}_${field}`);
+    setModifiedKeys(updatedMods);
     setIsSaved(false);
+
+    persistPostesData(updatedPostes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
   };
 
   const handleSave = () => {
-    try {
-      localStorage.setItem(
-        'efi_postes_data_v2',
-        JSON.stringify({
-          postes,
-          hvoGeneralBase,
-          hvoGeneralAddition,
-          hvoAlfajarinSinIva,
-          hvoValdemoroAddition,
-          gasoleoBRows,
-          gasoleoBPosteGlobal,
-          adblue: adblueRows,
-          gases: gasesRows,
-          bronco: broncoRow,
-          modified: Array.from(modifiedKeys),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-    } catch (e) {}
+    persistPostesData();
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3500);
   };
@@ -1307,9 +1326,12 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoGeneralBase}
                   onChange={(e) => {
-                    setHvoGeneralBase(e.target.value);
-                    setModifiedKeys((prev) => new Set(prev).add('hvo_gen_base'));
+                    const val = e.target.value;
+                    setHvoGeneralBase(val);
+                    const updatedMods = new Set(modifiedKeys).add('hvo_gen_base');
+                    setModifiedKeys(updatedMods);
                     setIsSaved(false);
+                    persistPostesData(postes, val, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
                   }}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-amber-400"
                 />
@@ -1322,9 +1344,12 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoGeneralAddition}
                   onChange={(e) => {
-                    setHvoGeneralAddition(e.target.value);
-                    setModifiedKeys((prev) => new Set(prev).add('hvo_gen_add'));
+                    const val = e.target.value;
+                    setHvoGeneralAddition(val);
+                    const updatedMods = new Set(modifiedKeys).add('hvo_gen_add');
+                    setModifiedKeys(updatedMods);
                     setIsSaved(false);
+                    persistPostesData(postes, hvoGeneralBase, val, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
                   }}
                   className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-1.5 text-amber-300 font-mono font-bold text-xs focus:outline-none focus:border-amber-400"
                 />
@@ -1358,9 +1383,12 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoAlfajarinSinIva}
                   onChange={(e) => {
-                    setHvoAlfajarinSinIva(e.target.value);
-                    setModifiedKeys((prev) => new Set(prev).add('hvo_alfajarin'));
+                    const val = e.target.value;
+                    setHvoAlfajarinSinIva(val);
+                    const updatedMods = new Set(modifiedKeys).add('hvo_alfajarin');
+                    setModifiedKeys(updatedMods);
                     setIsSaved(false);
+                    persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, val, hvoValdemoroAddition, updatedMods);
                   }}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-amber-400"
                 />
@@ -1401,9 +1429,12 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoValdemoroAddition}
                   onChange={(e) => {
-                    setHvoValdemoroAddition(e.target.value);
-                    setModifiedKeys((prev) => new Set(prev).add('hvo_valdemoro_add'));
+                    const val = e.target.value;
+                    setHvoValdemoroAddition(val);
+                    const updatedMods = new Set(modifiedKeys).add('hvo_valdemoro_add');
+                    setModifiedKeys(updatedMods);
                     setIsSaved(false);
+                    persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, val, updatedMods);
                   }}
                   className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl px-3 py-1.5 text-emerald-300 font-mono font-bold text-xs focus:outline-none focus:border-emerald-400"
                 />

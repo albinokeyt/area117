@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import {
   Printer, Download, FileText, Search, Calendar, Check,
@@ -12,6 +12,14 @@ import {
 interface PdfGeneratorProps {
   selectedDate: string;
 }
+
+const parseNum = (val: string | number | undefined): number => {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (!val) return 0;
+  const clean = val.toString().replace(',', '.').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+};
 
 // Catálogo de Estaciones con Bandera y Dirección Real del Excel
 const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> = {
@@ -158,6 +166,24 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     return () => {
       window.removeEventListener('efi_valid_date_changed', updateValidDate);
       window.removeEventListener('storage', updateValidDate);
+    };
+  }, []);
+
+  const [postesRefreshTrigger, setPostesRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const handlePostesUpdate = () => {
+      setPostesRefreshTrigger((prev) => prev + 1);
+    };
+
+    window.addEventListener('efi_postes_updated', handlePostesUpdate);
+    window.addEventListener('efi_compras_updated', handlePostesUpdate);
+    window.addEventListener('storage', handlePostesUpdate);
+
+    return () => {
+      window.removeEventListener('efi_postes_updated', handlePostesUpdate);
+      window.removeEventListener('efi_compras_updated', handlePostesUpdate);
+      window.removeEventListener('storage', handlePostesUpdate);
     };
   }, []);
 
@@ -354,37 +380,43 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     return { sinIva, conIva };
   };
 
-  // Precios dinámicos de HVO desde Postes
-  const hvoPrices = (() => {
+  // Precios dinámicos de HVO desde Postes sincronizados al momento
+  const hvoPrices = useMemo(() => {
     try {
       const saved = localStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        const base = parseFloat(parsed.hvoGeneralBase || '1.2000');
-        const add = parseFloat(parsed.hvoGeneralAddition || '0.3280');
+        const base = parseNum(parsed.hvoGeneralBase ?? '1.285');
+        const add = parseNum(parsed.hvoGeneralAddition ?? '0.243');
         const genSinIva = base + add;
-        const genConIva = genSinIva * 1.21;
 
-        const valAdd = parseFloat(parsed.hvoValdemoroAddition || '0.0700');
-        const valGoa = parseFloat(parsed.postes?.['VALDEMORO']?.goa || '1.489');
-        const valConIva = valGoa + valAdd;
-        const valSinIva = valConIva / 1.21;
+        // Alfajarín: toma hvoAlfajarinSinIva si existe y es > 0, de lo contrario HVO General
+        const alfaSinIva = parsed.hvoAlfajarinSinIva && parseNum(parsed.hvoAlfajarinSinIva) > 0
+          ? parseNum(parsed.hvoAlfajarinSinIva)
+          : genSinIva;
+        const alfaConIva = Number((alfaSinIva * 1.21).toFixed(4));
+
+        // Valdemoro: GOA Poste Valdemoro (con IVA) + monto a sumar
+        const valAdd = parseNum(parsed.hvoValdemoroAddition ?? '0.07');
+        const valGoa = parseNum(parsed.postes?.['VALDEMORO']?.goa || parsed.postes?.['ES VALDEMORO']?.goa || '1.659');
+        const valConIva = Number((valGoa + valAdd).toFixed(4));
+        const valSinIva = Number((valConIva / 1.21).toFixed(4));
 
         return {
-          alfajarinSinIva: genSinIva.toFixed(3),
-          alfajarinConIva: genConIva.toFixed(3),
+          alfajarinSinIva: alfaSinIva.toFixed(3),
+          alfajarinConIva: alfaConIva.toFixed(3),
           valdemoroSinIva: valSinIva.toFixed(3),
           valdemoroConIva: valConIva.toFixed(3),
         };
       }
     } catch (e) {}
     return {
-      alfajarinSinIva: '1.256',
-      alfajarinConIva: '1.520',
-      valdemoroSinIva: '1.347',
-      valdemoroConIva: '1.630',
+      alfajarinSinIva: '1.528',
+      alfajarinConIva: '1.849',
+      valdemoroSinIva: '1.429',
+      valdemoroConIva: '1.729',
     };
-  })();
+  }, [postesRefreshTrigger]);
 
   // Filtrado por búsqueda y por estación activa para el preview/impresión
   const filteredActiveStations = allStations
