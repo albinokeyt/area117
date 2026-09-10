@@ -876,6 +876,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       'AVILESINA',
       'LLERS',
       'MERIDA',
+      'SANCTI-SPIRITUS',
       'MURCIA',
       'NORIOIL',
       'SAN VICENTE DEL PALACIO',

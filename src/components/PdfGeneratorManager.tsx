@@ -62,6 +62,7 @@ const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> 
   'LLERS': { bandera: 'VALCARCE', ubicacion: 'Carretera N-II, Km 760, Llers, Girona' },
   'DARRO - A92': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, Km 282, Darro, Granada' },
   'MERIDA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-5, Km 341, Mérida, Badajoz' },
+  'SANCTI-SPIRITUS': { bandera: 'VALCARCE', ubicacion: 'Autovía A-62, Km 312, Sancti-Spíritus, Salamanca' },
   'MURCIA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial Oeste, San Ginés, Murcia' },
   'NORIOIL': { bandera: 'NORPETROL', ubicacion: 'Polígono Industrial Bayas, Miranda de Ebro, Burgos' },
   'SAN VICENTE DEL PALACIO': { bandera: 'VALCARCE', ubicacion: 'Autovía A-6, Km 147, San Vicente del Palacio, Valladolid' },

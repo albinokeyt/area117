@@ -31,6 +31,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
     'IRUN ZAISA III': 1.1920,
     'AVILESINA': 1.1880,
     'MERIDA': 1.1820,
+    'SANCTI-SPIRITUS': 1.1820,
     'SAN VICENTE DEL PALACIO': 1.1810,
     'WATERY ARANDA': 1.1890,
     'PUERTO DE BARCELONA': 1.1940,
