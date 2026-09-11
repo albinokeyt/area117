@@ -116,6 +116,7 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'TARIFA 27 SUR', markup: 0.0270 },
   { name: 'TARIFA 15 SUR', markup: 0.0150 },
   { name: 'TARIFA 75', markup: 0.0380 },
+  { name: 'TRANFIRRED GOB', markup: 0.0000 },
 ];
 
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
@@ -241,9 +242,13 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     return {};
   });
 
+  const isGobTariff = selectedTariff.toUpperCase().includes('GOB') ||
+    selectedTariff.toUpperCase().includes('GASOLEO B') ||
+    selectedTariff.toUpperCase().includes('GASÓLEO B');
+
   const isHvoIncluded = includeHvoMap[selectedTariff] !== undefined
     ? includeHvoMap[selectedTariff]
-    : true; // Por defecto incluido
+    : !isGobTariff; // Por defecto incluido salvo en GOB
 
   const toggleIncludeHvo = () => {
     setIncludeHvoMap((prev) => {
@@ -268,6 +273,11 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   // Obtener lista de estaciones activas para la tarifa actual
   const currentActiveStations = activeStationsMap[selectedTariff] !== undefined
     ? activeStationsMap[selectedTariff]
+    : isGobTariff
+    ? allStations.filter((st) => {
+        const u = st.name.toUpperCase();
+        return u.includes('UCLES') || u.includes('TORREMOCHA') || u.includes('ARCOS');
+      }).map((st) => st.name)
     : allStations.map((st) => st.name);
 
   const isStationActive = (stName: string) => {
@@ -340,6 +350,35 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
   // Obtener precios exactos de la Sábana de Precios / Compras para cada estación
   const getStationPrice = (stName: string, isPropia: boolean) => {
+    // Si la tarifa corresponde a Gasóleo B (ej. TRANFIRRED GOB)
+    if (isGobTariff) {
+      let gbKey = '';
+      const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+      if (u.includes('TORREMOCHA')) gbKey = 'TORREMOCHA';
+      else if (u.includes('ARCOS')) gbKey = 'ARCOS';
+      else if (u.includes('UCLES')) gbKey = 'UCLES';
+
+      if (gbKey) {
+        try {
+          const savedPostes = localStorage.getItem('efi_postes_data_v2');
+          if (savedPostes) {
+            const parsed = JSON.parse(savedPostes);
+            const row = parsed.gasoleoBRows?.[gbKey];
+            if (row) {
+              const transferNum = row.transfer && row.transfer.trim() !== ''
+                ? parseNum(row.transfer)
+                : Number((parseNum(row.compra || '1.172') + 0.017).toFixed(3));
+              const conIva = Number((transferNum * 1.21).toFixed(3));
+              const sinIva = Number(transferNum.toFixed(3));
+              return { sinIva, conIva };
+            }
+          }
+        } catch (e) {}
+        return { sinIva: 1.189, conIva: 1.439 };
+      }
+      return { sinIva: 0, conIva: 0 };
+    }
+
     let basePrice = 0;
     const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
 

@@ -194,8 +194,12 @@ export function getProgramVariables(
 
   Object.entries(gasoleoBRows).forEach(([stName, row]: [string, any]) => {
     const norm = stName.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
-    addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_COMPRA", "Gasoleo B Compra (" + stName + ")", parseNum(row.compra), stName);
-    addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_TRANSFRIRED", "Gasoleo B Transfrired (" + stName + ")", parseNum(row.transfer), stName);
+    const compraNum = parseNum(row.compra);
+    const transferNum = row.transfer && row.transfer.trim() !== '' ? parseNum(row.transfer) : round3(compraNum + 0.017);
+    const transConIva = round3(transferNum * 1.21);
+    addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_COMPRA", "Gasoleo B Compra (" + stName + ")", compraNum, stName);
+    addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_TRANSFRIRED", "Gasoleo B Transfrired (" + stName + ")", transferNum, stName);
+    addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_TRANSFRIRED_CON_IVA", "Gasoleo B Transfrired Con IVA (" + stName + ")", transConIva, stName);
     addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_POSTE", "Gasoleo B Poste (" + stName + ")", parseNum(row.poste), stName);
   });
 

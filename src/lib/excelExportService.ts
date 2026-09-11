@@ -347,9 +347,9 @@ export function generateAndDownloadCierreWorkbook(
   gasoleoBList.forEach((gb) => {
     const savedGb = postesData?.gasoleoBRows?.[gb.name];
     const compra = savedGb?.compra ? parseNum(savedGb.compra) : gb.defaultCompra;
-    const transfer = round3(compra + 0.017);
+    const transfer = savedGb?.transfer && savedGb.transfer.trim() !== '' ? parseNum(savedGb.transfer) : round3(compra + 0.017);
     const transConIva = round3(transfer * 1.21);
-    const posteGb = round3((compra + 0.035) * 1.21);
+    const posteGb = savedGb?.poste && savedGb.poste.trim() !== '' ? parseNum(savedGb.poste) : round3((compra + 0.035) * 1.21);
     postesRows.push([gb.name, compra, transfer, transConIva, posteGb]);
   });
 
@@ -617,6 +617,7 @@ export function buildImportacionTable(
   let purchasesData: Record<string, any> = {};
   let specialRates: any[] = [];
   let broncoData: any = { conIva: '1.690' };
+  let postesData: any = {};
 
   if (typeof window !== 'undefined') {
     try {
@@ -632,6 +633,9 @@ export function buildImportacionTable(
       const bGlob = localStorage.getItem('efi_compras_gasolina_bronco');
       if (bDate) broncoData = JSON.parse(bDate);
       else if (bGlob) broncoData = JSON.parse(bGlob);
+
+      const pData = localStorage.getItem('efi_postes_data_v2');
+      if (pData) postesData = JSON.parse(pData);
     } catch (e) {}
   }
 
@@ -1084,9 +1088,34 @@ export function buildImportacionTable(
     rows.push([null, null, null, null, null, null, null, null, null]);
   });
 
+  // Helper para obtener el precio Transfrired con IVA de Gasóleo B desde el cuadro de Postes
+  const getGasoleoBTransfriredConIva = (stName: string): number => {
+    let key = 'UCLES';
+    const u = stName.toUpperCase();
+    if (u.includes('TORREMOCHA')) key = 'TORREMOCHA';
+    else if (u.includes('ARCOS')) key = 'ARCOS';
+    else if (u.includes('UCLES')) key = 'UCLES';
+
+    const row = postesData?.gasoleoBRows?.[key] || postesData?.gasoleoBRows?.[stName.trim()];
+    if (row) {
+      let transferNum = 0;
+      if (row.transfer && row.transfer.trim() !== '') {
+        transferNum = parseNum(row.transfer);
+      } else if (row.compra && row.compra.trim() !== '') {
+        transferNum = Number((parseNum(row.compra) + 0.017).toFixed(3));
+      }
+      if (transferNum > 0) {
+        return Number((transferNum * 1.21).toFixed(3));
+      }
+    }
+    return 1.439;
+  };
+
   // Bloque 17: Bloque especial (3 filas Gasolina Bronco Prod 2 + 3 filas Gasóleo B Transfrired Prod 5)
   const broncoConIva = parseNum(broncoData.conIva) || 1.690;
-  const gasoleoBConIva = 1.32858; // Precio estándar Transfrired Gasóleo B con IVA
+  const torremochaConIva = getGasoleoBTransfriredConIva('TORREMOCHA');
+  const uclesConIva = getGasoleoBTransfriredConIva('UCLES');
+  const arcosConIva = getGasoleoBTransfriredConIva('ARCOS JALON');
 
   // 17.1 Gasolina Bronco (Torrejón, Madrid, Vallecas)
   rows.push([5, 73, 2, validFrom, validFinal, broncoConIva, 'TORREJON ', 'MENSUAL', 'TARIFA 45 GASOLINA']);
@@ -1094,9 +1123,9 @@ export function buildImportacionTable(
   rows.push([5, 55, 2, validFrom, validFinal, broncoConIva, 'VALLECAS ', 'MENSUAL', 'TARIFA 45 GASOLINA']);
 
   // 17.2 Gasóleo B Transfrired (Torremocha, Uclés, Arcos Jalón)
-  rows.push([65, 1, 5, validFrom, validFinal, gasoleoBConIva, 'TORREMOCHA ', null, 'TRANFIRRED GOB']);
-  rows.push([65, 27, 5, validFrom, validFinal, gasoleoBConIva, 'UCLES', null, 'TRANFIRRED GOB']);
-  rows.push([65, 19, 5, validFrom, validFinal, gasoleoBConIva, 'ARCOS JALON', null, 'TRANFIRRED GOB']);
+  rows.push([65, 1, 5, validFrom, validFinal, torremochaConIva, 'TORREMOCHA ', null, 'TRANFIRRED GOB']);
+  rows.push([65, 27, 5, validFrom, validFinal, uclesConIva, 'UCLES', null, 'TRANFIRRED GOB']);
+  rows.push([65, 19, 5, validFrom, validFinal, arcosConIva, 'ARCOS JALON', null, 'TRANFIRRED GOB']);
 
   // Fila vacía separadora
   rows.push([null, null, null, null, null, null, null, null, null]);

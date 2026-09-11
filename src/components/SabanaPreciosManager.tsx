@@ -1773,6 +1773,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                           {/* Sin IVA */}
                           <td
                             onClick={() => {
+                              if (!isFormulaMode) return;
                               setActiveModalCell({
                                 cellKey: data.sinIvaKey,
                                 cellTitle: data.sinIvaTitle,
@@ -1782,9 +1783,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                               });
                             }}
                             className={`py-2.5 px-4 text-center border-l border-slate-800/50 ${
-                              isFormulaMode ? 'cursor-pointer hover:scale-105 transition-transform' : 'cursor-pointer'
+                              isFormulaMode ? 'cursor-pointer hover:scale-105 ring-1 ring-amber-400/50 transition-transform' : 'cursor-default'
                             }`}
-                            title={data.tooltip}
+                            title={isFormulaMode ? (data.customSinIva ? `Fórmula: ${data.customSinIva.rawFormula}` : 'Haz clic para formular esta celda') : data.tooltip}
                           >
                             <div className="inline-flex items-center justify-center">
                               <div
@@ -1809,6 +1810,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                           {/* Con IVA */}
                           <td
                             onClick={() => {
+                              if (!isFormulaMode) return;
                               setActiveModalCell({
                                 cellKey: data.conIvaKey,
                                 cellTitle: data.conIvaTitle,
@@ -1818,9 +1820,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                               });
                             }}
                             className={`py-2.5 px-4 text-center border-r border-slate-800/50 ${
-                              isFormulaMode ? 'cursor-pointer hover:scale-105 transition-transform' : 'cursor-pointer'
+                              isFormulaMode ? 'cursor-pointer hover:scale-105 ring-1 ring-amber-400/50 transition-transform' : 'cursor-default'
                             }`}
-                            title={data.customConIva ? `Fórmula: ${data.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21'}
+                            title={isFormulaMode ? (data.customConIva ? `Fórmula: ${data.customConIva.rawFormula}` : 'Haz clic para formular esta celda') : (data.customConIva ? `Fórmula: ${data.customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21')}
                           >
                             <div className="inline-flex items-center justify-center">
                               <div
@@ -2122,6 +2124,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                           {/* SIN IVA */}
                           <td
                             onClick={() => {
+                              if (!isFormulaMode) return;
                               setActiveModalCell({
                                 cellKey: sinIvaKey,
                                 cellTitle: `${st.name} — Tarifa ${tariff.name} (Sin IVA)`,
@@ -2132,7 +2135,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                               });
                             }}
                             className={`py-2 px-2 text-right font-mono relative transition-all group ${
-                              isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
+                              isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-default'
                             } ${
                               customSinIva
                                 ? 'bg-amber-500/20 text-amber-200 font-black ring-1 ring-amber-400 shadow-sm'
@@ -2140,7 +2143,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                 ? 'bg-purple-950/40 text-purple-300 font-semibold'
                                 : 'text-slate-300 bg-slate-900/10'
                             }`}
-                            title={customSinIva ? `Fórmula personalizada: ${customSinIva.rawFormula}` : 'Haz clic para formular esta celda'}
+                            title={isFormulaMode ? (customSinIva ? `Fórmula personalizada: ${customSinIva.rawFormula}` : 'Haz clic para formular esta celda') : (customSinIva ? `Fórmula: ${customSinIva.rawFormula}` : `Sin IVA: Base + ${tariff.markup}`)}
                           >
                             <div className="flex items-center justify-end space-x-1">
                               {customSinIva && (
@@ -2155,6 +2158,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                           {/* CON IVA */}
                           <td
                             onClick={() => {
+                              if (!isFormulaMode) return;
                               setActiveModalCell({
                                 cellKey: conIvaKey,
                                 cellTitle: `${st.name} — Tarifa ${tariff.name} (Con IVA)`,
@@ -2165,7 +2169,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                               });
                             }}
                             className={`py-2 px-2 text-right font-bold font-mono border-r relative transition-all group ${
-                              isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-pointer'
+                              isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 hover:scale-105 ring-1 ring-amber-400/40' : 'cursor-default'
                             } ${
                               customConIva
                                 ? 'bg-emerald-500/20 text-emerald-200 font-black ring-1 ring-emerald-400 shadow-sm'
@@ -2173,7 +2177,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                 ? 'bg-purple-600/30 text-purple-200 font-black border-purple-500/40 shadow-inner'
                                 : 'text-emerald-400 bg-emerald-500/5 border-slate-800/80'
                             }`}
-                            title={customConIva ? `Fórmula personalizada: ${customConIva.rawFormula}` : 'Haz clic para formular esta celda'}
+                            title={isFormulaMode ? (customConIva ? `Fórmula personalizada: ${customConIva.rawFormula}` : 'Haz clic para formular esta celda') : (customConIva ? `Fórmula: ${customConIva.rawFormula}` : 'Con IVA: Sin IVA * 1.21')}
                           >
                             <div className="flex items-center justify-end space-x-1">
                               {customConIva && (
