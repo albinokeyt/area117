@@ -21,59 +21,192 @@ const parseNum = (val: string | number | undefined): number => {
   return isNaN(num) ? 0 : num;
 };
 
-// Catálogo de Estaciones con Bandera y Dirección Real del Excel
+// Catálogo Oficial de Estaciones con Bandera y Dirección Exactas del Catálogo
 const STATIONS_METADATA: Record<string, { bandera: string; ubicacion: string }> = {
-  'ES RIBA-ROJA': { bandera: 'EXOIL', ubicacion: 'Polígono Industrial el Oliveral, Calle U, nº 4, Riba-roja de Túria, Valencia' },
+  // 1. RIBA-RROJA / RIBA-ROJA / ES RIBA-ROJA
+  'RIBA-RROJA': { bandera: 'EXOIL', ubicacion: 'Polígono Industrial el Oliveral, Calle U, número 4, 46394 Riba-roja de Túria, Valencia' },
+  'RIBA-ROJA': { bandera: 'EXOIL', ubicacion: 'Polígono Industrial el Oliveral, Calle U, número 4, 46394 Riba-roja de Túria, Valencia' },
+  'ES RIBA-ROJA': { bandera: 'EXOIL', ubicacion: 'Polígono Industrial el Oliveral, Calle U, número 4, 46394 Riba-roja de Túria, Valencia' },
+
+  // 2. PISTA DE SILLA / ES PISTA DE SILLA
+  'PISTA DE SILLA': { bandera: 'EXOIL', ubicacion: 'Camí pont de pedra, 3, 46910, Valencia' },
   'ES PISTA DE SILLA': { bandera: 'EXOIL', ubicacion: 'Camí pont de pedra, 3, 46910, Valencia' },
-  'ES REAL DE GANDIA': { bandera: 'EXOIL', ubicacion: "Carrer Travessera D'Albaida, 62, El Real de Gandia, Valencia" },
+
+  // 3. REAL DE GANDÍA / REAL DE GANDIA / ES REAL DE GANDIA
+  'REAL DE GANDÍA': { bandera: 'EXOIL', ubicacion: "Carrer Travessera D'Albaida, 62, 46727 El Real de Gandia, Valencia" },
+  'REAL DE GANDIA': { bandera: 'EXOIL', ubicacion: "Carrer Travessera D'Albaida, 62, 46727 El Real de Gandia, Valencia" },
+  'ES REAL DE GANDIA': { bandera: 'EXOIL', ubicacion: "Carrer Travessera D'Albaida, 62, 46727 El Real de Gandia, Valencia" },
+
+  // 4. CHIVA / ES CHIVA
+  'CHIVA': { bandera: 'EXOIL', ubicacion: 'C. Ramón y Cajal, 53, Valencia' },
   'ES CHIVA': { bandera: 'EXOIL', ubicacion: 'C. Ramón y Cajal, 53, Valencia' },
+
+  // 5. ALBERIC / ES ALBERIC
+  'ALBERIC': { bandera: 'EXOIL', ubicacion: 'AV. La Marquesa, 14, 46260 Alberic, Valencia' },
   'ES ALBERIC': { bandera: 'EXOIL', ubicacion: 'AV. La Marquesa, 14, 46260 Alberic, Valencia' },
-  'CATARROJA': { bandera: 'EXOIL', ubicacion: 'Camí Vell de Russafa, 418, 46470 Catarroja, Valencia' },
+
+  // 6. CATARROJA
+  'CATARROJA': { bandera: 'EXOIL', ubicacion: 'Camí Vell de Russafa, 418 - 46470 Catarroja, Valencia' },
+
+  // 7. MANISES / MANISES - EXOIL
+  'MANISES': { bandera: 'EXOIL', ubicacion: 'Avinguda de la Cova, 62, 46940 Manises, Valencia' },
   'MANISES - EXOIL': { bandera: 'EXOIL', ubicacion: 'Avinguda de la Cova, 62, 46940 Manises, Valencia' },
-  'TORREJON': { bandera: 'VALCARCE', ubicacion: 'Avenida ronda sur 3, Pol. Ind. Los Almendros, Torrejón de Ardoz, Madrid' },
-  'ARCOS JALON': { bandera: 'AREA 117', ubicacion: 'Calle Malita, 15 - Arcos de Jalón, Soria' },
-  'ALFAJARIN': { bandera: 'AREA 117', ubicacion: 'Polígono El Saco, Parcela 1, Alfajarín, Zaragoza' },
-  'TORREMOCHA': { bandera: 'AREA 117', ubicacion: 'Carretera Nacional II, Km 167, Torremocha del Campo, Guadalajara' },
-  'MADRID': { bandera: 'AREA 117', ubicacion: 'Calle de Alfonso Gómez, 19, San Blas-Canillejas, Madrid' },
-  'VALLECAS': { bandera: 'AREA 117', ubicacion: 'Calle de Jesús del Pino, 28, Villa de Vallecas, Madrid' },
-  'ES VALDEMORO': { bandera: 'AREA 117', ubicacion: 'Avenida de las Canteras, 1, Valdemoro, Madrid' },
-  'PAMPLONA': { bandera: 'AREA 117', ubicacion: 'Polígono Agustinos, Calle G, Parcela 2, Pamplona, Navarra' },
-  'HUMILLADERO': { bandera: 'AREA 117', ubicacion: 'A-384, Km 132, 29531 Humilladero, Málaga' },
-  'UCLES': { bandera: 'AREA 117', ubicacion: 'Autovía A-3, Km 91, Uclés, Cuenca' },
-  'BENAMEJI': { bandera: 'AREA 117', ubicacion: 'Autovía A-45, Km 87, Benamejí, Córdoba' },
-  'SORIA ALCUBILLAS': { bandera: 'AREA 117', ubicacion: 'Carretera N-111, Km 189, Alcubilla de las Peñas, Soria' },
-  'ABRERA': { bandera: 'AREA 117', ubicacion: 'Polígono Industrial Sant Ermengol, Abrera, Barcelona' },
-  'VALDEHERRERA': { bandera: 'AREA 117', ubicacion: 'Carretera N-II, Km 198, Santa María de Huerta, Soria' },
-  'EL CASAR': { bandera: 'AREA 117', ubicacion: 'Carretera de Fuente el Saz, Km 1, El Casar, Guadalajara' },
-  'LA JOYOSA': { bandera: 'AREA 117', ubicacion: 'Autovía A-68, Km 258, La Joyosa, Zaragoza' },
-  'JUNDIZ NORPETROL': { bandera: 'NORPETROL', ubicacion: 'Polígono Industrial de Júndiz, Vitoria-Gasteiz, Álava' },
-  'OLIVERAL': { bandera: 'AREA 117', ubicacion: 'Sector 13, Calle C, Parcela 15, Riba-roja de Túria, Valencia' },
-  'GUARROMAN': { bandera: 'AREA 117', ubicacion: 'Autovía A-4, Km 283, Guarromán, Jaén' },
-  'VALDEPEÑAS': { bandera: 'AREA 117', ubicacion: 'Autovía A-4, Km 200, Valdepeñas, Ciudad Real' },
-  'OPEN': { bandera: 'AREA 117', ubicacion: 'Polígono Industrial Cobo Calleja, Fuenlabrada, Madrid' },
-  'TJOIL SEVILLA': { bandera: 'TJ OIL', ubicacion: 'Polígono Industrial La Red, Alcalá de Guadaíra, Sevilla' },
-  'BENAVENTE': { bandera: 'VALCARCE', ubicacion: 'A-6, Km 262, Benavente, Zamora' },
-  'IRUN ZAISA III': { bandera: 'VALCARCE', ubicacion: 'Zaisa III, Behobia, Irun, Gipuzkoa' },
-  'TARRAGONA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial Francolí, Tarragona' },
-  'LACHAR': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, Km 221, Láchar, Granada' },
-  'LA CAMPANA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-4, Km 486, La Campana, Sevilla' },
-  'AVILESINA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial PEPA, Avilés, Asturias' },
-  'GOR': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92N, Km 20, Gor, Granada' },
-  'LLERS': { bandera: 'VALCARCE', ubicacion: 'Carretera N-II, Km 760, Llers, Girona' },
-  'DARRO - A92': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92, Km 282, Darro, Granada' },
-  'MERIDA': { bandera: 'VALCARCE', ubicacion: 'Autovía A-5, Km 341, Mérida, Badajoz' },
-  'SANCTI-SPIRITUS': { bandera: 'VALCARCE', ubicacion: 'Autovía A-62, Km 312, Sancti-Spíritus, Salamanca' },
-  'MURCIA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial Oeste, San Ginés, Murcia' },
-  'NORIOIL': { bandera: 'NORPETROL', ubicacion: 'Polígono Industrial Bayas, Miranda de Ebro, Burgos' },
-  'SAN VICENTE DEL PALACIO': { bandera: 'VALCARCE', ubicacion: 'Autovía A-6, Km 147, San Vicente del Palacio, Valladolid' },
-  'WATERY ARANDA': { bandera: 'WATERY', ubicacion: 'Polígono Industrial Prado Marina, Aranda de Duero, Burgos' },
-  'BERA': { bandera: 'VALCARCE', ubicacion: 'Carretera N-121A, Km 67, Bera, Navarra' },
-  'PUERTO DE BARCELONA': { bandera: 'VALCARCE', ubicacion: 'Moll Álvarez de la Campa, Puerto de Barcelona' },
-  'GIRONA-CALSINA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial Pont Xetmar, Cornellà del Terri, Girona' },
-  'FEGOBLAN PONTEVEDRA': { bandera: 'VALCARCE', ubicacion: 'Polígono Industrial O Campiño, Pontevedra' },
-  'VEGA DE VALCARCE': { bandera: 'VALCARCE', ubicacion: 'Autovía A-6, Km 419, Vega de Valcarce, León' },
-  'HOILA TOLEDO': { bandera: 'HOILA', ubicacion: 'Polígono Industrial Toledo, Toledo' },
-  'PETREM TRUCKS FIGUERES': { bandera: 'PETREM', ubicacion: 'Polígono Industrial El Far, Figueres, Girona' },
+
+  // 8. TORREJON
+  'TORREJON': { bandera: 'VALCARCE', ubicacion: 'Avenida ronda sur 3, Polígono industrial los almendros, 28850 – Torrejón de Ardoz, Madrid' },
+
+  // 9. ARCOS JALON
+  'ARCOS JALON': { bandera: 'AREA 117', ubicacion: 'Calle Malita, 15 - Arcos de Jalón' },
+
+  // 10. ALFAJARIN
+  'ALFAJARIN': { bandera: 'ALFA ENERGIA', ubicacion: 'Pl. del Saco, 12 - 50172 Alfajarín, Zaragoza' },
+
+  // 11. TORREMOCHA
+  'TORREMOCHA': { bandera: 'AREA117', ubicacion: 'Área de Servicio A2, KM 117 19268 - Torremocha del Campo' },
+
+  // 12. MADRID
+  'MADRID': { bandera: 'AREA 117', ubicacion: 'Vía de Servicio A-3, KM 11, 28031 Madrid' },
+
+  // 13. VALLECAS
+  'VALLECAS': { bandera: 'AREA 117', ubicacion: 'Av. de la Democracia, 15, 28031 Madrid' },
+
+  // 14. VALDEMORO / ES VALDEMORO
+  'VALDEMORO': { bandera: 'AREA 117', ubicacion: 'C/ Narciso Monturiol 28, Pol. Industrial Rompecubas, 28341 Valdemoro' },
+  'ES VALDEMORO': { bandera: 'AREA 117', ubicacion: 'C/ Narciso Monturiol 28, Pol. Industrial Rompecubas, 28341 Valdemoro' },
+
+  // 15. PAMPLONA
+  'PAMPLONA': { bandera: 'ALAITZ', ubicacion: 'N-121, KM11,3 - 31398 Muruarte de Reta, Navarra' },
+
+  // 16. HUMILLADERO
+  'HUMILLADERO': { bandera: 'AREA117', ubicacion: 'Al autovia A92, KM. 138,20, 29531 Humilladero, Malaga' },
+
+  // 17. UCLES
+  'UCLES': { bandera: 'VALCARCE', ubicacion: 'Autovía del Este, KM 90, 16420 Villarrubio, Cuenca' },
+
+  // 18. BENAMEJI
+  'BENAMEJI': { bandera: 'AREA117', ubicacion: 'Estación de servicio Cepsa EL BERROCAL, N-331, PK: 96, 14910 Benamejí, Córdoba, España' },
+
+  // 19. SORIA ALCUBILLAS
+  'SORIA ALCUBILLAS': { bandera: 'AREA117', ubicacion: 'A-15, km, Salida 13, 42213 Alcubilla de las Peñas, Soria' },
+
+  // 20. ABRERA
+  'ABRERA': { bandera: 'HAM', ubicacion: 'Carrer del Treball, 1, 08630 Abrera, Barcelona' },
+
+  // 21. VALDEHERRERA
+  'VALDEHERRERA': { bandera: 'PETROBIL', ubicacion: 'Area de servicio Valdeherrera A2, KM 231, 50300 Calatayud, Zaragoza' },
+
+  // 22. EL CASAR
+  'EL CASAR': { bandera: 'VALCARCE', ubicacion: 'Cam. Pilón, 2, 45614 El Casar de Talavera, Toledo' },
+
+  // 23. LA JOYOSA
+  'LA JOYOSA': { bandera: 'VALCARCE', ubicacion: 'Autovía de Logroño, A-68 - Salida 257' },
+
+  // 24. JUNDIZ / JUNDIZ NORPETROL
+  'JUNDIZ': { bandera: 'NORPETROL', ubicacion: 'Margarita Entitatea, 16, 01195 Margarita, Araba, España' },
+  'JUNDIZ NORPETROL': { bandera: 'NORPETROL', ubicacion: 'Margarita Entitatea, 16, 01195 Margarita, Araba, España' },
+
+  // 25. OLIVERAL
+  'OLIVERAL': { bandera: 'ALZ', ubicacion: 'Carrer A, 57 - 46394 Ribarroja de Túria, Valencia' },
+
+  // 26. GUARROMAN
+  'GUARROMAN': { bandera: 'VALCARCE', ubicacion: 'Carretera N-IV, Salida 280, al lado Hostal Mellizos' },
+
+  // 27. VALDEPEÑAS
+  'VALDEPEÑAS': { bandera: 'LA PARA ROCIERA', ubicacion: 'A-4, 210, 13730 Santa Cruz de Mudela, Ciudad Real' },
+
+  // 28. OPEN
+  'OPEN': { bandera: 'VALCARCE', ubicacion: 'Cam. Garrán, 23710 Bailén, Jaén, España' },
+
+  // 29. TJOIL SEVILLA
+  'TJOIL SEVILLA': { bandera: 'TJ OIL', ubicacion: 'C. Castilla la Mancha, 181, 41909 Salteras, Sevilla' },
+
+  // 30. BENAVENTE
+  'BENAVENTE': { bandera: 'VALCARCE', ubicacion: 'C. Cañada Berciano - 49600 Benavente, Zamora' },
+
+  // 31. IRUN ZAISA III
+  'IRUN ZAISA III': { bandera: 'VALCARCE', ubicacion: 'Antxotxipi Kalea, 4 - 20305 Irun, Gipuzkoa' },
+
+  // 32. TARRAGONA
+  'TARRAGONA': { bandera: 'BIOESTACIONES', ubicacion: 'CL SOFRE, POL. IND. RIU-CLAR, 3' },
+
+  // 33. LACHAR
+  'LACHAR': { bandera: 'VALCARCE', ubicacion: 'Autovía A-92 Carretera Lachar Peñuelas Parcela 301-302 Salida 221' },
+
+  // 34. LA CAMPANA
+  'LA CAMPANA': { bandera: 'RUTA 4', ubicacion: 'Autovia A4 - Salida KM 482, 41429, Sevilla' },
+
+  // 35. AVILESINA
+  'AVILESINA': { bandera: 'VALCARCE', ubicacion: 'Lugar Silvota, AS-19, KM-15, 700, 33468 Trasona, Asturias' },
+
+  // 36. GOR
+  'GOR': { bandera: 'VALCARCE', ubicacion: 'A-92N, PK 12, 18870 GOR, Granada' },
+
+  // 37. LLERS
+  'LLERS': { bandera: 'PETROMIRALLES', ubicacion: 'Ctra, N-II, Km 760, 17730 Llers, Girona' },
+
+  // 38. DARRO - A92
+  'DARRO - A92': { bandera: 'A-92', ubicacion: 'Autovia 92 P.K. 282, 18181 Darro, Granada' },
+
+  // 39. MERIDA
+  'MERIDA': { bandera: 'NIEVES', ubicacion: 'Polígono Industrial El Prado, Autovía del Suroeste, Salida 34, 06800 Mérida, Badajoz' },
+
+  // 40. SANCTI-SPIRITUS
+  'SANCTI-SPIRITUS': { bandera: 'NIEVES', ubicacion: 'Pol. Ind. Sancti-Spiritus, C. el Majadal, 8, 37470 Sancti-Spíritus, Salamanca' },
+
+  // 41. MURCIA
+  'MURCIA': { bandera: 'MILL SERVICES', ubicacion: 'c/ Valencia 14-16 Pol indus Los Torraos de Ceutí' },
+
+  // 42. NORIOIL
+  'NORIOIL': { bandera: 'NORIOIL', ubicacion: 'N-630, 06200 Almendralejo, Badajoz' },
+
+  // 43. SAN VICENTE DEL PALACIO
+  'SAN VICENTE DEL PALACIO': { bandera: 'VALCARCE', ubicacion: 'A-6, salida147, 47493 Medina del Campo, Valladolid' },
+
+  // 44. WATERY ARANDA
+  'WATERY ARANDA': { bandera: 'VALCARCE', ubicacion: 'C. Vendimia, 2, 09400 Aranda de Duero, Burgos' },
+
+  // 45. BERA
+  'BERA': { bandera: 'PETROMIRALLES', ubicacion: 'Poligono Industrial Zalain, 18, 31780 Bera, Navarra' },
+
+  // 46. PUERTO BARCELONA / PUERTO DE BARCELONA
+  'PUERTO BARCELONA': { bandera: 'PETROMIRALES', ubicacion: "Delta 1, Moll d'inflamables, Carrer del Port de Haifa, 3, 08039 Barcelona, España" },
+  'PUERTO DE BARCELONA': { bandera: 'PETROMIRALES', ubicacion: "Delta 1, Moll d'inflamables, Carrer del Port de Haifa, 3, 08039 Barcelona, España" },
+
+  // 47. GIRONA-CALSINA
+  'GIRONA-CALSINA': { bandera: 'CALSINA CARRÉ', ubicacion: 'Camí del Roure, 5, 17706 Pont de Molins, Girona' },
+
+  // 48. FEGOBLAN PONTEVEDRA
+  'FEGOBLAN PONTEVEDRA': { bandera: 'VALCARCE', ubicacion: 'Gasolineira Valcarce, 36419, Pontevedra' },
+
+  // 49. VEGA DE VALCARCE
+  'VEGA DE VALCARCE': { bandera: 'VALCARCE', ubicacion: 'Ctra. N 6, Km 418, 24524 La Portela de Valcarce, León' },
+
+  // 50. HOILA TOLEDO
+  'HOILA TOLEDO': { bandera: 'HOLIA', ubicacion: 'C. Alfareros, 45200 Illescas, Toledo' },
+
+  // 51. FIGUERES / PETREM FIGUERES / PETREM TRUCKS FIGUERES
+  'FIGUERES': { bandera: 'PETREM', ubicacion: "AP-7 Sortida 4 - Corral Roig s/n 17771 Sta. Llogaia D'Alguma" },
+  'PETREM FIGUERES': { bandera: 'PETREM', ubicacion: "AP-7 Sortida 4 - Corral Roig s/n 17771 Sta. Llogaia D'Alguma" },
+  'PETREM TRUCKS FIGUERES': { bandera: 'PETREM', ubicacion: "AP-7 Sortida 4 - Corral Roig s/n 17771 Sta. Llogaia D'Alguma" },
+
+  // Compatibilidad adicional
+  'MONTE REAL': { bandera: 'AREA 117', ubicacion: 'Red de Estaciones de Servicio' },
+};
+
+const getStationMetadata = (stationName: string, isPropia: boolean): { bandera: string; ubicacion: string } => {
+  if (STATIONS_METADATA[stationName]) return STATIONS_METADATA[stationName];
+  const upper = stationName.toUpperCase().trim();
+  if (STATIONS_METADATA[upper]) return STATIONS_METADATA[upper];
+  const withoutEs = upper.replace(/^ES\s+/, '').trim();
+  if (STATIONS_METADATA[withoutEs]) return STATIONS_METADATA[withoutEs];
+  const stripped = withoutEs.replace(/-/g, ' ');
+  for (const [key, val] of Object.entries(STATIONS_METADATA)) {
+    if (key.toUpperCase().replace(/-/g, ' ') === stripped) return val;
+  }
+  return {
+    bandera: isPropia ? 'AREA 117' : 'VALCARCE',
+    ubicacion: 'Red de Estaciones de Servicio',
+  };
 };
 
 // Catálogo Oficial Completo de Tarifas
@@ -765,10 +898,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                   const active = isStationActive(st.name);
                   const isPropia = st.type === 'PROPIA';
                   const prices = getStationPrice(st.name, isPropia);
-                  const meta = STATIONS_METADATA[st.name] || {
-                    bandera: isPropia ? 'AREA 117' : 'VALCARCE',
-                    ubicacion: 'Red de Estaciones de Servicio',
-                  };
+                  const meta = getStationMetadata(st.name, isPropia);
 
                   return (
                     <tr
