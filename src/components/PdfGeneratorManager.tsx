@@ -308,16 +308,12 @@ const isTransfriredOrange = (stName: string): boolean => {
     u.includes('ALBERIC') ||
     u.includes('CATARROJA') ||
     u.includes('MANISES') ||
+    u.includes('ABRERA') ||
     u.includes('CASAR') ||
     u.includes('JUNDIZ') ||
     u.includes('OLIVERAL') ||
     u.includes('GUARROMAN') ||
     u.includes('VALDEPE') ||
-    u.includes('OPEN') ||
-    u.includes('IRUN') ||
-    u.includes('CAMPANA') ||
-    u.includes('LLERS') ||
-    u.includes('BERA') ||
     u.includes('GIRONA') ||
     u.includes('FIGUERES')
   );
@@ -334,49 +330,25 @@ const isRorOrange = (stName: string): boolean => {
   );
 };
 
-const isEstebanOrange = (stName: string): boolean => {
-  const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-  return (
-    u.includes('ALFAJARIN') ||
-    u.includes('TORREMOCHA') ||
-    u.includes('CATARROJA') ||
-    u.includes('MANISES') ||
-    u.includes('ABRERA')
-  );
-};
-
 const isEstebanGreen = (stName: string): boolean => {
   const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-  return u.includes('ARCOS') || u.includes('MADRID');
-};
-
-const isTarifa30Orange = (stName: string): boolean => {
-  const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-  return u.includes('ALFAJARIN') || u.includes('CATARROJA') || u.includes('MANISES');
-};
-
-const isSurOrange = (stName: string): boolean => {
-  const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
   return (
-    u.includes('TORREJON') ||
-    u.includes('VALDEMORO') ||
-    u.includes('HUMILLADERO') ||
-    u.includes('BENAMEJI') ||
-    u.includes('VALDEPE') ||
-    u.includes('OPEN') ||
-    u.includes('LACHAR') ||
-    u.includes('CAMPANA')
+    u.includes('PUERTO DE BARCELONA') ||
+    u.includes('GIRONA') ||
+    u.includes('FEGOBLAN') ||
+    u.includes('VEGA DE VALCARCE') ||
+    u.includes('HOILA TOLEDO')
   );
 };
 
-const isSurGreen = (stName: string): boolean => {
+const isEstebanOrange = (stName: string): boolean => {
+  if (isEstebanGreen(stName)) return false;
   const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
   return (
     u.includes('ARCOS') ||
     u.includes('ALFAJARIN') ||
     u.includes('TORREMOCHA') ||
     u.includes('MADRID') ||
-    u.includes('VALLECAS') ||
     u.includes('PAMPLONA') ||
     u.includes('UCLES') ||
     u.includes('ALCUBILLAS') ||
@@ -386,8 +358,52 @@ const isSurGreen = (stName: string): boolean => {
     u.includes('CHIVA') ||
     u.includes('ALBERIC') ||
     u.includes('CATARROJA') ||
-    u.includes('MANISES')
+    u.includes('MANISES') ||
+    u.includes('CASAR') ||
+    u.includes('OLIVERAL') ||
+    u.includes('GUARROMAN') ||
+    u.includes('BERA') ||
+    u.includes('FIGUERES')
   );
+};
+
+const isTarifa30Orange = (stName: string): boolean => {
+  const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+  return u.includes('ABRERA');
+};
+
+const isSurOrange = (stName: string): boolean => {
+  const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+  return u.includes('ABRERA');
+};
+
+const isSurGreen = (stName: string): boolean => {
+  const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+  const greenList = [
+    'VALDEHERRERA',
+    'LA JOYOSA',
+    'JUNDIZ NORPETROL',
+    'OLIVERAL',
+    'TJOIL SEVILLA',
+    'BENAVENTE',
+    'IRUN ZAISA III',
+    'TARRAGONA',
+    'AVILESINA',
+    'LLERS',
+    'MERIDA',
+    'SANCTI-SPIRITUS',
+    'MURCIA',
+    'NORIOIL',
+    'SAN VICENTE DEL PALACIO',
+    'WATERY ARANDA',
+    'BERA',
+    'PUERTO DE BARCELONA',
+    'GIRONA-CALSINA',
+    'FEGOBLAN PONTEVEDRA',
+    'VEGA DE VALCARCE',
+    'HOILA TOLEDO',
+  ];
+  return greenList.some((g) => u.includes(g) || g.includes(u));
 };
 
 // Catálogo Oficial Completo de Tarifas
@@ -721,7 +737,10 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       } catch (e) {}
     }
 
-    const rawSabanaFormulas = typeof window !== 'undefined' ? loadSabanaFormulas(targetDate) : {};
+    const rawSabanaFormulas = typeof window !== 'undefined' ? {
+      ...loadSabanaFormulas(selectedDate),
+      ...loadSabanaFormulas(targetDate),
+    } : {};
     const resolvedSabanaFormulas = reevaluateAllSabanaFormulas(
       rawSabanaFormulas,
       targetDate,
@@ -817,7 +836,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       getSpecialRateRefPrice,
       getSpecialRateActualPrice,
     };
-  }, [targetDate, postesRefreshTrigger]);
+  }, [targetDate, selectedDate, postesRefreshTrigger]);
 
   // Obtener precios exactos de la Sábana de Precios / Compras para cada estación
   const getStationPrice = (stName: string, isPropia: boolean) => {
@@ -859,7 +878,8 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       selUpper === 'ESPECIAL COMPLETO' ||
       selUpper === 'C-0 GENERAL' ||
       selUpper.includes('ESPECIAL COMPLETO') ||
-      selUpper.includes('C-0')
+      selUpper.includes('C-0') ||
+      selUpper.includes('C0')
     ) {
       const specBlockId = 'c0_general';
       const specTariffTitle = 'Especial General C-0';
@@ -941,7 +961,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       } else {
         defaultSinIva = Number((basePrice + 0.024).toFixed(3));
       }
-    } else if (selUpper.includes('MIKI')) {
+    } else if (selUpper.includes('MIKI') || selUpper.includes('MILO')) {
       specBlockId = 'miki_ecotrans_tarifa30';
       specTariffTitle = 'Tarifa 90 Miki';
       defaultSinIva = Number((basePrice + 0.090).toFixed(3));
@@ -949,13 +969,13 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       specBlockId = 'miki_ecotrans_tarifa30';
       specTariffTitle = 'Tarifa ECOTRANS';
       defaultSinIva = Number((basePrice + 0.050).toFixed(3));
-    } else if (selUpper === 'TARIFA 30' || selUpper === 'T30') {
+    } else if (selUpper === 'TARIFA 30' || selUpper === 'T30' || (selUpper.includes('30') && !selUpper.includes('SUR'))) {
       specBlockId = 'miki_ecotrans_tarifa30';
       specTariffTitle = 'Tarifa 30';
       defaultSinIva = isTarifa30Orange(stName)
         ? sabanaContext.getSpecialRateActualPrice(stName)
         : Number((basePrice + 0.030).toFixed(3));
-    } else if (selUpper.includes('27 SUR')) {
+    } else if (selUpper.includes('27 SUR') || selUpper.includes('27SUR')) {
       specBlockId = 'sur_benito';
       specTariffTitle = 'Tarifa 27 Sur';
       if (isSurOrange(stName)) {
@@ -965,16 +985,20 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       } else {
         defaultSinIva = Number((basePrice + 0.027).toFixed(3));
       }
-    } else if (selUpper.includes('15 SUR')) {
+    } else if (selUpper.includes('15 SUR') || selUpper.includes('15SUR')) {
       specBlockId = 'sur_benito';
       specTariffTitle = 'Tarifa 15 Sur';
       if (isSurOrange(stName)) {
         defaultSinIva = sabanaContext.getSpecialRateRefPrice(stName);
       } else if (isSurGreen(stName)) {
-        defaultSinIva = Number((basePrice + 0.015).toFixed(3));
+        defaultSinIva = Number((basePrice + 0.024).toFixed(3));
       } else {
         defaultSinIva = Number((basePrice + 0.015).toFixed(3));
       }
+    } else if (selUpper.includes('75')) {
+      specBlockId = 'tarifa_75';
+      specTariffTitle = 'Tarifa 75';
+      defaultSinIva = Number((basePrice + 0.038).toFixed(3));
     }
 
     if (specBlockId && specTariffTitle && defaultSinIva !== null) {
@@ -991,21 +1015,109 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       return { sinIva, conIva };
     }
 
-    // 3. Tarifas Estándar (con chequeo de fórmula personalizada en Sábana o Markup)
-    const stdTariffNum = selUpper.replace(/^TARIFA\s*/, '').replace(/^T/, '').trim();
-    const stdKey1 = `STD_${stName}_T${stdTariffNum}_sinIva`;
-    const stdKey2 = `STD_${cleanTarget}_T${stdTariffNum}_sinIva`;
-    const stdKey3 = `TAR_${stdTariffNum}_${stName}_sinIva`;
-    const stdKey4 = `TAR_${stdTariffNum}_${cleanTarget}_sinIva`;
-    const stdFormulaSinIva = sabanaContext.resolvedSabanaFormulas[stdKey1] ||
-                             sabanaContext.resolvedSabanaFormulas[stdKey2] ||
-                             sabanaContext.resolvedSabanaFormulas[stdKey3] ||
-                             sabanaContext.resolvedSabanaFormulas[stdKey4];
+    // 3. Tarifas Estándar (12, 18, 24, 36, 40, 42, 45, 47, 50, 60 y variantes PISTA DE SILLA)
+    const stdTariffMatch = selUpper.match(/\b(12|18|24|36|40|42|45|47|50|60)\b/);
+    if (stdTariffMatch) {
+      const stdNum = stdTariffMatch[1];
+      const STANDARD_MARKUPS: Record<string, number> = {
+        '12': 0.0120,
+        '18': 0.0180,
+        '24': 0.0240,
+        '36': 0.0360,
+        '40': 0.0400,
+        '42': 0.0420,
+        '45': 0.0450,
+        '47': 0.0470,
+        '50': 0.0600,
+        '60': 0.0800,
+      };
 
-    const sinIva = stdFormulaSinIva
-      ? Number(stdFormulaSinIva.evaluatedValue.toFixed(3))
+      const stdKey1 = `STD_${stName}_T${stdNum}_sinIva`;
+      const stdKey2 = `STD_${cleanTarget}_T${stdNum}_sinIva`;
+      const stdKey3 = `TAR_${stdNum}_${stName}_sinIva`;
+      const stdKey4 = `TAR_${stdNum}_${cleanTarget}_sinIva`;
+      const formulaSinIva = sabanaContext.resolvedSabanaFormulas[stdKey1] ||
+                            sabanaContext.resolvedSabanaFormulas[stdKey2] ||
+                            sabanaContext.resolvedSabanaFormulas[stdKey3] ||
+                            sabanaContext.resolvedSabanaFormulas[stdKey4];
+
+      const conKey1 = `STD_${stName}_T${stdNum}_conIva`;
+      const conKey2 = `STD_${cleanTarget}_T${stdNum}_conIva`;
+      const conKey3 = `TAR_${stdNum}_${stName}_conIva`;
+      const conKey4 = `TAR_${stdNum}_${cleanTarget}_conIva`;
+      const formulaConIva = sabanaContext.resolvedSabanaFormulas[conKey1] ||
+                            sabanaContext.resolvedSabanaFormulas[conKey2] ||
+                            sabanaContext.resolvedSabanaFormulas[conKey3] ||
+                            sabanaContext.resolvedSabanaFormulas[conKey4];
+
+      const defaultMarkup = STANDARD_MARKUPS[stdNum] ?? currentMarkup;
+      const sinIva = formulaSinIva
+        ? Number(formulaSinIva.evaluatedValue.toFixed(3))
+        : Number((basePrice + defaultMarkup).toFixed(3));
+
+      const conIva = formulaConIva
+        ? Number(formulaConIva.evaluatedValue.toFixed(3))
+        : Number((sinIva * 1.21).toFixed(3));
+
+      return { sinIva, conIva };
+    }
+
+    // 4. Tarifa BENITO
+    if (selUpper === 'BENITO' || selUpper.includes('BENITO')) {
+      const benitoSinKey1 = `SPEC_sur_benito_${stName}_Especial Benito_sinIva`;
+      const benitoSinKey2 = `SPEC_sur_benito_${cleanTarget}_Especial Benito_sinIva`;
+      const benitoConKey1 = `SPEC_sur_benito_${stName}_Especial Benito_conIva`;
+      const benitoConKey2 = `SPEC_sur_benito_${cleanTarget}_Especial Benito_conIva`;
+      const t12SinKey = `STD_${stName}_T12_sinIva`;
+      const t12ConKey = `STD_${stName}_T12_conIva`;
+
+      const formulaSinIva = sabanaContext.resolvedSabanaFormulas[benitoSinKey1] ||
+                            sabanaContext.resolvedSabanaFormulas[benitoSinKey2] ||
+                            sabanaContext.resolvedSabanaFormulas[t12SinKey];
+      const formulaConIva = sabanaContext.resolvedSabanaFormulas[benitoConKey1] ||
+                            sabanaContext.resolvedSabanaFormulas[benitoConKey2] ||
+                            sabanaContext.resolvedSabanaFormulas[t12ConKey];
+
+      const sinIva = formulaSinIva
+        ? Number(formulaSinIva.evaluatedValue.toFixed(3))
+        : Number((basePrice + 0.0120).toFixed(3));
+      const conIva = formulaConIva
+        ? Number(formulaConIva.evaluatedValue.toFixed(3))
+        : Number((sinIva * 1.21).toFixed(3));
+
+      return { sinIva, conIva };
+    }
+
+    // 5. Búsqueda de cualquier otra fórmula personalizada en Sábana para tarifas de clientes o agregadas
+    const tariffClean = selUpper.replace(/\s+/g, '_');
+    const genericSinKey1 = `STD_${stName}_${tariffClean}_sinIva`;
+    const genericSinKey2 = `STD_${cleanTarget}_${tariffClean}_sinIva`;
+    const genericSinKey3 = `SPEC_${stName}_${tariffClean}_sinIva`;
+    const genericSinKey4 = `SPEC_${cleanTarget}_${tariffClean}_sinIva`;
+
+    const genericConKey1 = `STD_${stName}_${tariffClean}_conIva`;
+    const genericConKey2 = `STD_${cleanTarget}_${tariffClean}_conIva`;
+    const genericConKey3 = `SPEC_${stName}_${tariffClean}_conIva`;
+    const genericConKey4 = `SPEC_${cleanTarget}_${tariffClean}_conIva`;
+
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[genericSinKey1] ||
+                          sabanaContext.resolvedSabanaFormulas[genericSinKey2] ||
+                          sabanaContext.resolvedSabanaFormulas[genericSinKey3] ||
+                          sabanaContext.resolvedSabanaFormulas[genericSinKey4];
+
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[genericConKey1] ||
+                          sabanaContext.resolvedSabanaFormulas[genericConKey2] ||
+                          sabanaContext.resolvedSabanaFormulas[genericConKey3] ||
+                          sabanaContext.resolvedSabanaFormulas[genericConKey4];
+
+    const sinIva = formulaSinIva
+      ? Number(formulaSinIva.evaluatedValue.toFixed(3))
       : Number((basePrice + currentMarkup).toFixed(3));
-    const conIva = Number((sinIva * 1.21).toFixed(3));
+
+    const conIva = formulaConIva
+      ? Number(formulaConIva.evaluatedValue.toFixed(3))
+      : Number((sinIva * 1.21).toFixed(3));
+
     return { sinIva, conIva };
   };
 
