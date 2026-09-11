@@ -422,7 +422,7 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'TARIFA 50', markup: 0.0600 },
   { name: 'TARIFA 60', markup: 0.0800 },
   { name: 'T60 - PISTA DE SILLA', markup: 0.0800 },
-  { name: 'AMAEXO', markup: 0.0120 },
+  { name: 'AMAEXO', markup: 0.0360 },
   { name: 'E100', markup: 0.0130 },
   { name: 'TARIFA ECO', markup: 0.0158 },
   { name: 'DORADO', markup: 0.0135 },
@@ -459,7 +459,9 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter((t: any) => t && t.name && !deletedList.includes(t.name));
+          return parsed
+            .filter((t: any) => t && t.name && !deletedList.includes(t.name))
+            .map((t: any) => t.name === 'AMAEXO' ? { ...t, markup: 0.0360 } : t);
         }
       }
       const initial = INITIAL_TARIFFS_LIST.filter((t) => !deletedList.includes(t.name));
@@ -543,13 +545,13 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       } else {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const filtered = parsed.filter((t: any) => t && t.name && !deletedList.includes(t.name));
-          if (filtered.length !== parsed.length) {
-            setTariffsList(filtered);
-            localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
-            localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
-            localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
-          }
+          const filtered = parsed
+            .filter((t: any) => t && t.name && !deletedList.includes(t.name))
+            .map((t: any) => t.name === 'AMAEXO' ? { ...t, markup: 0.0360 } : t);
+          setTariffsList(filtered);
+          localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
+          localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
+          localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
         }
       }
     } catch (e) {}
@@ -1088,7 +1090,40 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       return { sinIva, conIva };
     }
 
-    // 5. Búsqueda de cualquier otra fórmula personalizada en Sábana para tarifas de clientes o agregadas
+    // 5. Tarifa AMAEXO -> Se alimenta directamente de la Tarifa 36 (Sin IVA y Con IVA) de la Sábana de Precios
+    if (selUpper === 'AMAEXO' || selUpper.includes('AMAEXO')) {
+      const t36SinKey1 = `STD_${stName}_T36_sinIva`;
+      const t36SinKey2 = `STD_${cleanTarget}_T36_sinIva`;
+      const t36SinKey3 = `TAR_36_${stName}_sinIva`;
+      const t36SinKey4 = `TAR_36_${cleanTarget}_sinIva`;
+
+      const t36ConKey1 = `STD_${stName}_T36_conIva`;
+      const t36ConKey2 = `STD_${cleanTarget}_T36_conIva`;
+      const t36ConKey3 = `TAR_36_${stName}_conIva`;
+      const t36ConKey4 = `TAR_36_${cleanTarget}_conIva`;
+
+      const formulaSinIva = sabanaContext.resolvedSabanaFormulas[t36SinKey1] ||
+                            sabanaContext.resolvedSabanaFormulas[t36SinKey2] ||
+                            sabanaContext.resolvedSabanaFormulas[t36SinKey3] ||
+                            sabanaContext.resolvedSabanaFormulas[t36SinKey4];
+
+      const formulaConIva = sabanaContext.resolvedSabanaFormulas[t36ConKey1] ||
+                            sabanaContext.resolvedSabanaFormulas[t36ConKey2] ||
+                            sabanaContext.resolvedSabanaFormulas[t36ConKey3] ||
+                            sabanaContext.resolvedSabanaFormulas[t36ConKey4];
+
+      const sinIva = formulaSinIva
+        ? Number(formulaSinIva.evaluatedValue.toFixed(3))
+        : Number((basePrice + 0.0360).toFixed(3));
+
+      const conIva = formulaConIva
+        ? Number(formulaConIva.evaluatedValue.toFixed(3))
+        : Number((sinIva * 1.21).toFixed(3));
+
+      return { sinIva, conIva };
+    }
+
+    // 6. Búsqueda de cualquier otra fórmula personalizada en Sábana para tarifas de clientes o agregadas
     const tariffClean = selUpper.replace(/\s+/g, '_');
     const genericSinKey1 = `STD_${stName}_${tariffClean}_sinIva`;
     const genericSinKey2 = `STD_${cleanTarget}_${tariffClean}_sinIva`;
