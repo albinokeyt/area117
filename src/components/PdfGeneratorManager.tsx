@@ -424,7 +424,7 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'T60 - PISTA DE SILLA', markup: 0.0800 },
   { name: 'AMAEXO', markup: 0.0360 },
   { name: 'E100', markup: 0.0360 },
-  { name: 'TARIFA ECO', markup: 0.0158 },
+  { name: 'TARIFA ECO', markup: 0.0500 },
   { name: 'DORADO', markup: 0.0135 },
   { name: 'HIQI', markup: 0.0128 },
   { name: 'NORPETROL 24', markup: 0.0132 },
@@ -441,7 +441,7 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'C-0 GENERAL', markup: 0.0116 },
   { name: 'ESTEBAN', markup: 0.0132 },
   { name: 'MIKI 90', markup: 0.0198 },
-  { name: 'ECOTRANS', markup: 0.0158 },
+  { name: 'ECOTRANS', markup: 0.0500 },
   { name: 'TARIFA 30', markup: 0.0138 },
   { name: 'TARIFA 27 SUR', markup: 0.0270 },
   { name: 'TARIFA 15 SUR', markup: 0.0150 },
@@ -461,7 +461,11 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed
             .filter((t: any) => t && t.name && !deletedList.includes(t.name))
-            .map((t: any) => (t.name === 'AMAEXO' || t.name === 'E100') ? { ...t, markup: 0.0360 } : t);
+            .map((t: any) => {
+              if (t.name === 'AMAEXO' || t.name === 'E100') return { ...t, markup: 0.0360 };
+              if (t.name === 'TARIFA ECO' || t.name === 'ECOTRANS') return { ...t, markup: 0.0500 };
+              return t;
+            });
         }
       }
       const initial = INITIAL_TARIFFS_LIST.filter((t) => !deletedList.includes(t.name));
@@ -547,7 +551,11 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         if (Array.isArray(parsed)) {
           const filtered = parsed
             .filter((t: any) => t && t.name && !deletedList.includes(t.name))
-            .map((t: any) => (t.name === 'AMAEXO' || t.name === 'E100') ? { ...t, markup: 0.0360 } : t);
+            .map((t: any) => {
+              if (t.name === 'AMAEXO' || t.name === 'E100') return { ...t, markup: 0.0360 };
+              if (t.name === 'TARIFA ECO' || t.name === 'ECOTRANS') return { ...t, markup: 0.0500 };
+              return t;
+            });
           setTariffsList(filtered);
           localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
           localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
@@ -967,7 +975,12 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       specBlockId = 'miki_ecotrans_tarifa30';
       specTariffTitle = 'Tarifa 90 Miki';
       defaultSinIva = Number((basePrice + 0.090).toFixed(3));
-    } else if (selUpper.includes('ECOTRANS')) {
+    } else if (
+      selUpper.includes('ECOTRANS') ||
+      selUpper === 'TARIFA ECO' ||
+      selUpper === 'ECO' ||
+      selUpper.includes('TARIFA ECO')
+    ) {
       specBlockId = 'miki_ecotrans_tarifa30';
       specTariffTitle = 'Tarifa ECOTRANS';
       defaultSinIva = Number((basePrice + 0.050).toFixed(3));
@@ -1009,8 +1022,17 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       const customConIvaKey1 = `SPEC_${specBlockId}_${stName}_${specTariffTitle}_conIva`;
       const customConIvaKey2 = `SPEC_${specBlockId}_${cleanTarget}_${specTariffTitle}_conIva`;
 
-      const formulaSinIva = sabanaContext.resolvedSabanaFormulas[customSinIvaKey1] || sabanaContext.resolvedSabanaFormulas[customSinIvaKey2];
-      const formulaConIva = sabanaContext.resolvedSabanaFormulas[customConIvaKey1] || sabanaContext.resolvedSabanaFormulas[customConIvaKey2];
+      let formulaSinIva = sabanaContext.resolvedSabanaFormulas[customSinIvaKey1] || sabanaContext.resolvedSabanaFormulas[customSinIvaKey2];
+      let formulaConIva = sabanaContext.resolvedSabanaFormulas[customConIvaKey1] || sabanaContext.resolvedSabanaFormulas[customConIvaKey2];
+
+      if (specTariffTitle === 'Tarifa ECOTRANS') {
+        const altSinKey1 = `SPEC_${specBlockId}_${stName}_Tarifa ECO_sinIva`;
+        const altSinKey2 = `SPEC_${specBlockId}_${cleanTarget}_Tarifa ECO_sinIva`;
+        const altConKey1 = `SPEC_${specBlockId}_${stName}_Tarifa ECO_conIva`;
+        const altConKey2 = `SPEC_${specBlockId}_${cleanTarget}_Tarifa ECO_conIva`;
+        formulaSinIva = formulaSinIva || sabanaContext.resolvedSabanaFormulas[altSinKey1] || sabanaContext.resolvedSabanaFormulas[altSinKey2];
+        formulaConIva = formulaConIva || sabanaContext.resolvedSabanaFormulas[altConKey1] || sabanaContext.resolvedSabanaFormulas[altConKey2];
+      }
 
       const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : defaultSinIva;
       const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
