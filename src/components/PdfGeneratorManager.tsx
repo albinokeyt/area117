@@ -423,7 +423,7 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'TARIFA 60', markup: 0.0800 },
   { name: 'T60 - PISTA DE SILLA', markup: 0.0800 },
   { name: 'AMAEXO', markup: 0.0360 },
-  { name: 'E100', markup: 0.0130 },
+  { name: 'E100', markup: 0.0360 },
   { name: 'TARIFA ECO', markup: 0.0158 },
   { name: 'DORADO', markup: 0.0135 },
   { name: 'HIQI', markup: 0.0128 },
@@ -461,7 +461,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed
             .filter((t: any) => t && t.name && !deletedList.includes(t.name))
-            .map((t: any) => t.name === 'AMAEXO' ? { ...t, markup: 0.0360 } : t);
+            .map((t: any) => (t.name === 'AMAEXO' || t.name === 'E100') ? { ...t, markup: 0.0360 } : t);
         }
       }
       const initial = INITIAL_TARIFFS_LIST.filter((t) => !deletedList.includes(t.name));
@@ -547,7 +547,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         if (Array.isArray(parsed)) {
           const filtered = parsed
             .filter((t: any) => t && t.name && !deletedList.includes(t.name))
-            .map((t: any) => t.name === 'AMAEXO' ? { ...t, markup: 0.0360 } : t);
+            .map((t: any) => (t.name === 'AMAEXO' || t.name === 'E100') ? { ...t, markup: 0.0360 } : t);
           setTariffsList(filtered);
           localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
           localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
@@ -1090,8 +1090,14 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       return { sinIva, conIva };
     }
 
-    // 5. Tarifa AMAEXO -> Se alimenta directamente de la Tarifa 36 (Sin IVA y Con IVA) de la Sábana de Precios
-    if (selUpper === 'AMAEXO' || selUpper.includes('AMAEXO')) {
+    // 5. Tarifas AMAEXO y E100 -> Se alimentan directamente de la Tarifa 36 (Sin IVA y Con IVA) de la Sábana de Precios
+    if (
+      selUpper === 'AMAEXO' ||
+      selUpper.includes('AMAEXO') ||
+      selUpper === 'E100' ||
+      selUpper.includes('E100') ||
+      selUpper.includes('E-100')
+    ) {
       const t36SinKey1 = `STD_${stName}_T36_sinIva`;
       const t36SinKey2 = `STD_${cleanTarget}_T36_sinIva`;
       const t36SinKey3 = `TAR_36_${stName}_sinIva`;
