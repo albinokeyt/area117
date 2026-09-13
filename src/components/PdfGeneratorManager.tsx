@@ -7,7 +7,7 @@ import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
   Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert,
-  RotateCcw
+  RotateCcw, Sliders, Database, Settings2
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
@@ -449,6 +449,315 @@ const INITIAL_TARIFFS_LIST: { name: string; markup: number }[] = [
   { name: 'TRANFIRRED GOB', markup: 0.0000 },
 ];
 
+export interface CustomSourceConfig {
+  sourceType: string;
+  manualPriceSinIva?: number;
+}
+
+export const DATA_SOURCE_CATEGORIES = [
+  {
+    category: 'Predeterminado',
+    options: [
+      { id: 'DEFAULT', label: 'Predeterminado (Lógica Oficial / Sábana de Precios)' },
+    ],
+  },
+  {
+    category: 'Sábana de Precios - Tarifas Estándar',
+    options: [
+      { id: 'SABANA_T12', label: 'Sábana - Tarifa 12 (+0,012 €/L)' },
+      { id: 'SABANA_T18', label: 'Sábana - Tarifa 18 (+0,018 €/L)' },
+      { id: 'SABANA_T24', label: 'Sábana - Tarifa 24 (+0,024 €/L)' },
+      { id: 'SABANA_T36', label: 'Sábana - Tarifa 36 (+0,036 €/L)' },
+      { id: 'SABANA_T40', label: 'Sábana - Tarifa 40 (+0,040 €/L)' },
+      { id: 'SABANA_T42', label: 'Sábana - Tarifa 42 (+0,042 €/L)' },
+      { id: 'SABANA_T45', label: 'Sábana - Tarifa 45 (+0,045 €/L)' },
+      { id: 'SABANA_T47', label: 'Sábana - Tarifa 47 (+0,047 €/L)' },
+      { id: 'SABANA_T50', label: 'Sábana - Tarifa 50 (+0,060 €/L)' },
+      { id: 'SABANA_T60', label: 'Sábana - Tarifa 60 (+0,080 €/L)' },
+    ],
+  },
+  {
+    category: 'Sábana de Precios - Tarifas Especiales',
+    options: [
+      { id: 'SABANA_C0', label: 'Sábana - Tarifa C-0 (Especial General)' },
+      { id: 'SABANA_JAVI', label: 'Sábana - Tarifa Especial Los Javi' },
+      { id: 'SABANA_CARRERAS', label: 'Sábana - Tarifa Especial Carreras' },
+      { id: 'SABANA_TRANSFRIRED', label: 'Sábana - Tarifa Especial Transfrired' },
+      { id: 'SABANA_ROR', label: 'Sábana - Tarifa Especial ROR' },
+      { id: 'SABANA_ESTEBAN', label: 'Sábana - Tarifa Especial Esteban' },
+      { id: 'SABANA_MIKI', label: 'Sábana - Tarifa 90 Miki' },
+      { id: 'SABANA_ECOTRANS', label: 'Sábana - Tarifa ECOTRANS / ECO' },
+      { id: 'SABANA_T30', label: 'Sábana - Tarifa 30' },
+      { id: 'SABANA_T27_SUR', label: 'Sábana - Tarifa 27 Sur' },
+      { id: 'SABANA_T15_SUR', label: 'Sábana - Tarifa 15 Sur' },
+      { id: 'SABANA_T75', label: 'Sábana - Tarifa 75' },
+      { id: 'SABANA_BENITO', label: 'Sábana - Especial Benito' },
+    ],
+  },
+  {
+    category: 'Ventana de Compras',
+    options: [
+      { id: 'COMPRAS_PVENTA', label: 'Compras - Precio Venta Sugerido' },
+      { id: 'COMPRAS_COSTO', label: 'Compras - Costo Directo' },
+      { id: 'COMPRAS_REF', label: 'Compras - Precio Referencia (+0,024)' },
+      { id: 'COMPRAS_ACTUAL', label: 'Compras - Precio Actual' },
+    ],
+  },
+  {
+    category: 'Ventana de Postes',
+    options: [
+      { id: 'POSTES_GOB', label: 'Postes - Gasóleo B (Transfrired con IVA)' },
+    ],
+  },
+  {
+    category: 'Personalizado Fijo',
+    options: [
+      { id: 'MANUAL', label: 'Manual - Precio Fijo (€/L Sin IVA)' },
+    ],
+  },
+];
+
+export function evaluatePriceBySource(
+  sourceType: string,
+  stName: string,
+  isPropia: boolean,
+  manualPriceSinIva: number | undefined,
+  sabanaContext: any
+): { sinIva: number; conIva: number } {
+  const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+  const basePrice = sabanaContext.getStationBasePrice(stName);
+
+  if (sourceType === 'MANUAL') {
+    const sinIva = Number((manualPriceSinIva || 0).toFixed(3));
+    const conIva = Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'POSTES_GOB') {
+    let gbKey = '';
+    const u = cleanTarget;
+    if (u.includes('TORREMOCHA')) gbKey = 'TORREMOCHA';
+    else if (u.includes('ARCOS')) gbKey = 'ARCOS';
+    else if (u.includes('UCLES')) gbKey = 'UCLES';
+    try {
+      const savedPostes = localStorage.getItem('efi_postes_data_v2');
+      if (savedPostes) {
+        const parsed = JSON.parse(savedPostes);
+        const row = gbKey ? parsed.gasoleoBRows?.[gbKey] : null;
+        if (row) {
+          const transferNum = row.transfer && row.transfer.trim() !== ''
+            ? parseNum(row.transfer)
+            : Number((parseNum(row.compra || '1.172') + 0.017).toFixed(3));
+          const conIva = Number((transferNum * 1.21).toFixed(3));
+          const sinIva = Number(transferNum.toFixed(3));
+          return { sinIva, conIva };
+        }
+      }
+    } catch (e) {}
+    return { sinIva: 1.189, conIva: 1.439 };
+  }
+
+  if (sourceType.startsWith('COMPRAS_')) {
+    const pData = sabanaContext.purchasesData?.[stName] || sabanaContext.purchasesData?.[cleanTarget];
+    if (sourceType === 'COMPRAS_PVENTA') {
+      const p = pData?.p_venta ? parseNum(pData.p_venta) : basePrice;
+      return { sinIva: Number(p.toFixed(3)), conIva: Number((p * 1.21).toFixed(3)) };
+    }
+    if (sourceType === 'COMPRAS_COSTO') {
+      const p = pData?.costo ? parseNum(pData.costo) : (isPropia ? 1.050 : 1.100);
+      return { sinIva: Number(p.toFixed(3)), conIva: Number((p * 1.21).toFixed(3)) };
+    }
+    if (sourceType === 'COMPRAS_REF') {
+      const p = pData?.ref ? parseNum(pData.ref) : (pData?.costo ? parseNum(pData.costo) + 0.024 : basePrice);
+      return { sinIva: Number(p.toFixed(3)), conIva: Number((p * 1.21).toFixed(3)) };
+    }
+    if (sourceType === 'COMPRAS_ACTUAL') {
+      const p = pData?.actual ? parseNum(pData.actual) : (pData?.p_venta ? parseNum(pData.p_venta) : basePrice);
+      return { sinIva: Number(p.toFixed(3)), conIva: Number((p * 1.21).toFixed(3)) };
+    }
+  }
+
+  // Standard Sábana: SABANA_T12 .. SABANA_T60
+  const stdMatch = sourceType.match(/^SABANA_T(\d+)$/);
+  if (stdMatch) {
+    const stdNum = stdMatch[1];
+    const stdKey1 = `STD_${stName}_T${stdNum}_sinIva`;
+    const stdKey2 = `STD_${cleanTarget}_T${stdNum}_sinIva`;
+    const stdKey3 = `TAR_${stdNum}_${stName}_sinIva`;
+    const stdKey4 = `TAR_${stdNum}_${cleanTarget}_sinIva`;
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[stdKey1] ||
+                          sabanaContext.resolvedSabanaFormulas[stdKey2] ||
+                          sabanaContext.resolvedSabanaFormulas[stdKey3] ||
+                          sabanaContext.resolvedSabanaFormulas[stdKey4];
+
+    const conKey1 = `STD_${stName}_T${stdNum}_conIva`;
+    const conKey2 = `STD_${cleanTarget}_T${stdNum}_conIva`;
+    const conKey3 = `TAR_${stdNum}_${stName}_conIva`;
+    const conKey4 = `TAR_${stdNum}_${cleanTarget}_conIva`;
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[conKey1] ||
+                          sabanaContext.resolvedSabanaFormulas[conKey2] ||
+                          sabanaContext.resolvedSabanaFormulas[conKey3] ||
+                          sabanaContext.resolvedSabanaFormulas[conKey4];
+
+    const STANDARD_MARKUPS: Record<string, number> = {
+      '12': 0.0120, '18': 0.0180, '24': 0.0240, '36': 0.0360,
+      '40': 0.0400, '42': 0.0420, '45': 0.0450, '47': 0.0470,
+      '50': 0.0600, '60': 0.0800,
+    };
+    const markup = STANDARD_MARKUPS[stdNum] ?? 0.0240;
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + markup).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  // Special Sábana Tariffs
+  if (sourceType === 'SABANA_C0') {
+    const specBlockId = 'c0_general';
+    const specTariffTitle = 'Especial General C-0';
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_${specBlockId}_${stName}_${specTariffTitle}_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_${specBlockId}_${cleanTarget}_${specTariffTitle}_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_${specBlockId}_${stName}_${specTariffTitle}_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_${specBlockId}_${cleanTarget}_${specTariffTitle}_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.024).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_JAVI') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${stName}_Especial Javi_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${cleanTarget}_Especial Javi_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${stName}_Especial Javi_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${cleanTarget}_Especial Javi_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.024).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_CARRERAS') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${stName}_Especial Carreras_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${cleanTarget}_Especial Carreras_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${stName}_Especial Carreras_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_los_javi_${cleanTarget}_Especial Carreras_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.018).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_TRANSFRIRED') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_transfrired_${stName}_Especial Transfrired_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_transfrired_${cleanTarget}_Especial Transfrired_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_transfrired_${stName}_Especial Transfrired_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_transfrired_${cleanTarget}_Especial Transfrired_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.024).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_ROR') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${stName}_Especial ROR_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${cleanTarget}_Especial ROR_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${stName}_Especial ROR_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${cleanTarget}_Especial ROR_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.024).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_ESTEBAN') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${stName}_Especial Esteban_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${cleanTarget}_Especial Esteban_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${stName}_Especial Esteban_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_ror_esteban_${cleanTarget}_Especial Esteban_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.024).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_MIKI') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 90 Miki_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${cleanTarget}_Tarifa 90 Miki_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 90 Miki_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${cleanTarget}_Tarifa 90 Miki_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.090).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_ECOTRANS') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECOTRANS_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${cleanTarget}_Tarifa ECOTRANS_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECO_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECOTRANS_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${cleanTarget}_Tarifa ECOTRANS_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa ECO_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.050).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_T30') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 30_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${cleanTarget}_Tarifa 30_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${stName}_Tarifa 30_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_miki_ecotrans_tarifa30_${cleanTarget}_Tarifa 30_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.030).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_T27_SUR') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${stName}_Tarifa 27 Sur_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${cleanTarget}_Tarifa 27 Sur_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${stName}_Tarifa 27 Sur_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${cleanTarget}_Tarifa 27 Sur_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.027).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_T15_SUR') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${stName}_Tarifa 15 Sur_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${cleanTarget}_Tarifa 15 Sur_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${stName}_Tarifa 15 Sur_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_sur_benito_${cleanTarget}_Tarifa 15 Sur_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.015).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_T75') {
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[`SPEC_tarifa_75_${stName}_Tarifa 75_sinIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_tarifa_75_${cleanTarget}_Tarifa 75_sinIva`];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[`SPEC_tarifa_75_${stName}_Tarifa 75_conIva`] ||
+                          sabanaContext.resolvedSabanaFormulas[`SPEC_tarifa_75_${cleanTarget}_Tarifa 75_conIva`];
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.038).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  if (sourceType === 'SABANA_BENITO') {
+    const benitoSinKey1 = `SPEC_sur_benito_${stName}_Especial Benito_sinIva`;
+    const benitoSinKey2 = `SPEC_sur_benito_${cleanTarget}_Especial Benito_sinIva`;
+    const benitoConKey1 = `SPEC_sur_benito_${stName}_Especial Benito_conIva`;
+    const benitoConKey2 = `SPEC_sur_benito_${cleanTarget}_Especial Benito_conIva`;
+    const t12SinKey = `STD_${stName}_T12_sinIva`;
+    const t12ConKey = `STD_${stName}_T12_conIva`;
+
+    const formulaSinIva = sabanaContext.resolvedSabanaFormulas[benitoSinKey1] ||
+                          sabanaContext.resolvedSabanaFormulas[benitoSinKey2] ||
+                          sabanaContext.resolvedSabanaFormulas[t12SinKey];
+    const formulaConIva = sabanaContext.resolvedSabanaFormulas[benitoConKey1] ||
+                          sabanaContext.resolvedSabanaFormulas[benitoConKey2] ||
+                          sabanaContext.resolvedSabanaFormulas[t12ConKey];
+
+    const sinIva = formulaSinIva ? Number(formulaSinIva.evaluatedValue.toFixed(3)) : Number((basePrice + 0.0120).toFixed(3));
+    const conIva = formulaConIva ? Number(formulaConIva.evaluatedValue.toFixed(3)) : Number((sinIva * 1.21).toFixed(3));
+    return { sinIva, conIva };
+  }
+
+  return { sinIva: Number(basePrice.toFixed(3)), conIva: Number((basePrice * 1.21).toFixed(3)) };
+}
+
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
@@ -696,6 +1005,28 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     });
   };
 
+  // Mapeo Personalizado de Origen de Datos por Estación y Tarifa
+  const [stationSourcesMapping, setStationSourcesMapping] = useState<Record<string, CustomSourceConfig>>(() => {
+    try {
+      const saved = localStorage.getItem('efi_pdf_station_source_mapping_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {};
+  });
+
+  const saveStationSourcesMapping = (updated: Record<string, CustomSourceConfig>) => {
+    setStationSourcesMapping(updated);
+    try {
+      localStorage.setItem('efi_pdf_station_source_mapping_v1', JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  // Modal para Modificar Origen de Datos
+  const [showSourcesModal, setShowSourcesModal] = useState(false);
+  const [sourcesModalTariff, setSourcesModalTariff] = useState(selectedTariff);
+  const [bulkSelectedSource, setBulkSelectedSource] = useState('DEFAULT');
+  const [sourcesModalSearch, setSourcesModalSearch] = useState('');
+
   // Añadir nueva tarifa
   const handleAddNewTariff = (e: React.FormEvent) => {
     e.preventDefault();
@@ -849,11 +1180,32 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   }, [targetDate, selectedDate, postesRefreshTrigger]);
 
   // Obtener precios exactos de la Sábana de Precios / Compras para cada estación
-  const getStationPrice = (stName: string, isPropia: boolean) => {
+  const getStationPrice = (stName: string, isPropia: boolean, tariffOverride?: string) => {
+    const activeTariff = tariffOverride || selectedTariff;
+    const isGob = activeTariff.toUpperCase().includes('GOB') ||
+      activeTariff.toUpperCase().includes('GASOLEO B') ||
+      activeTariff.toUpperCase().includes('GASÓLEO B');
+
+    // 0. Comprobar si hay un origen personalizado configurado para esta estación y tarifa
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const stationConfigKey = `${activeTariff}::${stName}`;
+    const cleanConfigKey = `${activeTariff}::${cleanTarget}`;
+    const tariffDefaultKey = `${activeTariff}::__DEFAULT__`;
+
+    const customCfg = stationSourcesMapping[stationConfigKey] ||
+                      stationSourcesMapping[cleanConfigKey] ||
+                      (stationSourcesMapping[tariffDefaultKey]?.sourceType && stationSourcesMapping[tariffDefaultKey].sourceType !== 'DEFAULT'
+                        ? stationSourcesMapping[tariffDefaultKey]
+                        : null);
+
+    if (customCfg && customCfg.sourceType && customCfg.sourceType !== 'DEFAULT') {
+      return evaluatePriceBySource(customCfg.sourceType, stName, isPropia, customCfg.manualPriceSinIva, sabanaContext);
+    }
+
     // Si la tarifa corresponde a Gasóleo B (ej. TRANFIRRED GOB)
-    if (isGobTariff) {
+    if (isGob) {
       let gbKey = '';
-      const u = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+      const u = cleanTarget;
       if (u.includes('TORREMOCHA')) gbKey = 'TORREMOCHA';
       else if (u.includes('ARCOS')) gbKey = 'ARCOS';
       else if (u.includes('UCLES')) gbKey = 'UCLES';
@@ -879,8 +1231,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       return { sinIva: 0, conIva: 0 };
     }
 
-    const selUpper = selectedTariff.toUpperCase().trim();
-    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const selUpper = activeTariff.toUpperCase().trim();
     const basePrice = sabanaContext.getStationBasePrice(stName);
 
     // 1. ESPECIAL COMPLETO / C-0 GENERAL -> Cuadro Tarifa C-0 (Especial General) de Sábana de Precios
@@ -1289,6 +1640,19 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
             </button>
 
             <button
+              onClick={() => {
+                setSourcesModalTariff(selectedTariff);
+                setBulkSelectedSource('DEFAULT');
+                setShowSourcesModal(true);
+              }}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-xl text-xs font-bold border border-purple-500/40 shadow-md transition-all active:scale-95"
+              title="Modificar de dónde salen los datos de cada estación en cada PDF de cada tarifa"
+            >
+              <Sliders className="h-4 w-4 text-purple-400" />
+              <span>Modificar Origen de Datos</span>
+            </button>
+
+            <button
               onClick={handlePrintPdf}
               className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95"
             >
@@ -1558,7 +1922,35 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                       </td>
 
                       <td className="py-2 px-3 font-bold text-slate-950">
-                        {st.name}
+                        <div className="flex items-center space-x-2">
+                          <span>{st.name}</span>
+                          {(() => {
+                            const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                            const stationCfg = stationSourcesMapping[`${selectedTariff}::${st.name}`] ||
+                                              stationSourcesMapping[`${selectedTariff}::${cleanTarget}`] ||
+                                              (stationSourcesMapping[`${selectedTariff}::__DEFAULT__`]?.sourceType && stationSourcesMapping[`${selectedTariff}::__DEFAULT__`].sourceType !== 'DEFAULT'
+                                                ? stationSourcesMapping[`${selectedTariff}::__DEFAULT__`]
+                                                : null);
+                            if (stationCfg && stationCfg.sourceType && stationCfg.sourceType !== 'DEFAULT') {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSourcesModalTariff(selectedTariff);
+                                    setSourcesModalSearch(st.name);
+                                    setShowSourcesModal(true);
+                                  }}
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 transition-colors print:hidden"
+                                  title={`Origen personalizado: ${stationCfg.sourceType}. Clic para modificar.`}
+                                >
+                                  <Sliders className="h-2.5 w-2.5 mr-1 text-purple-600" />
+                                  Personalizado
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                       </td>
                       <td className="py-2 px-3 font-semibold text-slate-700">
                         <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold border border-slate-300">
@@ -1768,6 +2160,287 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Modificar Origen de Datos por Estación y Tarifa */}
+      {showSourcesModal && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 p-6 sm:p-7 space-y-5">
+            {/* Header del Modal */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-purple-500/15 border border-purple-500/30 rounded-2xl text-purple-400">
+                  <Sliders className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white tracking-tight">
+                    Modificar Origen de Datos de Precios
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Configura de qué columna, sábana o valor proviene el precio de cada estación en los PDFs de cada tarifa
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSourcesModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Controles de Selección de Tarifa y Asignación Masiva */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 bg-slate-950/80 p-4 rounded-2xl border border-slate-800 items-end">
+              <div className="lg:col-span-4">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Tarifa a Configurar:
+                </label>
+                <select
+                  value={sourcesModalTariff}
+                  onChange={(e) => setSourcesModalTariff(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-bold text-xs rounded-xl px-3 py-2.5 focus:border-purple-400 focus:outline-none cursor-pointer"
+                >
+                  {tariffsList.map((t) => (
+                    <option key={t.name} value={t.name}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="lg:col-span-5">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Aplicar Masivo a Todas las Estaciones:
+                </label>
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={bulkSelectedSource}
+                    onChange={(e) => setBulkSelectedSource(e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 focus:border-purple-400 focus:outline-none cursor-pointer"
+                  >
+                    {DATA_SOURCE_CATEGORIES.map((cat) => (
+                      <optgroup key={cat.category} label={cat.category}>
+                        {cat.options.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = { ...stationSourcesMapping };
+                      allStations.forEach((st) => {
+                        const key = `${sourcesModalTariff}::${st.name}`;
+                        updated[key] = {
+                          sourceType: bulkSelectedSource,
+                          manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
+                        };
+                      });
+                      updated[`${sourcesModalTariff}::__DEFAULT__`] = {
+                        sourceType: bulkSelectedSource,
+                      };
+                      saveStationSourcesMapping(updated);
+                      setDownloadNotice(`Origen aplicado a todas las estaciones de ${sourcesModalTariff}`);
+                      setTimeout(() => setDownloadNotice(null), 3000);
+                    }}
+                    className="px-3.5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap"
+                  >
+                    Aplicar a Todas
+                  </button>
+                </div>
+              </div>
+
+              <div className="lg:col-span-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...stationSourcesMapping };
+                    Object.keys(updated).forEach((k) => {
+                      if (k.startsWith(`${sourcesModalTariff}::`)) {
+                        delete updated[k];
+                      }
+                    });
+                    saveStationSourcesMapping(updated);
+                    setDownloadNotice(`Restablecida ${sourcesModalTariff} a valores predeterminados`);
+                    setTimeout(() => setDownloadNotice(null), 3000);
+                  }}
+                  className="w-full px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition-all flex items-center justify-center space-x-1.5"
+                  title="Eliminar todas las personalizaciones y volver a las fórmulas predeterminadas de la Sábana"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Restablecer Tarifa</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Buscador de estaciones dentro del modal */}
+            <div className="flex items-center justify-between gap-3 px-1">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Buscar estación en la lista..."
+                  value={sourcesModalSearch}
+                  onChange={(e) => setSourcesModalSearch(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:border-purple-400 focus:outline-none"
+                />
+              </div>
+              <span className="text-xs text-slate-400 font-mono">
+                {allStations.filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase())).length} de {allStations.length} estaciones
+              </span>
+            </div>
+
+            {/* Tabla con scroll de estaciones */}
+            <div className="overflow-y-auto flex-1 border border-slate-800 rounded-2xl max-h-[50vh]">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="sticky top-0 bg-slate-950 text-slate-300 uppercase text-[10px] tracking-wider font-bold z-10">
+                  <tr className="border-b border-slate-800">
+                    <th className="py-2.5 px-3">Estación</th>
+                    <th className="py-2.5 px-3">Origen de Datos</th>
+                    <th className="py-2.5 px-3">Precio Manual (€)</th>
+                    <th className="py-2.5 px-3 text-right">Resultado Sin IVA</th>
+                    <th className="py-2.5 px-3 text-right">Resultado Con IVA</th>
+                    <th className="py-2.5 px-3 text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 bg-slate-900/50">
+                  {allStations
+                    .filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase()))
+                    .map((st) => {
+                      const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                      const isPropia = st.type === 'PROPIA';
+                      const stationKey = `${sourcesModalTariff}::${st.name}`;
+                      const cleanKey = `${sourcesModalTariff}::${cleanTarget}`;
+                      const tariffDefaultKey = `${sourcesModalTariff}::__DEFAULT__`;
+
+                      const currentCfg = stationSourcesMapping[stationKey] ||
+                                        stationSourcesMapping[cleanKey] ||
+                                        stationSourcesMapping[tariffDefaultKey] ||
+                                        { sourceType: 'DEFAULT' };
+
+                      const isCustom = currentCfg.sourceType && currentCfg.sourceType !== 'DEFAULT';
+                      const prices = getStationPrice(st.name, isPropia, sourcesModalTariff);
+
+                      return (
+                        <tr key={st.name} className={`hover:bg-slate-800/40 transition-colors ${isCustom ? 'bg-purple-950/10' : ''}`}>
+                          <td className="py-2.5 px-3 font-bold text-white">
+                            <div className="flex items-center space-x-2">
+                              <span>{st.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPropia ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+                                {isPropia ? 'PROPIA' : 'COLABORADORA'}
+                              </span>
+                              {isCustom && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                                  Personalizado
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <select
+                              value={currentCfg.sourceType || 'DEFAULT'}
+                              onChange={(e) => {
+                                const newSource = e.target.value;
+                                const updated = {
+                                  ...stationSourcesMapping,
+                                  [stationKey]: {
+                                    sourceType: newSource,
+                                    manualPriceSinIva: currentCfg.manualPriceSinIva ?? prices.sinIva,
+                                  },
+                                };
+                                saveStationSourcesMapping(updated);
+                              }}
+                              className={`w-full max-w-[260px] bg-slate-950 border text-xs rounded-xl px-2.5 py-1.5 focus:outline-none ${isCustom ? 'border-purple-500/60 text-purple-200 font-semibold' : 'border-slate-800 text-slate-300'}`}
+                            >
+                              {DATA_SOURCE_CATEGORIES.map((cat) => (
+                                <optgroup key={cat.category} label={cat.category}>
+                                  {cat.options.map((opt) => (
+                                    <option key={opt.id} value={opt.id}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {currentCfg.sourceType === 'MANUAL' ? (
+                              <input
+                                type="number"
+                                step="0.001"
+                                value={currentCfg.manualPriceSinIva ?? prices.sinIva}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  const updated = {
+                                    ...stationSourcesMapping,
+                                    [stationKey]: {
+                                      sourceType: 'MANUAL',
+                                      manualPriceSinIva: val,
+                                    },
+                                  };
+                                  saveStationSourcesMapping(updated);
+                                }}
+                                className="w-24 bg-slate-950 border border-purple-500/60 rounded-xl px-2.5 py-1 text-xs text-white font-mono font-bold focus:outline-none"
+                              />
+                            ) : (
+                              <span className="text-slate-600 text-xs font-mono">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-white text-xs">
+                            {prices.sinIva.toFixed(3).replace('.', ',')} €
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-400 text-xs">
+                            {prices.conIva.toFixed(3).replace('.', ',')} €
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center">
+                            {isCustom ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = { ...stationSourcesMapping };
+                                  delete updated[stationKey];
+                                  delete updated[cleanKey];
+                                  saveStationSourcesMapping(updated);
+                                }}
+                                className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors"
+                                title="Restablecer estación a su origen predeterminado"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-600">Predet.</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-400">
+                💡 Los cambios se aplican de forma inmediata y automática al documento PDF y a la tabla.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSourcesModal(false)}
+                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/20 transition-all active:scale-95"
+              >
+                Cerrar y Ver PDF
+              </button>
+            </div>
           </div>
         </div>
       )}
