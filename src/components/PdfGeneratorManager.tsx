@@ -7,7 +7,7 @@ import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
   Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert,
-  RotateCcw, Sliders, Database, Settings2
+  RotateCcw, Sliders, Database, Settings2, MousePointerClick, Table, Layers
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
@@ -758,6 +758,39 @@ export function evaluatePriceBySource(
   return { sinIva: Number(basePrice.toFixed(3)), conIva: Number((basePrice * 1.21).toFixed(3)) };
 }
 
+export const SABANA_PICKER_COLUMNS = [
+  { id: 'SABANA_T12', name: 'T12', fullTitle: 'Tarifa 12 (+0,012)', badge: '+0.012' },
+  { id: 'SABANA_T18', name: 'T18', fullTitle: 'Tarifa 18 (+0,018)', badge: '+0.018' },
+  { id: 'SABANA_T24', name: 'T24', fullTitle: 'Tarifa 24 (+0,024)', badge: '+0.024' },
+  { id: 'SABANA_T36', name: 'T36', fullTitle: 'Tarifa 36 (+0,036)', badge: '+0.036' },
+  { id: 'SABANA_T40', name: 'T40', fullTitle: 'Tarifa 40 (+0,040)', badge: '+0.040' },
+  { id: 'SABANA_T42', name: 'T42', fullTitle: 'Tarifa 42 (+0,042)', badge: '+0.042' },
+  { id: 'SABANA_T45', name: 'T45', fullTitle: 'Tarifa 45 (+0,045)', badge: '+0.045' },
+  { id: 'SABANA_T47', name: 'T47', fullTitle: 'Tarifa 47 (+0,047)', badge: '+0.047' },
+  { id: 'SABANA_T50', name: 'T50', fullTitle: 'Tarifa 50 (+0,060)', badge: '+0.060' },
+  { id: 'SABANA_T60', name: 'T60', fullTitle: 'Tarifa 60 (+0,080)', badge: '+0.080' },
+  { id: 'SABANA_C0', name: 'C-0 General', fullTitle: 'Especial General C-0', badge: 'C-0' },
+  { id: 'SABANA_JAVI', name: 'Los Javi', fullTitle: 'Especial Los Javi', badge: 'Javi' },
+  { id: 'SABANA_CARRERAS', name: 'Carreras', fullTitle: 'Especial Carreras', badge: 'Carreras' },
+  { id: 'SABANA_TRANSFRIRED', name: 'Transfrired', fullTitle: 'Especial Transfrired', badge: 'Transf.' },
+  { id: 'SABANA_ROR', name: 'ROR', fullTitle: 'Especial ROR', badge: 'ROR' },
+  { id: 'SABANA_ESTEBAN', name: 'Esteban', fullTitle: 'Especial Esteban', badge: 'Esteban' },
+  { id: 'SABANA_MIKI', name: 'Miki 90', fullTitle: 'Tarifa 90 Miki', badge: '+0.090' },
+  { id: 'SABANA_ECOTRANS', name: 'ECOTRANS', fullTitle: 'Tarifa ECOTRANS', badge: '+0.050' },
+  { id: 'SABANA_T30', name: 'Tarifa 30', fullTitle: 'Tarifa 30', badge: '+0.030' },
+  { id: 'SABANA_T27_SUR', name: '27 Sur', fullTitle: 'Tarifa 27 Sur', badge: '+0.027' },
+  { id: 'SABANA_T15_SUR', name: '15 Sur', fullTitle: 'Tarifa 15 Sur', badge: '+0.015' },
+  { id: 'SABANA_T75', name: 'Tarifa 75', fullTitle: 'Tarifa 75', badge: '+0.038' },
+  { id: 'SABANA_BENITO', name: 'Benito', fullTitle: 'Especial Benito', badge: 'Benito' },
+];
+
+export const COMPRAS_PICKER_COLUMNS = [
+  { id: 'COMPRAS_PVENTA', name: 'P. Venta Sugerido', fullTitle: 'Compras - P. Venta Sugerido', badge: 'P. Venta' },
+  { id: 'COMPRAS_COSTO', name: 'Costo Directo', fullTitle: 'Compras - Costo Directo', badge: 'Costo' },
+  { id: 'COMPRAS_REF', name: 'Precio Referencia', fullTitle: 'Compras - Precio Referencia (+0,024)', badge: 'Ref (+0.024)' },
+  { id: 'COMPRAS_ACTUAL', name: 'Precio Actual', fullTitle: 'Compras - Precio Actual', badge: 'Actual' },
+];
+
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
@@ -1026,6 +1059,59 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [sourcesModalTariff, setSourcesModalTariff] = useState(selectedTariff);
   const [bulkSelectedSource, setBulkSelectedSource] = useState('DEFAULT');
   const [sourcesModalSearch, setSourcesModalSearch] = useState('');
+  // Estados para el Modo Señalar en Ventanas
+  const [modalViewMode, setModalViewMode] = useState<'list' | 'picker'>('list');
+  const [pickerWindowTab, setPickerWindowTab] = useState<'sabana' | 'compras' | 'postes'>('sabana');
+  const [targetPickerStation, setTargetPickerStation] = useState<string>('__ALL__');
+  const [selectedPointingCell, setSelectedPointingCell] = useState<{
+    windowName: string;
+    sourceId: string;
+    label: string;
+    sampleStation?: string;
+    sampleValueSinIva?: number;
+    sampleValueConIva?: number;
+  } | null>(null);
+
+  const handleApplySourceToStation = (stName: string, sourceId: string) => {
+    const key = `${sourcesModalTariff}::${stName}`;
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const updated = {
+      ...stationSourcesMapping,
+      [key]: {
+        sourceType: sourceId,
+        manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
+      },
+      [`${sourcesModalTariff}::${cleanTarget}`]: {
+        sourceType: sourceId,
+        manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
+      },
+    };
+    saveStationSourcesMapping(updated);
+    setDownloadNotice(`Origen asignado a ${stName}`);
+    setTimeout(() => setDownloadNotice(null), 2500);
+  };
+
+  const handleApplySourceToAllStations = (sourceId: string) => {
+    const updated = { ...stationSourcesMapping };
+    allStations.forEach((st) => {
+      const key = `${sourcesModalTariff}::${st.name}`;
+      const clean = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+      updated[key] = {
+        sourceType: sourceId,
+        manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
+      };
+      updated[`${sourcesModalTariff}::${clean}`] = {
+        sourceType: sourceId,
+        manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
+      };
+    });
+    updated[`${sourcesModalTariff}::__DEFAULT__`] = {
+      sourceType: sourceId,
+    };
+    saveStationSourcesMapping(updated);
+    setDownloadNotice(`Origen aplicado a TODAS las estaciones de ${sourcesModalTariff}`);
+    setTimeout(() => setDownloadNotice(null), 2500);
+  };
 
   // Añadir nueva tarifa
   const handleAddNewTariff = (e: React.FormEvent) => {
@@ -2167,19 +2253,22 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       {/* MODAL: Modificar Origen de Datos por Estación y Tarifa */}
       {showSourcesModal && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 p-6 sm:p-7 space-y-5">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-6xl w-full shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 p-6 sm:p-7 space-y-4">
             {/* Header del Modal */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center space-x-3">
                 <div className="p-2.5 bg-purple-500/15 border border-purple-500/30 rounded-2xl text-purple-400">
                   <Sliders className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-white tracking-tight">
-                    Modificar Origen de Datos de Precios
+                  <h3 className="text-lg font-black text-white tracking-tight flex items-center space-x-2">
+                    <span>Modificar Origen de Datos de Precios</span>
+                    <span className="text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/40">
+                      Sábana • Compras • Postes
+                    </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Configura de qué columna, sábana o valor proviene el precio de cada estación en los PDFs de cada tarifa
+                    Señala directamente los datos desde las tablas de Sábana de Precios, Compras y Postes para alimentar cada estación en cada PDF.
                   </p>
                 </div>
               </div>
@@ -2191,242 +2280,809 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
               </button>
             </div>
 
-            {/* Controles de Selección de Tarifa y Asignación Masiva */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 bg-slate-950/80 p-4 rounded-2xl border border-slate-800 items-end">
-              <div className="lg:col-span-4">
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Tarifa a Configurar:
-                </label>
-                <select
-                  value={sourcesModalTariff}
-                  onChange={(e) => setSourcesModalTariff(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-bold text-xs rounded-xl px-3 py-2.5 focus:border-purple-400 focus:outline-none cursor-pointer"
-                >
-                  {tariffsList.map((t) => (
-                    <option key={t.name} value={t.name}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Selector de Modo de Vista del Modal */}
+            <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
+              <button
+                type="button"
+                onClick={() => setModalViewMode('list')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  modalViewMode === 'list'
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <Sliders className="h-4 w-4" />
+                <span>Modo Lista & Selectores</span>
+              </button>
 
-              <div className="lg:col-span-5">
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Aplicar Masivo a Todas las Estaciones:
-                </label>
-                <div className="flex items-center space-x-2">
-                  <select
-                    value={bulkSelectedSource}
-                    onChange={(e) => setBulkSelectedSource(e.target.value)}
-                    className="flex-1 bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 focus:border-purple-400 focus:outline-none cursor-pointer"
-                  >
-                    {DATA_SOURCE_CATEGORIES.map((cat) => (
-                      <optgroup key={cat.category} label={cat.category}>
-                        {cat.options.map((opt) => (
-                          <option key={opt.id} value={opt.id}>
-                            {opt.label}
-                          </option>
+              <button
+                type="button"
+                onClick={() => setModalViewMode('picker')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  modalViewMode === 'picker'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <MousePointerClick className="h-4 w-4" />
+                <span>🎯 Modo Señalar en Ventanas (Sábana / Compras / Postes)</span>
+              </button>
+            </div>
+
+            {modalViewMode === 'list' ? (
+              <div className="space-y-4 flex-1 flex flex-col min-h-0">
+                {/* Controles de Selección de Tarifa y Asignación Masiva */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 bg-slate-950/80 p-4 rounded-2xl border border-slate-800 items-end shrink-0">
+                  <div className="lg:col-span-4">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                      Tarifa a Configurar:
+                    </label>
+                    <select
+                      value={sourcesModalTariff}
+                      onChange={(e) => setSourcesModalTariff(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-bold text-xs rounded-xl px-3 py-2.5 focus:border-purple-400 focus:outline-none cursor-pointer"
+                    >
+                      {tariffsList.map((t) => (
+                        <option key={t.name} value={t.name}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="lg:col-span-5">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                      Aplicar Masivo a Todas las Estaciones:
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <select
+                        value={bulkSelectedSource}
+                        onChange={(e) => setBulkSelectedSource(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 focus:border-purple-400 focus:outline-none cursor-pointer"
+                      >
+                        {DATA_SOURCE_CATEGORIES.map((cat) => (
+                          <optgroup key={cat.category} label={cat.category}>
+                            {cat.options.map((opt) => (
+                              <option key={opt.id} value={opt.id}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = { ...stationSourcesMapping };
-                      allStations.forEach((st) => {
-                        const key = `${sourcesModalTariff}::${st.name}`;
-                        updated[key] = {
-                          sourceType: bulkSelectedSource,
-                          manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
-                        };
-                      });
-                      updated[`${sourcesModalTariff}::__DEFAULT__`] = {
-                        sourceType: bulkSelectedSource,
-                      };
-                      saveStationSourcesMapping(updated);
-                      setDownloadNotice(`Origen aplicado a todas las estaciones de ${sourcesModalTariff}`);
-                      setTimeout(() => setDownloadNotice(null), 3000);
-                    }}
-                    className="px-3.5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap"
-                  >
-                    Aplicar a Todas
-                  </button>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = { ...stationSourcesMapping };
+                          allStations.forEach((st) => {
+                            const key = `${sourcesModalTariff}::${st.name}`;
+                            const clean = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                            updated[key] = {
+                              sourceType: bulkSelectedSource,
+                              manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
+                            };
+                            updated[`${sourcesModalTariff}::${clean}`] = {
+                              sourceType: bulkSelectedSource,
+                              manualPriceSinIva: stationSourcesMapping[key]?.manualPriceSinIva ?? 1.200,
+                            };
+                          });
+                          updated[`${sourcesModalTariff}::__DEFAULT__`] = {
+                            sourceType: bulkSelectedSource,
+                          };
+                          saveStationSourcesMapping(updated);
+                          setDownloadNotice(`Origen aplicado a todas las estaciones de ${sourcesModalTariff}`);
+                          setTimeout(() => setDownloadNotice(null), 3000);
+                        }}
+                        className="px-3.5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap"
+                      >
+                        Aplicar a Todas
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = { ...stationSourcesMapping };
+                        Object.keys(updated).forEach((k) => {
+                          if (k.startsWith(`${sourcesModalTariff}::`)) {
+                            delete updated[k];
+                          }
+                        });
+                        saveStationSourcesMapping(updated);
+                        setDownloadNotice(`Restablecida ${sourcesModalTariff} a valores predeterminados`);
+                        setTimeout(() => setDownloadNotice(null), 3000);
+                      }}
+                      className="w-full px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition-all flex items-center justify-center space-x-1.5"
+                      title="Eliminar todas las personalizaciones y volver a las fórmulas predeterminadas de la Sábana"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Restablecer Tarifa</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Buscador de estaciones dentro del modal */}
+                <div className="flex items-center justify-between gap-3 px-1 shrink-0">
+                  <div className="relative flex-1">
+                    <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="text"
+                      placeholder="Buscar estación en la lista..."
+                      value={sourcesModalSearch}
+                      onChange={(e) => setSourcesModalSearch(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:border-purple-400 focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-xs text-slate-400 font-mono">
+                    {allStations.filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase())).length} de {allStations.length} estaciones
+                  </span>
+                </div>
+
+                {/* Tabla con scroll de estaciones */}
+                <div className="overflow-y-auto flex-1 border border-slate-800 rounded-2xl max-h-[48vh]">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="sticky top-0 bg-slate-950 text-slate-300 uppercase text-[10px] tracking-wider font-bold z-10">
+                      <tr className="border-b border-slate-800">
+                        <th className="py-2.5 px-3">Estación</th>
+                        <th className="py-2.5 px-3">Origen de Datos</th>
+                        <th className="py-2.5 px-3 text-center">Señalar en Ventana</th>
+                        <th className="py-2.5 px-3">Precio Manual (€)</th>
+                        <th className="py-2.5 px-3 text-right">Resultado Sin IVA</th>
+                        <th className="py-2.5 px-3 text-right">Resultado Con IVA</th>
+                        <th className="py-2.5 px-3 text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 bg-slate-900/50">
+                      {allStations
+                        .filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase()))
+                        .map((st) => {
+                          const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                          const isPropia = st.type === 'PROPIA';
+                          const stationKey = `${sourcesModalTariff}::${st.name}`;
+                          const cleanKey = `${sourcesModalTariff}::${cleanTarget}`;
+                          const tariffDefaultKey = `${sourcesModalTariff}::__DEFAULT__`;
+
+                          const currentCfg = stationSourcesMapping[stationKey] ||
+                                            stationSourcesMapping[cleanKey] ||
+                                            stationSourcesMapping[tariffDefaultKey] ||
+                                            { sourceType: 'DEFAULT' };
+
+                          const isCustom = currentCfg.sourceType && currentCfg.sourceType !== 'DEFAULT';
+                          const prices = getStationPrice(st.name, isPropia, sourcesModalTariff);
+
+                          return (
+                            <tr key={st.name} className={`hover:bg-slate-800/40 transition-colors ${isCustom ? 'bg-purple-950/10' : ''}`}>
+                              <td className="py-2.5 px-3 font-bold text-white">
+                                <div className="flex items-center space-x-2">
+                                  <span>{st.name}</span>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPropia ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+                                    {isPropia ? 'PROPIA' : 'COLABORADORA'}
+                                  </span>
+                                  {isCustom && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                                      Personalizado
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                <select
+                                  value={currentCfg.sourceType || 'DEFAULT'}
+                                  onChange={(e) => {
+                                    const newSource = e.target.value;
+                                    const updated = {
+                                      ...stationSourcesMapping,
+                                      [stationKey]: {
+                                        sourceType: newSource,
+                                        manualPriceSinIva: currentCfg.manualPriceSinIva ?? prices.sinIva,
+                                      },
+                                      [cleanKey]: {
+                                        sourceType: newSource,
+                                        manualPriceSinIva: currentCfg.manualPriceSinIva ?? prices.sinIva,
+                                      },
+                                    };
+                                    saveStationSourcesMapping(updated);
+                                  }}
+                                  className={`w-full max-w-[240px] bg-slate-950 border text-xs rounded-xl px-2.5 py-1.5 focus:outline-none ${isCustom ? 'border-purple-500/60 text-purple-200 font-semibold' : 'border-slate-800 text-slate-300'}`}
+                                >
+                                  {DATA_SOURCE_CATEGORIES.map((cat) => (
+                                    <optgroup key={cat.category} label={cat.category}>
+                                      {cat.options.map((opt) => (
+                                        <option key={opt.id} value={opt.id}>
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  ))}
+                                </select>
+                              </td>
+
+                              {/* Botón para Señalar en Ventana */}
+                              <td className="py-2.5 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetPickerStation(st.name);
+                                    setModalViewMode('picker');
+                                  }}
+                                  className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white rounded-xl text-[10px] font-bold transition-all border border-purple-500/40 flex items-center justify-center space-x-1 mx-auto shadow-sm active:scale-95"
+                                  title={`Señalar dato visualmente desde las tablas de Sábana, Compras o Postes para ${st.name}`}
+                                >
+                                  <MousePointerClick className="h-3 w-3" />
+                                  <span>Señalar</span>
+                                </button>
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                {currentCfg.sourceType === 'MANUAL' ? (
+                                  <input
+                                    type="number"
+                                    step="0.001"
+                                    value={currentCfg.manualPriceSinIva ?? prices.sinIva}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      const updated = {
+                                        ...stationSourcesMapping,
+                                        [stationKey]: {
+                                          sourceType: 'MANUAL',
+                                          manualPriceSinIva: val,
+                                        },
+                                        [cleanKey]: {
+                                          sourceType: 'MANUAL',
+                                          manualPriceSinIva: val,
+                                        },
+                                      };
+                                      saveStationSourcesMapping(updated);
+                                    }}
+                                    className="w-24 bg-slate-950 border border-purple-500/60 rounded-xl px-2.5 py-1 text-xs text-white font-mono font-bold focus:outline-none"
+                                  />
+                                ) : (
+                                  <span className="text-slate-600 text-xs font-mono">—</span>
+                                )}
+                              </td>
+
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-white text-xs">
+                                {prices.sinIva.toFixed(3).replace('.', ',')} €
+                              </td>
+
+                              <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-400 text-xs">
+                                {prices.conIva.toFixed(3).replace('.', ',')} €
+                              </td>
+
+                              <td className="py-2.5 px-3 text-center">
+                                {isCustom ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = { ...stationSourcesMapping };
+                                      delete updated[stationKey];
+                                      delete updated[cleanKey];
+                                      saveStationSourcesMapping(updated);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors"
+                                    title="Restablecer estación a su origen predeterminado"
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-600">Predet.</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
+            ) : (
+              /* MODO 2: SEÑALAR EN VENTANAS (SÁBANA / COMPRAS / POSTES) */
+              <div className="space-y-4 flex-1 flex flex-col min-h-0">
+                {/* Barra de Control de Señalización */}
+                <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 grid grid-cols-1 md:grid-cols-12 gap-3 items-end shrink-0">
+                  <div className="md:col-span-3">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Tarifa de los PDFs:
+                    </label>
+                    <select
+                      value={sourcesModalTariff}
+                      onChange={(e) => setSourcesModalTariff(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 text-amber-300 font-bold text-xs rounded-xl px-3 py-2 focus:outline-none cursor-pointer"
+                    >
+                      {tariffsList.map((t) => (
+                        <option key={t.name} value={t.name}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="lg:col-span-3 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updated = { ...stationSourcesMapping };
-                    Object.keys(updated).forEach((k) => {
-                      if (k.startsWith(`${sourcesModalTariff}::`)) {
-                        delete updated[k];
-                      }
-                    });
-                    saveStationSourcesMapping(updated);
-                    setDownloadNotice(`Restablecida ${sourcesModalTariff} a valores predeterminados`);
-                    setTimeout(() => setDownloadNotice(null), 3000);
-                  }}
-                  className="w-full px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition-all flex items-center justify-center space-x-1.5"
-                  title="Eliminar todas las personalizaciones y volver a las fórmulas predeterminadas de la Sábana"
-                >
-                  <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Restablecer Tarifa</span>
-                </button>
-              </div>
-            </div>
+                  <div className="md:col-span-4">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Estación a la que se aplicará el dato:
+                    </label>
+                    <select
+                      value={targetPickerStation}
+                      onChange={(e) => setTargetPickerStation(e.target.value)}
+                      className="w-full bg-slate-900 border border-purple-500/60 text-white font-bold text-xs rounded-xl px-3 py-2 focus:outline-none cursor-pointer"
+                    >
+                      <option value="__ALL__">★ TODAS LAS ESTACIONES (Asignación Masiva)</option>
+                      {allStations.map((st) => (
+                        <option key={st.name} value={st.name}>
+                          {st.name} ({st.type === 'PROPIA' ? 'Propia' : 'Colaboradora'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Buscador de estaciones dentro del modal */}
-            <div className="flex items-center justify-between gap-3 px-1">
-              <div className="relative flex-1">
-                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input
-                  type="text"
-                  placeholder="Buscar estación en la lista..."
-                  value={sourcesModalSearch}
-                  onChange={(e) => setSourcesModalSearch(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:border-purple-400 focus:outline-none"
-                />
-              </div>
-              <span className="text-xs text-slate-400 font-mono">
-                {allStations.filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase())).length} de {allStations.length} estaciones
-              </span>
-            </div>
+                  <div className="md:col-span-5">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Ventana donde señalar el dato:
+                    </label>
+                    <div className="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setPickerWindowTab('sabana')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                          pickerWindowTab === 'sabana'
+                            ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span>Sábana de Precios</span>
+                      </button>
 
-            {/* Tabla con scroll de estaciones */}
-            <div className="overflow-y-auto flex-1 border border-slate-800 rounded-2xl max-h-[50vh]">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="sticky top-0 bg-slate-950 text-slate-300 uppercase text-[10px] tracking-wider font-bold z-10">
-                  <tr className="border-b border-slate-800">
-                    <th className="py-2.5 px-3">Estación</th>
-                    <th className="py-2.5 px-3">Origen de Datos</th>
-                    <th className="py-2.5 px-3">Precio Manual (€)</th>
-                    <th className="py-2.5 px-3 text-right">Resultado Sin IVA</th>
-                    <th className="py-2.5 px-3 text-right">Resultado Con IVA</th>
-                    <th className="py-2.5 px-3 text-center">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 bg-slate-900/50">
-                  {allStations
-                    .filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase()))
-                    .map((st) => {
-                      const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
-                      const isPropia = st.type === 'PROPIA';
-                      const stationKey = `${sourcesModalTariff}::${st.name}`;
-                      const cleanKey = `${sourcesModalTariff}::${cleanTarget}`;
-                      const tariffDefaultKey = `${sourcesModalTariff}::__DEFAULT__`;
+                      <button
+                        type="button"
+                        onClick={() => setPickerWindowTab('compras')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                          pickerWindowTab === 'compras'
+                            ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Fuel className="h-3.5 w-3.5" />
+                        <span>Compras</span>
+                      </button>
 
-                      const currentCfg = stationSourcesMapping[stationKey] ||
-                                        stationSourcesMapping[cleanKey] ||
-                                        stationSourcesMapping[tariffDefaultKey] ||
-                                        { sourceType: 'DEFAULT' };
+                      <button
+                        type="button"
+                        onClick={() => setPickerWindowTab('postes')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                          pickerWindowTab === 'postes'
+                            ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Layers className="h-3.5 w-3.5" />
+                        <span>Postes</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-                      const isCustom = currentCfg.sourceType && currentCfg.sourceType !== 'DEFAULT';
-                      const prices = getStationPrice(st.name, isPropia, sourcesModalTariff);
+                {/* Banner de Celda Señalada / Estado Activo */}
+                {selectedPointingCell ? (
+                  <div className="p-3.5 bg-gradient-to-r from-purple-950/80 via-slate-900 to-purple-950/80 border border-purple-500/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl shrink-0 animate-in fade-in">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2.5 bg-purple-500/20 text-purple-300 rounded-xl border border-purple-500/40 shrink-0 animate-pulse">
+                        <MousePointerClick className="h-5 w-5" />
+                      </div>
+                      <div className="text-xs">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-purple-300 font-bold uppercase text-[10px]">Dato Señalado:</span>
+                          <span className="font-extrabold text-white text-sm">{selectedPointingCell.label}</span>
+                          <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-mono border border-slate-700">
+                            {selectedPointingCell.windowName}
+                          </span>
+                        </div>
+                        <div className="text-slate-300 mt-0.5 text-[11px]">
+                          Muestra: <strong className="text-amber-300 font-mono font-bold">{selectedPointingCell.sampleValueSinIva?.toFixed(3)} €</strong> Sin IVA • <strong className="text-emerald-400 font-mono font-bold">{selectedPointingCell.sampleValueConIva?.toFixed(3)} €</strong> Con IVA
+                          {selectedPointingCell.sampleStation && ` (Estación: ${selectedPointingCell.sampleStation})`}
+                        </div>
+                      </div>
+                    </div>
 
-                      return (
-                        <tr key={st.name} className={`hover:bg-slate-800/40 transition-colors ${isCustom ? 'bg-purple-950/10' : ''}`}>
-                          <td className="py-2.5 px-3 font-bold text-white">
-                            <div className="flex items-center space-x-2">
-                              <span>{st.name}</span>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isPropia ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
-                                {isPropia ? 'PROPIA' : 'COLABORADORA'}
-                              </span>
-                              {isCustom && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                                  Personalizado
-                                </span>
-                              )}
-                            </div>
-                          </td>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {targetPickerStation !== '__ALL__' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleApplySourceToStation(targetPickerStation, selectedPointingCell.sourceId);
+                          }}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/25 transition-all active:scale-95"
+                        >
+                          ✓ Asignar a {targetPickerStation}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplySourceToAllStations(selectedPointingCell.sourceId);
+                        }}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+                      >
+                        ✓ Asignar a TODAS las Estaciones
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-2xl flex items-center justify-between text-xs text-slate-400 shrink-0">
+                    <span className="flex items-center space-x-2">
+                      <MousePointerClick className="h-4 w-4 text-amber-400" />
+                      <span>Haz clic directamente sobre cualquier celda o encabezado de la ventana para señalar ese dato.</span>
+                    </span>
+                    <span className="text-[11px] font-bold text-purple-300 bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20">
+                      Destino: {targetPickerStation === '__ALL__' ? '★ Todas las Estaciones' : targetPickerStation}
+                    </span>
+                  </div>
+                )}
 
-                          <td className="py-2.5 px-3">
-                            <select
-                              value={currentCfg.sourceType || 'DEFAULT'}
-                              onChange={(e) => {
-                                const newSource = e.target.value;
-                                const updated = {
-                                  ...stationSourcesMapping,
-                                  [stationKey]: {
-                                    sourceType: newSource,
-                                    manualPriceSinIva: currentCfg.manualPriceSinIva ?? prices.sinIva,
-                                  },
-                                };
-                                saveStationSourcesMapping(updated);
-                              }}
-                              className={`w-full max-w-[260px] bg-slate-950 border text-xs rounded-xl px-2.5 py-1.5 focus:outline-none ${isCustom ? 'border-purple-500/60 text-purple-200 font-semibold' : 'border-slate-800 text-slate-300'}`}
-                            >
-                              {DATA_SOURCE_CATEGORIES.map((cat) => (
-                                <optgroup key={cat.category} label={cat.category}>
-                                  {cat.options.map((opt) => (
-                                    <option key={opt.id} value={opt.id}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              ))}
-                            </select>
-                          </td>
+                {/* Filtro rápido de búsqueda dentro del visor de ventanas */}
+                <div className="relative shrink-0">
+                  <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Buscar estación en esta ventana..."
+                    value={sourcesModalSearch}
+                    onChange={(e) => setSourcesModalSearch(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:border-purple-400 focus:outline-none"
+                  />
+                </div>
 
-                          <td className="py-2.5 px-3">
-                            {currentCfg.sourceType === 'MANUAL' ? (
-                              <input
-                                type="number"
-                                step="0.001"
-                                value={currentCfg.manualPriceSinIva ?? prices.sinIva}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value) || 0;
-                                  const updated = {
-                                    ...stationSourcesMapping,
-                                    [stationKey]: {
-                                      sourceType: 'MANUAL',
-                                      manualPriceSinIva: val,
-                                    },
-                                  };
-                                  saveStationSourcesMapping(updated);
-                                }}
-                                className="w-24 bg-slate-950 border border-purple-500/60 rounded-xl px-2.5 py-1 text-xs text-white font-mono font-bold focus:outline-none"
-                              />
-                            ) : (
-                              <span className="text-slate-600 text-xs font-mono">—</span>
-                            )}
-                          </td>
-
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-white text-xs">
-                            {prices.sinIva.toFixed(3).replace('.', ',')} €
-                          </td>
-
-                          <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-400 text-xs">
-                            {prices.conIva.toFixed(3).replace('.', ',')} €
-                          </td>
-
-                          <td className="py-2.5 px-3 text-center">
-                            {isCustom ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updated = { ...stationSourcesMapping };
-                                  delete updated[stationKey];
-                                  delete updated[cleanKey];
-                                  saveStationSourcesMapping(updated);
-                                }}
-                                className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors"
-                                title="Restablecer estación a su origen predeterminado"
+                {/* VISOR TABLA 1: SÁBANA DE PRECIOS */}
+                {pickerWindowTab === 'sabana' && (
+                  <div className="overflow-x-auto overflow-y-auto flex-1 border border-slate-800 rounded-2xl max-h-[46vh] bg-slate-950/60">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="sticky top-0 bg-slate-950 text-slate-300 uppercase text-[10px] tracking-wider font-bold z-20">
+                        <tr className="border-b border-slate-800">
+                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30 min-w-[170px] border-r border-slate-800 shadow-sm">
+                            Estación
+                          </th>
+                          <th className="py-2.5 px-3 text-center bg-slate-900/90 min-w-[100px]">
+                            Base Compras
+                          </th>
+                          {SABANA_PICKER_COLUMNS.map((col) => {
+                            const isColActive = selectedPointingCell?.sourceId === col.id;
+                            return (
+                              <th
+                                key={col.id}
+                                className={`py-2 px-2.5 text-center min-w-[115px] border-l border-slate-800/80 transition-colors ${
+                                  isColActive ? 'bg-purple-900/40 text-purple-200' : 'bg-slate-900/60 hover:bg-slate-850'
+                                }`}
                               >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-slate-600">Predet.</span>
-                            )}
-                          </td>
+                                <div className="space-y-1">
+                                  <div className="font-extrabold text-white text-[11px]">{col.name}</div>
+                                  <span className="inline-block bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded text-[9px] font-mono">
+                                    {col.badge}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const sampleSt = allStations[0];
+                                      const isProp = sampleSt.type === 'PROPIA';
+                                      const p = evaluatePriceBySource(col.id, sampleSt.name, isProp, undefined, sabanaContext);
+                                      setSelectedPointingCell({
+                                        windowName: 'Sábana de Precios',
+                                        sourceId: col.id,
+                                        label: col.fullTitle,
+                                        sampleStation: sampleSt.name,
+                                        sampleValueSinIva: p.sinIva,
+                                        sampleValueConIva: p.conIva,
+                                      });
+                                      if (targetPickerStation === '__ALL__') {
+                                        handleApplySourceToAllStations(col.id);
+                                      } else {
+                                        handleApplySourceToStation(targetPickerStation, col.id);
+                                      }
+                                    }}
+                                    className="w-full py-0.5 px-1.5 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white rounded text-[9px] font-bold transition-colors flex items-center justify-center space-x-0.5"
+                                    title={`Señalar y asignar ${col.fullTitle}`}
+                                  >
+                                    <MousePointerClick className="h-2.5 w-2.5" />
+                                    <span>Señalar</span>
+                                  </button>
+                                </div>
+                              </th>
+                            );
+                          })}
                         </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
+                        {allStations
+                          .filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase()))
+                          .map((st) => {
+                            const isPropia = st.type === 'PROPIA';
+                            const base = sabanaContext.getStationBasePrice(st.name);
+                            const stationKey = `${sourcesModalTariff}::${st.name}`;
+                            const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                            const currentCfg = stationSourcesMapping[stationKey] ||
+                                              stationSourcesMapping[`${sourcesModalTariff}::${cleanTarget}`] ||
+                                              stationSourcesMapping[`${sourcesModalTariff}::__DEFAULT__`] ||
+                                              { sourceType: 'DEFAULT' };
+
+                            const isThisTargetStation = targetPickerStation === st.name;
+
+                            return (
+                              <tr
+                                key={st.name}
+                                className={`hover:bg-slate-800/30 transition-colors ${
+                                  isThisTargetStation ? 'bg-purple-950/25 border-l-4 border-l-purple-400' : ''
+                                }`}
+                              >
+                                <td className="py-2 px-3 sticky left-0 bg-slate-950 font-sans font-bold text-white z-10 border-r border-slate-800 truncate max-w-[170px]">
+                                  <div className="flex items-center space-x-1.5">
+                                    <span className="truncate" title={st.name}>{st.name}</span>
+                                    {isThisTargetStation && (
+                                      <span className="text-[9px] px-1 bg-purple-500/20 text-purple-300 rounded font-bold shrink-0">
+                                        Objetivo
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="py-2 px-3 text-center text-slate-400 bg-slate-900/30">
+                                  {base.toFixed(3)} €
+                                </td>
+
+                                {SABANA_PICKER_COLUMNS.map((col) => {
+                                  const p = evaluatePriceBySource(col.id, st.name, isPropia, undefined, sabanaContext);
+                                  const isCellSourceOfThisStation = currentCfg.sourceType === col.id;
+                                  const isSelectedPointing = selectedPointingCell?.sourceId === col.id;
+
+                                  return (
+                                    <td
+                                      key={col.id}
+                                      onClick={() => {
+                                        setSelectedPointingCell({
+                                          windowName: 'Sábana de Precios',
+                                          sourceId: col.id,
+                                          label: `${col.fullTitle} (${st.name})`,
+                                          sampleStation: st.name,
+                                          sampleValueSinIva: p.sinIva,
+                                          sampleValueConIva: p.conIva,
+                                        });
+                                        if (targetPickerStation === '__ALL__') {
+                                          handleApplySourceToAllStations(col.id);
+                                        } else {
+                                          handleApplySourceToStation(targetPickerStation === st.name ? st.name : targetPickerStation, col.id);
+                                        }
+                                      }}
+                                      className={`py-2 px-2.5 text-center cursor-pointer select-none transition-all border-l border-slate-800/60 ${
+                                        isCellSourceOfThisStation
+                                          ? 'bg-purple-600/30 font-black text-purple-200 ring-1 ring-purple-400/50'
+                                          : isSelectedPointing
+                                          ? 'bg-purple-500/15 text-white font-bold'
+                                          : 'text-slate-300 hover:bg-amber-500/15 hover:text-amber-200'
+                                      }`}
+                                      title={`Clic para señalar: ${col.fullTitle} para ${st.name} (${p.sinIva.toFixed(3)} € Sin IVA)`}
+                                    >
+                                      <div className="flex items-center justify-center space-x-1">
+                                        <span>{p.sinIva.toFixed(3)}</span>
+                                        {isCellSourceOfThisStation && (
+                                          <Check className="h-3 w-3 text-emerald-400" />
+                                        )}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* VISOR TABLA 2: VENTANA COMPRAS */}
+                {pickerWindowTab === 'compras' && (
+                  <div className="overflow-x-auto overflow-y-auto flex-1 border border-slate-800 rounded-2xl max-h-[46vh] bg-slate-950/60">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="sticky top-0 bg-slate-950 text-slate-300 uppercase text-[10px] tracking-wider font-bold z-20">
+                        <tr className="border-b border-slate-800">
+                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30 min-w-[170px] border-r border-slate-800">
+                            Estación
+                          </th>
+                          {COMPRAS_PICKER_COLUMNS.map((col) => {
+                            const isColActive = selectedPointingCell?.sourceId === col.id;
+                            return (
+                              <th
+                                key={col.id}
+                                className={`py-2.5 px-4 text-center min-w-[150px] border-l border-slate-800/80 ${
+                                  isColActive ? 'bg-purple-900/40 text-purple-200' : 'bg-slate-900/60'
+                                }`}
+                              >
+                                <div className="space-y-1">
+                                  <div className="font-extrabold text-white text-xs">{col.name}</div>
+                                  <span className="inline-block bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[9px] font-mono">
+                                    {col.badge}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const sampleSt = allStations[0];
+                                      const isProp = sampleSt.type === 'PROPIA';
+                                      const p = evaluatePriceBySource(col.id, sampleSt.name, isProp, undefined, sabanaContext);
+                                      setSelectedPointingCell({
+                                        windowName: 'Ventana Compras',
+                                        sourceId: col.id,
+                                        label: col.fullTitle,
+                                        sampleStation: sampleSt.name,
+                                        sampleValueSinIva: p.sinIva,
+                                        sampleValueConIva: p.conIva,
+                                      });
+                                      if (targetPickerStation === '__ALL__') {
+                                        handleApplySourceToAllStations(col.id);
+                                      } else {
+                                        handleApplySourceToStation(targetPickerStation, col.id);
+                                      }
+                                    }}
+                                    className="w-full py-0.5 px-2 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white rounded text-[10px] font-bold transition-colors flex items-center justify-center space-x-1"
+                                  >
+                                    <MousePointerClick className="h-3 w-3" />
+                                    <span>Señalar Columna</span>
+                                  </button>
+                                </div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
+                        {allStations
+                          .filter((st) => st.name.toLowerCase().includes(sourcesModalSearch.toLowerCase()))
+                          .map((st) => {
+                            const isPropia = st.type === 'PROPIA';
+                            const isThisTargetStation = targetPickerStation === st.name;
+                            const stationKey = `${sourcesModalTariff}::${st.name}`;
+                            const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                            const currentCfg = stationSourcesMapping[stationKey] ||
+                                              stationSourcesMapping[`${sourcesModalTariff}::${cleanTarget}`] ||
+                                              stationSourcesMapping[`${sourcesModalTariff}::__DEFAULT__`] ||
+                                              { sourceType: 'DEFAULT' };
+
+                            return (
+                              <tr
+                                key={st.name}
+                                className={`hover:bg-slate-800/30 transition-colors ${
+                                  isThisTargetStation ? 'bg-purple-950/25 border-l-4 border-l-purple-400' : ''
+                                }`}
+                              >
+                                <td className="py-2.5 px-3 sticky left-0 bg-slate-950 font-sans font-bold text-white z-10 border-r border-slate-800 truncate max-w-[170px]">
+                                  {st.name}
+                                </td>
+
+                                {COMPRAS_PICKER_COLUMNS.map((col) => {
+                                  const p = evaluatePriceBySource(col.id, st.name, isPropia, undefined, sabanaContext);
+                                  const isCellSourceOfThisStation = currentCfg.sourceType === col.id;
+
+                                  return (
+                                    <td
+                                      key={col.id}
+                                      onClick={() => {
+                                        setSelectedPointingCell({
+                                          windowName: 'Ventana Compras',
+                                          sourceId: col.id,
+                                          label: `${col.fullTitle} (${st.name})`,
+                                          sampleStation: st.name,
+                                          sampleValueSinIva: p.sinIva,
+                                          sampleValueConIva: p.conIva,
+                                        });
+                                        if (targetPickerStation === '__ALL__') {
+                                          handleApplySourceToAllStations(col.id);
+                                        } else {
+                                          handleApplySourceToStation(targetPickerStation === st.name ? st.name : targetPickerStation, col.id);
+                                        }
+                                      }}
+                                      className={`py-2.5 px-4 text-center cursor-pointer select-none transition-all border-l border-slate-800/60 ${
+                                        isCellSourceOfThisStation
+                                          ? 'bg-purple-600/30 font-black text-purple-200 ring-1 ring-purple-400/50'
+                                          : 'text-slate-300 hover:bg-amber-500/15 hover:text-amber-200'
+                                      }`}
+                                      title={`Clic para señalar: ${col.fullTitle} para ${st.name} (${p.sinIva.toFixed(3)} €)`}
+                                    >
+                                      <div className="flex items-center justify-center space-x-1.5">
+                                        <span className="font-bold">{p.sinIva.toFixed(3)} €</span>
+                                        {isCellSourceOfThisStation && (
+                                          <Check className="h-3 w-3 text-emerald-400" />
+                                        )}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* VISOR TABLA 3: VENTANA POSTES */}
+                {pickerWindowTab === 'postes' && (
+                  <div className="overflow-x-auto overflow-y-auto flex-1 border border-slate-800 rounded-2xl max-h-[46vh] bg-slate-950/60 p-4 space-y-4">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-white flex items-center space-x-2">
+                            <Layers className="h-4 w-4 text-amber-400" />
+                            <span>Postes: Gasóleo B (Transfrired Con IVA)</span>
+                          </h4>
+                          <p className="text-xs text-slate-400">
+                            Carga los precios directamente de la columna Transfrired Con IVA del cuadro Gasóleo B de la ventana Postes.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sampleSt = allStations[0];
+                            const isProp = sampleSt.type === 'PROPIA';
+                            const p = evaluatePriceBySource('POSTES_GOB', sampleSt.name, isProp, undefined, sabanaContext);
+                            setSelectedPointingCell({
+                              windowName: 'Ventana Postes',
+                              sourceId: 'POSTES_GOB',
+                              label: 'Postes - Gasóleo B (Transfrired con IVA)',
+                              sampleStation: sampleSt.name,
+                              sampleValueSinIva: p.sinIva,
+                              sampleValueConIva: p.conIva,
+                            });
+                            if (targetPickerStation === '__ALL__') {
+                              handleApplySourceToAllStations('POSTES_GOB');
+                            } else {
+                              handleApplySourceToStation(targetPickerStation, 'POSTES_GOB');
+                            }
+                          }}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center space-x-1.5 shrink-0"
+                        >
+                          <MousePointerClick className="h-3.5 w-3.5" />
+                          <span>Señalar Gasóleo B para {targetPickerStation === '__ALL__' ? 'Todas' : targetPickerStation}</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        {['TORREMOCHA', 'ARCOS', 'UCLES'].map((stKey) => {
+                          const p = evaluatePriceBySource('POSTES_GOB', stKey, false, undefined, sabanaContext);
+                          return (
+                            <div
+                              key={stKey}
+                              onClick={() => {
+                                setSelectedPointingCell({
+                                  windowName: 'Ventana Postes',
+                                  sourceId: 'POSTES_GOB',
+                                  label: `Postes Gasóleo B (${stKey})`,
+                                  sampleStation: stKey,
+                                  sampleValueSinIva: p.sinIva,
+                                  sampleValueConIva: p.conIva,
+                                });
+                                if (targetPickerStation === '__ALL__') {
+                                  handleApplySourceToAllStations('POSTES_GOB');
+                                } else {
+                                  handleApplySourceToStation(targetPickerStation, 'POSTES_GOB');
+                                }
+                              }}
+                              className="p-3 bg-slate-950 border border-slate-800 hover:border-purple-400 rounded-xl cursor-pointer transition-all flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="text-xs font-bold text-white block">{stKey}</span>
+                                <span className="text-[10px] text-slate-400">Gasóleo B Transfrired</span>
+                              </div>
+                              <div className="text-right font-mono">
+                                <span className="text-xs font-bold text-amber-300 block">{p.sinIva.toFixed(3)} € Sin IVA</span>
+                                <span className="text-[10px] text-emerald-400 font-bold">{p.conIva.toFixed(3)} € Con IVA</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Footer del Modal */}
             <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
