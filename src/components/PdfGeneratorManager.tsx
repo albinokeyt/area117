@@ -2025,7 +2025,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         {/* Banner Superior Oficial en la Primera Hoja */}
         <div className="w-full overflow-hidden rounded-xl">
           <img
-            src="/area117_header_banner.png"
+            src="/area117_header_banner.png?v=2"
             alt="Área 117 - Contigo en la carretera"
             className="w-full h-auto object-cover rounded-xl shadow-sm print:shadow-none print:w-full"
           />
