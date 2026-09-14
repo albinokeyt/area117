@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
 import { loadSabanaFormulas, reevaluateAllSabanaFormulas } from '@/lib/sabanaFormulaEngine';
+import { DEFAULT_SPECIAL_RATES_B50_F82 } from '@/components/Comp1PurchaseManager';
 import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
@@ -504,6 +505,14 @@ export const DATA_SOURCE_CATEGORIES = [
     ],
   },
   {
+    category: 'Compras - Tarifas Especiales (B50:F82)',
+    options: [
+      { id: 'COMPRAS_ESPECIAL_ACTUAL', label: 'Tarifas Especiales - Precio Actual / Especial (€)' },
+      { id: 'COMPRAS_ESPECIAL_REF', label: 'Tarifas Especiales - Precio Referencia (+0,008 €)' },
+      { id: 'COMPRAS_ESPECIAL_BASE', label: 'Tarifas Especiales - Precio Base / Coste (€)' },
+    ],
+  },
+  {
     category: 'Ventana de Postes',
     options: [
       { id: 'POSTES_GOB', label: 'Postes - Gasóleo B (Transfrired con IVA)' },
@@ -516,6 +525,80 @@ export const DATA_SOURCE_CATEGORIES = [
     ],
   },
 ];
+
+export function getSpecialRateValuesForStation(
+  stName: string,
+  sabanaContext: any
+): { actual: number; ref: number; base: number } {
+  const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+  const specialList = (sabanaContext?.specialRates && sabanaContext.specialRates.length > 0)
+    ? sabanaContext.specialRates
+    : DEFAULT_SPECIAL_RATES_B50_F82;
+
+  let row: any = null;
+  if (Array.isArray(specialList)) {
+    row = specialList.find((r: any) => {
+      const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const cleanNorm = cleanTarget.replace(/[-_]/g, ' ').trim();
+      return rNorm === cleanNorm || rNorm.includes(cleanNorm) || cleanNorm.includes(rNorm);
+    });
+  }
+
+  // 1. Precio Actual / Especial: Sugerido GOA o personalizado
+  const baseSugPrice = sabanaContext?.getStationBasePrice ? sabanaContext.getStationBasePrice(stName) : 1.200;
+  let actualVal = baseSugPrice;
+  if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
+    const p = parseNum(row.actualPrice);
+    if (p > 0) actualVal = p;
+  } else if (row && row.actualPrice && row.actualPrice.trim() !== '') {
+    const p = parseNum(row.actualPrice);
+    if (p > 0) actualVal = p;
+  }
+
+  // 2. Precio Referencia: Editable o actual + 0.0080
+  let refVal = Number((actualVal + 0.008).toFixed(3));
+  if (row && row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
+    const p = parseNum(row.refPrice);
+    if (p > 0) refVal = p;
+  } else if (row && row.refPrice && row.refPrice.trim() !== '') {
+    const p = parseNum(row.refPrice);
+    if (p > 0) refVal = p;
+  }
+
+  // 3. Precio Base / Coste: Costo Total GOA / 1000 + 0.0080 (o Costo Total + 0.008)
+  const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[cleanTarget] || {
+    porte: 0.005,
+    pase: 0.01,
+    fin: 0.01,
+    defaultCurr: 1.2,
+  };
+  const pData = sabanaContext?.purchasesData?.[`${stName}_GOA`] || sabanaContext?.purchasesData?.[stName];
+  let totalCostNum = 0;
+  if (pData) {
+    const currNum = parseNum(pData.curr);
+    const porteNum = parseNum(pData.porte);
+    const paseNum = parseNum(pData.pase);
+    const finNum = parseNum(pData.fin);
+    totalCostNum = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
+  }
+  if (totalCostNum === 0) {
+    totalCostNum = Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
+  }
+  let baseVal = totalCostNum > 50 ? Number(((totalCostNum / 1000) + 0.008).toFixed(3)) : Number((totalCostNum + 0.008).toFixed(3));
+  if (row && row.isCustomBase && row.basePrice && row.basePrice.trim() !== '') {
+    const p = parseNum(row.basePrice);
+    if (p > 0) baseVal = p;
+  } else if (row && row.basePrice && row.basePrice.trim() !== '') {
+    const p = parseNum(row.basePrice);
+    if (p > 0) baseVal = p;
+  }
+
+  return {
+    actual: Number(actualVal.toFixed(3)),
+    ref: Number(refVal.toFixed(3)),
+    base: Number(baseVal.toFixed(3)),
+  };
+}
 
 export function evaluatePriceBySource(
   sourceType: string,
@@ -555,6 +638,25 @@ export function evaluatePriceBySource(
       }
     } catch (e) {}
     return { sinIva: 1.189, conIva: 1.439 };
+  }
+
+  // Tarifas Especiales (Compras B50:F82)
+  if (sourceType.startsWith('COMPRAS_ESPECIAL_')) {
+    const vals = getSpecialRateValuesForStation(stName, sabanaContext);
+    let val = vals.actual;
+    if (sourceType === 'COMPRAS_ESPECIAL_REF') val = vals.ref;
+    else if (sourceType === 'COMPRAS_ESPECIAL_BASE') val = vals.base;
+    else if (sourceType === 'COMPRAS_ESPECIAL_ACTUAL') val = vals.actual;
+    else if (sourceType.startsWith('COMPRAS_ESPECIAL_CELL::')) {
+      const parts = sourceType.split('::');
+      const targetStationName = parts[1] || stName;
+      const field = parts[2] || 'actual';
+      const targetVals = getSpecialRateValuesForStation(targetStationName, sabanaContext);
+      if (field === 'ref') val = targetVals.ref;
+      else if (field === 'base') val = targetVals.base;
+      else val = targetVals.actual;
+    }
+    return { sinIva: Number(val.toFixed(3)), conIva: Number((val * 1.21).toFixed(3)) };
   }
 
   if (sourceType.startsWith('COMPRAS_')) {
@@ -789,6 +891,12 @@ export const COMPRAS_PICKER_COLUMNS = [
   { id: 'COMPRAS_COSTO', name: 'Costo Directo', fullTitle: 'Compras - Costo Directo', badge: 'Costo' },
   { id: 'COMPRAS_REF', name: 'Precio Referencia', fullTitle: 'Compras - Precio Referencia (+0,024)', badge: 'Ref (+0.024)' },
   { id: 'COMPRAS_ACTUAL', name: 'Precio Actual', fullTitle: 'Compras - Precio Actual', badge: 'Actual' },
+];
+
+export const COMPRAS_ESPECIALES_PICKER_COLUMNS = [
+  { id: 'COMPRAS_ESPECIAL_ACTUAL', field: 'actual' as const, name: 'P. Actual / Especial', fullTitle: 'Tarifas Especiales - Precio Actual / Especial', badge: 'Actual / Especial' },
+  { id: 'COMPRAS_ESPECIAL_REF', field: 'ref' as const, name: 'Precio Referencia', fullTitle: 'Tarifas Especiales - Precio Referencia (+0,008)', badge: 'Ref (+0.008)' },
+  { id: 'COMPRAS_ESPECIAL_BASE', field: 'base' as const, name: 'Precio Base / Coste', fullTitle: 'Tarifas Especiales - Precio Base / Coste', badge: 'Base / Coste' },
 ];
 
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
@@ -1061,7 +1169,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [sourcesModalSearch, setSourcesModalSearch] = useState('');
   // Estados para el Modo Señalar en Ventanas
   const [modalViewMode, setModalViewMode] = useState<'list' | 'picker'>('list');
-  const [pickerWindowTab, setPickerWindowTab] = useState<'sabana' | 'compras' | 'postes'>('sabana');
+  const [pickerWindowTab, setPickerWindowTab] = useState<'sabana' | 'compras' | 'compras_especiales' | 'postes'>('sabana');
   const [targetPickerStation, setTargetPickerStation] = useState<string>('__ALL__');
   const [selectedPointingCell, setSelectedPointingCell] = useState<{
     windowName: string;
@@ -1264,6 +1372,28 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       getSpecialRateActualPrice,
     };
   }, [targetDate, selectedDate, postesRefreshTrigger]);
+
+  const specialDisplayList = useMemo(() => {
+    const baseList: { id: string; name: string; isBlueBg?: boolean }[] =
+      (sabanaContext.specialRates && sabanaContext.specialRates.length > 0)
+        ? sabanaContext.specialRates
+        : DEFAULT_SPECIAL_RATES_B50_F82;
+
+    if (!sourcesModalSearch) return baseList;
+
+    const query = sourcesModalSearch.toLowerCase();
+    const filteredBase = baseList.filter((r) => r.name.toLowerCase().includes(query));
+
+    const existingNames = new Set(baseList.map((r) => r.name.toUpperCase().replace(/^ES\s+/, '').trim()));
+    const additional = allStations
+      .filter((st) => {
+        const clean = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+        return !existingNames.has(clean) && st.name.toLowerCase().includes(query);
+      })
+      .map((st) => ({ id: st.name.toLowerCase().replace(/\s+/g, '_'), name: st.name }));
+
+    return [...filteredBase, ...additional];
+  }, [sabanaContext.specialRates, sourcesModalSearch, allStations]);
 
   // Obtener precios exactos de la Sábana de Precios / Compras para cada estación
   const getStationPrice = (stName: string, isPropia: boolean, tariffOverride?: string) => {
@@ -2264,11 +2394,11 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                   <h3 className="text-lg font-black text-white tracking-tight flex items-center space-x-2">
                     <span>Modificar Origen de Datos de Precios</span>
                     <span className="text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/40">
-                      Sábana • Compras • Postes
+                      Sábana • Compras • Tarifas Especiales • Postes
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Señala directamente los datos desde las tablas de Sábana de Precios, Compras y Postes para alimentar cada estación en cada PDF.
+                    Señala directamente los datos desde las tablas de Sábana de Precios, Compras, Tarifas Especiales y Postes para alimentar cada estación en cada PDF.
                   </p>
                 </div>
               </div>
@@ -2305,7 +2435,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 }`}
               >
                 <MousePointerClick className="h-4 w-4" />
-                <span>🎯 Modo Señalar en Ventanas (Sábana / Compras / Postes)</span>
+                <span>🎯 Modo Señalar en Ventanas (Sábana / Compras / Tarifas Especiales / Postes)</span>
               </button>
             </div>
 
@@ -2497,6 +2627,15 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                                       ))}
                                     </optgroup>
                                   ))}
+                                  {!DATA_SOURCE_CATEGORIES.some((cat) => cat.options.some((o) => o.id === currentCfg.sourceType)) && currentCfg.sourceType && currentCfg.sourceType !== 'DEFAULT' && (
+                                    <optgroup label="Origen Señalado / Específico">
+                                      <option value={currentCfg.sourceType}>
+                                        {currentCfg.sourceType.startsWith('COMPRAS_ESPECIAL_CELL::')
+                                          ? `⭐ Tarifas Especiales: ${currentCfg.sourceType.split('::')[1]} (${currentCfg.sourceType.split('::')[2].toUpperCase()})`
+                                          : currentCfg.sourceType}
+                                      </option>
+                                    </optgroup>
+                                  )}
                                 </select>
                               </td>
 
@@ -2509,7 +2648,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                                     setModalViewMode('picker');
                                   }}
                                   className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white rounded-xl text-[10px] font-bold transition-all border border-purple-500/40 flex items-center justify-center space-x-1 mx-auto shadow-sm active:scale-95"
-                                  title={`Señalar dato visualmente desde las tablas de Sábana, Compras o Postes para ${st.name}`}
+                                  title={`Señalar dato visualmente desde las tablas de Sábana, Compras, Tarifas Especiales o Postes para ${st.name}`}
                                 >
                                   <MousePointerClick className="h-3 w-3" />
                                   <span>Señalar</span>
@@ -2600,7 +2739,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                     </select>
                   </div>
 
-                  <div className="md:col-span-4">
+                  <div className="md:col-span-3">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                       Estación a la que se aplicará el dato:
                     </label>
@@ -2618,7 +2757,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                     </select>
                   </div>
 
-                  <div className="md:col-span-5">
+                  <div className="md:col-span-6">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                       Ventana donde señalar el dato:
                     </label>
@@ -2633,7 +2772,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                         }`}
                       >
                         <FileText className="h-3.5 w-3.5" />
-                        <span>Sábana de Precios</span>
+                        <span>Sábana</span>
                       </button>
 
                       <button
@@ -2647,6 +2786,19 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                       >
                         <Fuel className="h-3.5 w-3.5" />
                         <span>Compras</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPickerWindowTab('compras_especiales')}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                          pickerWindowTab === 'compras_especiales'
+                            ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Star className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Tarifas Especiales</span>
                       </button>
 
                       <button
@@ -2702,7 +2854,14 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          handleApplySourceToAllStations(selectedPointingCell.sourceId);
+                          let allSource = selectedPointingCell.sourceId;
+                          if (allSource.startsWith('COMPRAS_ESPECIAL_CELL::')) {
+                            const field = allSource.split('::')[2];
+                            if (field === 'ref') allSource = 'COMPRAS_ESPECIAL_REF';
+                            else if (field === 'base') allSource = 'COMPRAS_ESPECIAL_BASE';
+                            else allSource = 'COMPRAS_ESPECIAL_ACTUAL';
+                          }
+                          handleApplySourceToAllStations(allSource);
                         }}
                         className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
                       >
@@ -3002,7 +3161,184 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                   </div>
                 )}
 
-                {/* VISOR TABLA 3: VENTANA POSTES */}
+                {/* VISOR TABLA 3: SUB-VENTANA TARIFAS ESPECIALES EN COMPRAS (B50:F82) */}
+                {pickerWindowTab === 'compras_especiales' && (
+                  <div className="overflow-x-auto overflow-y-auto flex-1 border border-emerald-500/30 rounded-2xl max-h-[46vh] bg-slate-950/60">
+                    <div className="bg-slate-900/90 px-4 py-2 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sticky left-0 z-30">
+                      <div className="flex items-center space-x-2">
+                        <Star className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span className="font-bold text-white text-xs">Sub-ventana de Compras: Tarifas Especiales (B50:F82)</span>
+                        <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                          31 Estaciones Oficiales
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {targetPickerStation === '__ALL__'
+                          ? 'Modo: Aplicar a TODAS las estaciones'
+                          : `Asignando a estación: ${targetPickerStation}`}
+                      </span>
+                    </div>
+
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="sticky top-0 bg-slate-950 text-slate-300 uppercase text-[10px] tracking-wider font-bold z-20">
+                        <tr className="border-b border-slate-800">
+                          <th className="py-2.5 px-3 sticky left-0 bg-slate-950 z-30 min-w-[180px] border-r border-slate-800 shadow-sm">
+                            Estación
+                          </th>
+                          {COMPRAS_ESPECIALES_PICKER_COLUMNS.map((col) => {
+                            const isColActive = selectedPointingCell?.sourceId === col.id;
+                            const headerClass =
+                              col.field === 'actual'
+                                ? 'text-rose-400 bg-rose-950/20'
+                                : col.field === 'ref'
+                                ? 'text-amber-300 bg-amber-950/20'
+                                : 'text-slate-300 bg-slate-900/60';
+
+                            return (
+                              <th
+                                key={col.id}
+                                className={`py-2.5 px-4 text-center min-w-[170px] border-l border-slate-800/80 ${
+                                  isColActive ? 'bg-purple-900/40 text-purple-200' : headerClass
+                                }`}
+                              >
+                                <div className="space-y-1">
+                                  <div className="font-extrabold text-xs">{col.name}</div>
+                                  <span className="inline-block bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[9px] font-mono">
+                                    {col.badge}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const sampleSt = allStations[0];
+                                      const p = evaluatePriceBySource(col.id, sampleSt.name, false, undefined, sabanaContext);
+                                      setSelectedPointingCell({
+                                        windowName: 'Tarifas Especiales (Compras)',
+                                        sourceId: col.id,
+                                        label: col.fullTitle,
+                                        sampleStation: sampleSt.name,
+                                        sampleValueSinIva: p.sinIva,
+                                        sampleValueConIva: p.conIva,
+                                      });
+                                      if (targetPickerStation === '__ALL__') {
+                                        handleApplySourceToAllStations(col.id);
+                                      } else {
+                                        handleApplySourceToStation(targetPickerStation, col.id);
+                                      }
+                                    }}
+                                    className="w-full py-0.5 px-2 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white rounded text-[10px] font-bold transition-colors flex items-center justify-center space-x-1"
+                                  >
+                                    <MousePointerClick className="h-3 w-3" />
+                                    <span>Señalar Columna</span>
+                                  </button>
+                                </div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
+                        {specialDisplayList.map((row) => {
+                          const isThisTargetStation = targetPickerStation === row.name;
+                          const stationKey = `${sourcesModalTariff}::${row.name}`;
+                          const cleanTarget = row.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                          const currentCfg = stationSourcesMapping[stationKey] ||
+                                            stationSourcesMapping[`${sourcesModalTariff}::${cleanTarget}`] ||
+                                            stationSourcesMapping[`${sourcesModalTariff}::__DEFAULT__`] ||
+                                            { sourceType: 'DEFAULT' };
+
+                          const vals = getSpecialRateValuesForStation(row.name, sabanaContext);
+
+                          return (
+                            <tr
+                              key={row.name}
+                              className={`hover:bg-slate-800/30 transition-colors ${
+                                isThisTargetStation ? 'bg-purple-950/25 border-l-4 border-l-purple-400' : ''
+                              }`}
+                            >
+                              <td
+                                className={`py-2.5 px-3 sticky left-0 z-10 border-r border-slate-800 font-sans font-bold truncate max-w-[180px] ${
+                                  row.isBlueBg
+                                    ? 'bg-blue-950/80 text-blue-200 border-l-4 border-l-blue-400 font-black'
+                                    : 'bg-slate-950 text-white'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="truncate" title={row.name}>{row.name}</span>
+                                  {isThisTargetStation && (
+                                    <span className="text-[9px] px-1 bg-purple-500/30 text-purple-300 rounded font-bold shrink-0">
+                                      Objetivo
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {COMPRAS_ESPECIALES_PICKER_COLUMNS.map((col) => {
+                                const val = col.field === 'actual' ? vals.actual : col.field === 'ref' ? vals.ref : vals.base;
+                                const cellFixedSourceId = `COMPRAS_ESPECIAL_CELL::${row.name}::${col.field}`;
+                                const isCellSourceOfThisStation =
+                                  currentCfg.sourceType === col.id ||
+                                  currentCfg.sourceType === cellFixedSourceId;
+
+                                const isSelectedPointing =
+                                  selectedPointingCell?.sourceId === col.id ||
+                                  selectedPointingCell?.sourceId === cellFixedSourceId;
+
+                                return (
+                                  <td
+                                    key={col.id}
+                                    onClick={() => {
+                                      const isSelf = targetPickerStation === row.name || targetPickerStation === '__ALL__';
+                                      const sourceToApply = isSelf ? col.id : cellFixedSourceId;
+                                      const sourceLabel = isSelf
+                                        ? `${col.fullTitle} (${row.name})`
+                                        : `${col.name} de ${row.name}`;
+
+                                      setSelectedPointingCell({
+                                        windowName: 'Tarifas Especiales (Compras)',
+                                        sourceId: sourceToApply,
+                                        label: sourceLabel,
+                                        sampleStation: row.name,
+                                        sampleValueSinIva: val,
+                                        sampleValueConIva: Number((val * 1.21).toFixed(3)),
+                                      });
+
+                                      if (targetPickerStation === '__ALL__') {
+                                        handleApplySourceToAllStations(col.id);
+                                      } else {
+                                        handleApplySourceToStation(targetPickerStation, sourceToApply);
+                                      }
+                                    }}
+                                    className={`py-2.5 px-4 text-center cursor-pointer select-none transition-all border-l border-slate-800/60 ${
+                                      isCellSourceOfThisStation
+                                        ? 'bg-purple-600/30 font-black text-purple-200 ring-1 ring-purple-400/50'
+                                        : isSelectedPointing
+                                        ? 'bg-purple-500/15 text-white font-bold'
+                                        : 'text-slate-300 hover:bg-amber-500/15 hover:text-amber-200'
+                                    }`}
+                                    title={`Clic para señalar: ${col.fullTitle} para ${row.name} (${val.toFixed(3)} €)`}
+                                  >
+                                    <div className="flex items-center justify-center space-x-1.5">
+                                      <span className={`font-bold ${
+                                        col.field === 'actual' ? 'text-rose-300' : col.field === 'ref' ? 'text-amber-300' : 'text-slate-300'
+                                      }`}>
+                                        {val.toFixed(3)} €
+                                      </span>
+                                      {isCellSourceOfThisStation && (
+                                        <Check className="h-3 w-3 text-emerald-400" />
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* VISOR TABLA 4: VENTANA POSTES */}
                 {pickerWindowTab === 'postes' && (
                   <div className="overflow-x-auto overflow-y-auto flex-1 border border-slate-800 rounded-2xl max-h-[46vh] bg-slate-950/60 p-4 space-y-4">
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">

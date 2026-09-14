@@ -76,7 +76,7 @@ export interface SpecialStationRateRow {
   isCustomBase?: boolean;
 }
 
-const DEFAULT_SPECIAL_RATES_B50_F82: SpecialStationRateRow[] = [
+export const DEFAULT_SPECIAL_RATES_B50_F82: SpecialStationRateRow[] = [
   { id: 'torrejon', name: 'TORREJON', isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
   { id: 'arcos_jalon', name: 'ARCOS JALON', isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
   { id: 'alfajarin', name: 'ALFAJARIN', isBlueBg: true, isYellowPrice: true, isRedRef: true, actualPrice: '', refPrice: '', basePrice: '' },
