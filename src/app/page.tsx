@@ -12,20 +12,84 @@ import { PdfGeneratorManager } from '@/components/PdfGeneratorManager';
 import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
 import { UserManager } from '@/components/UserManager';
 import { InstructionsManager } from '@/components/InstructionsManager';
+import {
+  initClientAutoSync,
+  checkServerVersion,
+  pullStateFromServer
+} from '@/lib/serverSyncService';
 
 function AppContent() {
   const { currentUser } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedDate, setSelectedDate] = useState('2026-08-18');
+  const [syncNotification, setSyncNotification] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
+
+    // Iniciar interceptor de auto-sincronización en segundo plano
+    initClientAutoSync(() => currentUser?.name || 'Usuario');
+
     try {
       const savedDate = localStorage.getItem('efi_compras_valid_from') || new Date().toISOString().split('T')[0];
       setSelectedDate(savedDate);
     } catch (e) {}
-  }, []);
+
+    // 1. Auto-hidratación inicial desde el servidor
+    const initialSync = async () => {
+      try {
+        const status = await checkServerVersion();
+        if (status.hasData) {
+          const localVerStr = localStorage.getItem('efi_last_server_version') || '0';
+          const localVer = parseInt(localVerStr, 10);
+          const hasLocalPurchases = localStorage.getItem('efi_compras_data');
+
+          // Si el servidor tiene datos y hay versión más reciente, o este navegador está vacío, descargar de inmediato
+          if (status.serverVersion > localVer || !hasLocalPurchases) {
+            console.log('[AutoSync] Hidratando navegador desde servidor central...');
+            await pullStateFromServer();
+            const syncedDate = localStorage.getItem('efi_compras_valid_from');
+            if (syncedDate) setSelectedDate(syncedDate);
+          }
+        }
+      } catch (err) {
+        console.warn('[AutoSync] Error en hidratación inicial:', err);
+      }
+    };
+    initialSync();
+
+    // 2. Comprobación periódica cada 4 segundos para actualización en tiempo real
+    const interval = setInterval(async () => {
+      try {
+        const status = await checkServerVersion();
+        if (status.needsUpdate) {
+          console.log(`[AutoSync] Nueva versión #${status.serverVersion} detectada. Descargando datos...`);
+          const res = await pullStateFromServer();
+          if (res.success) {
+            setSyncNotification(
+              `⚡ Datos actualizados en tiempo real (${status.updatedBy || 'otro usuario'}, v#${status.serverVersion})`
+            );
+            setTimeout(() => setSyncNotification(null), 4000);
+          }
+        }
+      } catch (err) {
+        // Fallo silencioso ante micro-cortes
+      }
+    }, 4000);
+
+    // 3. Escuchar cambios de fecha global
+    const handleDateChange = () => {
+      const updated = localStorage.getItem('efi_compras_valid_from');
+      if (updated) setSelectedDate(updated);
+    };
+    window.addEventListener('efi_valid_date_changed', handleDateChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('efi_valid_date_changed', handleDateChange);
+    };
+  }, [currentUser]);
 
   if (!mounted) {
     return (
@@ -83,6 +147,14 @@ function AppContent() {
           </div>
         </div>
       </footer>
+
+      {/* Notificación flotante de sincronización en tiempo real */}
+      {syncNotification && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-amber-500/40 text-amber-300 font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 animate-in slide-in-from-bottom-5">
+          <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span className="text-xs">{syncNotification}</span>
+        </div>
+      )}
     </div>
   );
 }

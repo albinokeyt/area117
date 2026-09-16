@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth, User } from '@/context/AuthContext';
 import {
   Fuel, BarChart3, FileSpreadsheet, ShieldCheck, Layers,
   Download, Users, LogOut, ChevronDown, BookOpen, Calendar, X,
-  TrendingUp, Building2, Store, CheckCircle2, DollarSign, Printer, FileText
+  TrendingUp, Building2, Store, CheckCircle2, DollarSign, Printer, FileText,
+  CloudUpload, RefreshCw, Lock, AlertCircle, Check
 } from 'lucide-react';
+import { pushAllStateToServer, pullStateFromServer } from '@/lib/serverSyncService';
 
 interface HeaderProps {
   activeTab: string;
@@ -36,6 +38,81 @@ const NAV_ITEMS = [
 export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate }: HeaderProps) {
   const { currentUser, logout } = useAuth();
   const [showDailySummaryModal, setShowDailySummaryModal] = useState(false);
+  
+  // Estados para sincronización con el servidor
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [syncPassword, setSyncPassword] = useState('admin123');
+  const [isUploading, setIsUploading] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [serverVersion, setServerVersion] = useState<string>('1');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const v = localStorage.getItem('efi_last_server_version') || '1';
+      setServerVersion(v);
+
+      const handleSyncEvent = (e: any) => {
+        if (e.detail?.version) {
+          setServerVersion(e.detail.version.toString());
+        }
+      };
+      window.addEventListener('efi_server_sync_event', handleSyncEvent);
+      return () => window.removeEventListener('efi_server_sync_event', handleSyncEvent);
+    }
+  }, []);
+
+  const handleMasterUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!syncPassword.trim()) {
+      setUploadResult({ success: false, message: 'Ingresa la contraseña para confirmar la subida.' });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadResult(null);
+
+    try {
+      const res = await pushAllStateToServer(syncPassword.trim(), currentUser?.name);
+      if (res.success) {
+        setUploadResult({
+          success: true,
+          message: `¡Datos maestros subidos con éxito! (${res.keysCount} registros sincronizados, versión #${res.version}). Todos los demás usuarios ahora ven estos mismos datos.`,
+        });
+        if (res.version) setServerVersion(res.version.toString());
+        setTimeout(() => {
+          setShowUploadModal(false);
+          setUploadResult(null);
+        }, 2200);
+      } else {
+        setUploadResult({
+          success: false,
+          message: res.error || 'Error al subir los datos. Revisa la contraseña ingresada.',
+        });
+      }
+    } catch (err: any) {
+      setUploadResult({
+        success: false,
+        message: err.message || 'Error de conexión con el servidor.',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleManualPull = async () => {
+    setIsPulling(true);
+    try {
+      const res = await pullStateFromServer();
+      if (res.success) {
+        if (res.version) setServerVersion(res.version.toString());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTimeout(() => setIsPulling(false), 600);
+    }
+  };
 
   return (
     <>
@@ -74,8 +151,32 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
               ))}
             </nav>
 
-            {/* Right Side: Date + User */}
-            <div className="flex items-center space-x-3 shrink-0">
+            {/* Right Side: Sync + Date + User */}
+            <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+              {/* Sync Status / Manual Refresh */}
+              <button
+                onClick={handleManualPull}
+                disabled={isPulling}
+                title="Sincronizar datos con el servidor central"
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 shadow-sm text-xs font-semibold transition-all"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-emerald-400 ${isPulling ? 'animate-spin' : ''}`} />
+                <span className="hidden lg:inline text-[11px] text-slate-300">v{serverVersion}</span>
+              </button>
+
+              {/* Master Upload Button */}
+              <button
+                onClick={() => {
+                  setUploadResult(null);
+                  setShowUploadModal(true);
+                }}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs shadow-md shadow-amber-500/20 transition-all active:scale-95"
+                title="Subir todos los datos locales de este navegador al servidor central para que todos los usuarios vean exactamente lo mismo"
+              >
+                <CloudUpload className="h-4 w-4 shrink-0" />
+                <span className="font-extrabold tracking-tight whitespace-nowrap">Subir Todo al Servidor</span>
+              </button>
+
               {/* Date Box with Click to Open Day Summary Modal */}
               <div className="flex items-center bg-slate-800/80 hover:bg-slate-800 rounded-xl px-2.5 py-1 border border-slate-700/60 shadow-sm transition-colors">
                 <button
@@ -226,6 +327,114 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Subir Todo al Servidor */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/30 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-5 bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/40 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-inner">
+                  <CloudUpload className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white leading-tight">Subir Todo al Servidor Central</h3>
+                  <p className="text-xs text-amber-400/90 font-medium">Sincronización Maestra Inmediata</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUploadModal(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleMasterUpload} className="p-6 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-xs text-amber-200/90 space-y-2">
+                <div className="flex items-start space-x-2.5">
+                  <AlertCircle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-amber-300">¿Qué hace esta función?</p>
+                    <p className="text-slate-300 leading-relaxed">
+                      Toma <strong>absolutamente todos los datos</strong> visibles en este navegador (precios de compras, postes de gasolineras, sábana de precios con todas sus fórmulas, tarifas especiales, lista de clientes y PDFs configurados) y los guarda en el servidor central.
+                    </p>
+                    <p className="text-amber-300/90 leading-relaxed font-semibold">
+                      🚀 A partir de este momento, cualquier otro usuario o equipo que abra la aplicación verá exactamente esta misma información.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                  <Lock className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Contraseña de confirmación simple:</span>
+                </label>
+                <input
+                  type="password"
+                  value={syncPassword}
+                  onChange={(e) => setSyncPassword(e.target.value)}
+                  placeholder="admin123 / 117 / 1234 / admin"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 font-mono"
+                  required
+                />
+                <p className="text-[11px] text-slate-400">
+                  Claves autorizadas aceptadas: <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">admin123</code>, <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">117</code>, <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">admin</code>
+                </p>
+              </div>
+
+              {uploadResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-medium flex items-start space-x-2 ${
+                    uploadResult.success
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  }`}
+                >
+                  {uploadResult.success ? (
+                    <Check className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                  )}
+                  <span>{uploadResult.message}</span>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="pt-3 flex items-center justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-all"
+                  disabled={isUploading}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploading}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center space-x-2 disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="h-3.5 w-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Subiendo al servidor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CloudUpload className="h-4 w-4" />
+                      <span>Confirmar y Subir al Servidor</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
