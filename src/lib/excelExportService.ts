@@ -547,31 +547,88 @@ export interface ImportTariffDef {
   key: string;
   prod: number;
   markup?: number;
+  pago?: string;
+}
+
+export interface EfiExportRowOverride {
+  pvp?: number;
+  initialDate?: string;
+  finalDate?: string;
+  pago?: string;
+  prod?: number;
+  codeA?: number;
+  sourceType?: string;
+  sourceLabel?: string;
+  markupDiff?: number;
+  manualPriceConIva?: number;
+  formulaStr?: string;
+  isCustom?: boolean;
+}
+
+export interface EfiExportAddedRow {
+  id: string;
+  codeA: number;
+  stationId: number;
+  prod: number;
+  initialDate: string;
+  finalDate: string;
+  pvp: number;
+  stationName: string;
+  pago: string;
+  tarifa: string;
+  sourceLabel?: string;
+}
+
+export function loadEfiExportOverrides(): {
+  overrides: Record<string, EfiExportRowOverride>;
+  addedRows: EfiExportAddedRow[];
+  deletedRows: string[];
+  deletedTariffs: string[];
+} {
+  if (typeof window === 'undefined') {
+    return { overrides: {}, addedRows: [], deletedRows: [], deletedTariffs: [] };
+  }
+  try {
+    const ov = localStorage.getItem('efi_export_custom_overrides_v1');
+    const ad = localStorage.getItem('efi_export_added_rows_v1');
+    const del = localStorage.getItem('efi_export_deleted_rows_v1');
+    const delT = localStorage.getItem('efi_export_deleted_tariffs_v1');
+    return {
+      overrides: ov ? JSON.parse(ov) : {},
+      addedRows: ad ? JSON.parse(ad) : [],
+      deletedRows: del ? JSON.parse(del) : [],
+      deletedTariffs: delT ? JSON.parse(delT) : [],
+    };
+  } catch (e) {
+    return { overrides: {}, addedRows: [], deletedRows: [], deletedTariffs: [] };
+  }
 }
 
 export const IMPORT_TARIFF_METADATA: ImportTariffDef[] = [
-  { codeA: 6, name: 'TARIFA 12', key: '12', prod: 1, markup: 0.012 },
-  { codeA: 24, name: 'TARIFA 18', key: '18', prod: 1, markup: 0.018 },
-  { codeA: 8, name: 'TARIFA 24', key: '24', prod: 1, markup: 0.024 },
-  { codeA: 3, name: 'TARIFA 36', key: '36', prod: 1, markup: 0.036 },
-  { codeA: 45, name: 'TARIFA 40', key: '40', prod: 1, markup: 0.040 },
-  { codeA: 39, name: 'TARIFA 42', key: '42', prod: 1, markup: 0.042 },
-  { codeA: 5, name: 'TARIFA 47', key: '47', prod: 1, markup: 0.047 },
-  { codeA: 4, name: 'TARIFA 50', key: '50', prod: 1, markup: 0.060 },
-  { codeA: 9, name: 'TARIFA 60', key: '60', prod: 1, markup: 0.080 },
-  { codeA: 42, name: 'TARIFA 85', key: 'miki', prod: 1, markup: 0.090 },
-  { codeA: 50, name: 'TARIFA CARRERAS', key: 'carreras', prod: 1, markup: 0.024 },
-  { codeA: 85, name: 'TARIFA JAVI', key: 'javi', prod: 1, markup: 0.024 },
-  { codeA: 65, name: 'TARIFA TRANSFRIRED', key: 'transfrired', prod: 1, markup: 0.024 },
-  { codeA: 62, name: 'TARIFA ESPECIAL GENERAL', key: 'c0', prod: 1, markup: 0.024 },
-  { codeA: 31, name: 'TARIFA ROR', key: 'ror', prod: 1, markup: 0.024 },
-  { codeA: 7, name: 'TARIFA ESTEBAN', key: 'esteban', prod: 1, markup: 0.024 },
+  { codeA: 6, name: 'TARIFA 12', key: '12', prod: 1, markup: 0.012, pago: 'MENSUAL' },
+  { codeA: 24, name: 'TARIFA 18', key: '18', prod: 1, markup: 0.018, pago: 'MENSUAL' },
+  { codeA: 8, name: 'TARIFA 24', key: '24', prod: 1, markup: 0.024, pago: 'MENSUAL' },
+  { codeA: 3, name: 'TARIFA 36', key: '36', prod: 1, markup: 0.036, pago: 'MENSUAL' },
+  { codeA: 45, name: 'TARIFA 40', key: '40', prod: 1, markup: 0.040, pago: 'MENSUAL' },
+  { codeA: 39, name: 'TARIFA 42', key: '42', prod: 1, markup: 0.042, pago: 'MENSUAL' },
+  { codeA: 5, name: 'TARIFA 47', key: '47', prod: 1, markup: 0.047, pago: 'MENSUAL' },
+  { codeA: 4, name: 'TARIFA 50', key: '50', prod: 1, markup: 0.060, pago: 'MENSUAL' },
+  { codeA: 9, name: 'TARIFA 60', key: '60', prod: 1, markup: 0.080, pago: 'MENSUAL' },
+  { codeA: 42, name: 'TARIFA 85', key: 'miki', prod: 1, markup: 0.090, pago: 'MENSUAL' },
+  { codeA: 50, name: 'TARIFA CARRERAS', key: 'carreras', prod: 1, markup: 0.024, pago: 'MENSUAL' },
+  { codeA: 85, name: 'TARIFA JAVI', key: 'javi', prod: 1, markup: 0.024, pago: 'MENSUAL' },
+  { codeA: 65, name: 'TARIFA TRANSFRIRED', key: 'transfrired', prod: 1, markup: 0.024, pago: 'MENSUAL' },
+  { codeA: 62, name: 'TARIFA ESPECIAL GENERAL', key: 'c0', prod: 1, markup: 0.024, pago: 'MENSUAL' },
+  { codeA: 31, name: 'TARIFA ROR', key: 'ror', prod: 1, markup: 0.024, pago: 'MENSUAL' },
+  { codeA: 7, name: 'TARIFA ESTEBAN', key: 'esteban', prod: 1, markup: 0.024, pago: 'MENSUAL' },
   // Bloque 17 especial (Gasolina Bronco + Gasóleo B) se inserta aquí
-  { codeA: 61, name: 'TARIFA ECOTRANS', key: 'ecotrans', prod: 1, markup: 0.050 },
-  { codeA: 86, name: 'TARIFA 30', key: 't30', prod: 1, markup: 0.030 },
-  { codeA: 87, name: 'TARIFA 27 SUR', key: 't27', prod: 1, markup: 0.027 },
-  { codeA: 88, name: 'TARIFA 15 SUR', key: 't15', prod: 1, markup: 0.015 },
-  { codeA: 89, name: 'TARIFA NUEVA', key: 't75', prod: 1, markup: 0.038 },
+  { codeA: 61, name: 'TARIFA ECOTRANS', key: 'ecotrans', prod: 1, markup: 0.050, pago: 'MENSUAL' },
+  { codeA: 86, name: 'TARIFA 30', key: 't30', prod: 1, markup: 0.030, pago: 'MENSUAL' },
+  { codeA: 87, name: 'TARIFA 27 SUR', key: 't27', prod: 1, markup: 0.027, pago: 'MENSUAL' },
+  { codeA: 88, name: 'TARIFA 15 SUR', key: 't15', prod: 1, markup: 0.015, pago: 'MENSUAL' },
+  { codeA: 89, name: 'PREPAGO 10', key: 'prepago10', prod: 1, markup: -0.002, pago: 'PREPAGO' },
+  { codeA: 91, name: 'PREPAGO 20', key: 'prepago20', prod: 1, markup: 0.008, pago: 'PREPAGO' },
+  { codeA: 92, name: 'PREPAGO 30', key: 'prepago30', prod: 1, markup: 0.018, pago: 'PREPAGO' },
 ];
 
 export const resolveSabanaStationName = (importStName: string): string => {
@@ -1052,6 +1109,21 @@ export function buildImportacionTable(
       } else {
         defaultSinIva = round3(basePrice + 0.015);
       }
+    } else if (tDef.key === 'prepago10') {
+      const customP10 = resolvedSabanaFormulas[`STD_${sabanaName}_Tprepago10_conIva`] ||
+                        resolvedSabanaFormulas[`TAR_prepago10_${sabanaName}_conIva`];
+      if (customP10?.evaluatedValue !== undefined) return customP10.evaluatedValue;
+      defaultSinIva = round3(basePrice - 0.002);
+    } else if (tDef.key === 'prepago20') {
+      const customP20 = resolvedSabanaFormulas[`STD_${sabanaName}_Tprepago20_conIva`] ||
+                        resolvedSabanaFormulas[`TAR_prepago20_${sabanaName}_conIva`];
+      if (customP20?.evaluatedValue !== undefined) return customP20.evaluatedValue;
+      defaultSinIva = round3(basePrice + 0.008);
+    } else if (tDef.key === 'prepago30') {
+      const customP30 = resolvedSabanaFormulas[`STD_${sabanaName}_Tprepago30_conIva`] ||
+                        resolvedSabanaFormulas[`TAR_prepago30_${sabanaName}_conIva`];
+      if (customP30?.evaluatedValue !== undefined) return customP30.evaluatedValue;
+      defaultSinIva = round3(basePrice + 0.018);
     } else if (tDef.key === 't75') {
       specBlockId = 'tarifa_75';
       specTariffTitle = 'Tarifa 75';
@@ -1072,20 +1144,64 @@ export function buildImportacionTable(
     return round3(defaultSinIva * 1.21);
   };
 
+  const { overrides, addedRows, deletedRows, deletedTariffs } = loadEfiExportOverrides();
+
   const rows: (string | number | null)[][] = [];
 
   // Fila 1: Encabezado idéntico a hoja IMPORTACION
   rows.push(['', 'ESTACION', 'PRODUCTO', 'INICIAL', 'FINAL', 'PVP', 'ESTACION', 'PAGO', 'TARIFA']);
+
+  // Helper para insertar fila validando eliminaciones y sobreescrituras
+  const appendRowIfActive = (
+    codeA: number,
+    stationId: number,
+    prod: number,
+    defaultDateInit: string,
+    defaultDateEnd: string,
+    defaultPvp: number,
+    stationName: string,
+    defaultPago: string,
+    tarifaName: string
+  ) => {
+    if (deletedTariffs.includes(tarifaName)) return;
+
+    const rowKey1 = `${tarifaName}::${stationId}`;
+    const rowKey2 = `${tarifaName}::${stationId}::${prod}`;
+    const rowKey3 = `${tarifaName}::${stationName.trim()}::${prod}`;
+
+    if (deletedRows.includes(rowKey1) || deletedRows.includes(rowKey2) || deletedRows.includes(rowKey3)) {
+      return;
+    }
+
+    const ov = overrides[rowKey2] || overrides[rowKey1] || overrides[rowKey3];
+
+    const finalCodeA = ov?.codeA ?? codeA;
+    const finalProd = ov?.prod ?? prod;
+    const finalDateInit = ov?.initialDate ? formatDateToEs(ov.initialDate) : defaultDateInit;
+    const finalDateEnd = ov?.finalDate ? formatDateToEs(ov.finalDate) : defaultDateEnd;
+    const finalPvp = ov?.pvp !== undefined ? ov.pvp : defaultPvp;
+    const finalPago = ov?.pago !== undefined ? ov.pago : defaultPago;
+
+    rows.push([
+      finalCodeA,
+      stationId,
+      finalProd,
+      finalDateInit,
+      finalDateEnd,
+      finalPvp,
+      stationName,
+      finalPago,
+      tarifaName
+    ]);
+  };
 
   // Bloques 1 a 16 (T12 a ESTEBAN)
   const first16 = IMPORT_TARIFF_METADATA.slice(0, 16);
   first16.forEach((tDef) => {
     IMPORT_STATIONS_56.forEach((st) => {
       const pvp = getPvpConIva(st, tDef);
-      rows.push([tDef.codeA, st.id, tDef.prod, validFrom, validFinal, pvp, st.name, 'MENSUAL', tDef.name]);
+      appendRowIfActive(tDef.codeA, st.id, tDef.prod, validFrom, validFinal, pvp, st.name, tDef.pago || 'MENSUAL', tDef.name);
     });
-    // Fila vacía separadora
-    rows.push([null, null, null, null, null, null, null, null, null]);
   });
 
   // Helper para obtener el precio Transfrired con IVA de Gasóleo B desde el cuadro de Postes
@@ -1118,30 +1234,83 @@ export function buildImportacionTable(
   const arcosConIva = getGasoleoBTransfriredConIva('ARCOS JALON');
 
   // 17.1 Gasolina Bronco (Torrejón, Madrid, Vallecas)
-  rows.push([5, 73, 2, validFrom, validFinal, broncoConIva, 'TORREJON ', 'MENSUAL', 'TARIFA 45 GASOLINA']);
-  rows.push([5, 2, 2, validFrom, validFinal, broncoConIva, 'MADRID', 'MENSUAL', 'TARIFA 45 GASOLINA']);
-  rows.push([5, 55, 2, validFrom, validFinal, broncoConIva, 'VALLECAS ', 'MENSUAL', 'TARIFA 45 GASOLINA']);
+  appendRowIfActive(5, 73, 2, validFrom, validFinal, broncoConIva, 'TORREJON', 'MENSUAL', 'TARIFA 45 GASOLINA');
+  appendRowIfActive(5, 2, 2, validFrom, validFinal, broncoConIva, 'MADRID', 'MENSUAL', 'TARIFA 45 GASOLINA');
+  appendRowIfActive(5, 55, 2, validFrom, validFinal, broncoConIva, 'VALLECAS', 'MENSUAL', 'TARIFA 45 GASOLINA');
 
   // 17.2 Gasóleo B Transfrired (Torremocha, Uclés, Arcos Jalón)
-  rows.push([65, 1, 5, validFrom, validFinal, torremochaConIva, 'TORREMOCHA ', null, 'TRANFIRRED GOB']);
-  rows.push([65, 27, 5, validFrom, validFinal, uclesConIva, 'UCLES', null, 'TRANFIRRED GOB']);
-  rows.push([65, 19, 5, validFrom, validFinal, arcosConIva, 'ARCOS JALON', null, 'TRANFIRRED GOB']);
+  appendRowIfActive(65, 1, 5, validFrom, validFinal, torremochaConIva, 'TORREMOCHA', '', 'TRANFIRRED GOB');
+  appendRowIfActive(65, 27, 5, validFrom, validFinal, uclesConIva, 'UCLES', '', 'TRANFIRRED GOB');
+  appendRowIfActive(65, 19, 5, validFrom, validFinal, arcosConIva, 'ARCOS JALON', '', 'TRANFIRRED GOB');
 
-  // Fila vacía separadora
-  rows.push([null, null, null, null, null, null, null, null, null]);
-
-  // Bloques 18 a 22 (ECOTRANS, TARIFA 30, 27 SUR, 15 SUR, TARIFA NUEVA)
+  // Bloques 18 a 25 (ECOTRANS, TARIFA 30, 27 SUR, 15 SUR, PREPAGO 10, PREPAGO 20, PREPAGO 30)
   const remainingTariffs = IMPORT_TARIFF_METADATA.slice(16);
-  remainingTariffs.forEach((tDef, idx) => {
+  remainingTariffs.forEach((tDef) => {
     IMPORT_STATIONS_56.forEach((st) => {
       const pvp = getPvpConIva(st, tDef);
-      rows.push([tDef.codeA, st.id, tDef.prod, validFrom, validFinal, pvp, st.name, 'MENSUAL', tDef.name]);
+      appendRowIfActive(tDef.codeA, st.id, tDef.prod, validFrom, validFinal, pvp, st.name, tDef.pago || 'MENSUAL', tDef.name);
     });
-    // Separador entre bloques salvo después del último
-    if (idx < remainingTariffs.length - 1) {
-      rows.push([null, null, null, null, null, null, null, null, null]);
-    }
   });
+
+  // Bloque: Filas personalizadas añadidas por el usuario
+  if (addedRows && addedRows.length > 0) {
+    addedRows.forEach((ar) => {
+      appendRowIfActive(
+        ar.codeA,
+        ar.stationId,
+        ar.prod,
+        formatDateToEs(ar.initialDate || validFrom),
+        formatDateToEs(ar.finalDate || validFinal),
+        ar.pvp,
+        ar.stationName,
+        ar.pago,
+        ar.tarifa
+      );
+    });
+  }
+
+  // Integración dinámica de tarifas creadas en Sábana de Precios
+  try {
+    if (typeof window !== 'undefined') {
+      const cStdRaw = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      const cSpecRaw = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const cStd: any[] = cStdRaw ? JSON.parse(cStdRaw) : [];
+      const cSpec: any[] = cSpecRaw ? JSON.parse(cSpecRaw) : [];
+      const allCustom = [...cStd, ...cSpec];
+
+      allCustom.forEach((cTariff, idx) => {
+        const tariffName = `TARIFA ${cTariff.name.toUpperCase().trim()}`;
+        if (deletedTariffs.includes(tariffName)) return;
+
+        IMPORT_STATIONS_56.forEach((st) => {
+          if (st.isZero) return;
+          const sabanaName = resolveSabanaStationName(st.name);
+          const base = getStationBasePrice(sabanaName);
+          const markup = cTariff.markup ?? 0.024;
+          const conKey = `STD_${sabanaName}_T${cTariff.name}_conIva`;
+          const sinKey = `STD_${sabanaName}_T${cTariff.name}_sinIva`;
+          let pvp = round3((base + markup) * 1.21);
+          if (resolvedSabanaFormulas[conKey]?.evaluatedValue !== undefined) {
+            pvp = resolvedSabanaFormulas[conKey].evaluatedValue;
+          } else if (resolvedSabanaFormulas[sinKey]?.evaluatedValue !== undefined) {
+            pvp = round3(resolvedSabanaFormulas[sinKey].evaluatedValue * 1.21);
+          }
+
+          appendRowIfActive(
+            95 + idx,
+            st.id,
+            1,
+            validFrom,
+            validFinal,
+            pvp,
+            st.name,
+            'MENSUAL',
+            tariffName
+          );
+        });
+      });
+    }
+  } catch (e) {}
 
   return rows;
 }
@@ -1149,9 +1318,12 @@ export function buildImportacionTable(
 export function downloadImportacionXlsx(
   selectedDate: string,
   userValidFrom?: string,
-  userFinalDate?: string
+  userFinalDate?: string,
+  customRows?: (string | number | null)[][]
 ) {
-  const rows = buildImportacionTable(selectedDate, userValidFrom, userFinalDate);
+  const rows = customRows && customRows.length > 0
+    ? customRows
+    : buildImportacionTable(selectedDate, userValidFrom, userFinalDate);
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
@@ -1191,11 +1363,20 @@ export function downloadImportacionXlsx(
 export function downloadImportacionCsv(
   selectedDate: string,
   userValidFrom?: string,
-  userFinalDate?: string
+  userFinalDate?: string,
+  customRows?: (string | number | null)[][]
 ) {
-  const rows = buildImportacionTable(selectedDate, userValidFrom, userFinalDate);
+  const rows = customRows && customRows.length > 0
+    ? customRows
+    : buildImportacionTable(selectedDate, userValidFrom, userFinalDate);
   const csvLines = rows.map((row) =>
-    row.map((val) => (val === null || val === undefined ? '' : String(val))).join(';')
+    row.map((val) => {
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'number') {
+        return val.toFixed(3).replace('.', ',');
+      }
+      return String(val);
+    }).join(';')
   );
   const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csvLines.join('\n'));
   const link = document.createElement('a');
