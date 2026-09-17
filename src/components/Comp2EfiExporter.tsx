@@ -5,7 +5,8 @@ import { PROPIAS_STATIONS, COLABORADORA_STATIONS, PRODUCTS } from '@/lib/dataSee
 import {
   Download, CheckCircle2, FileSpreadsheet, Send, MessageSquare,
   Copy, Check, Calculator, Fuel, Calendar, FileDown, Layers,
-  Sliders, Search, Filter, Edit3, Trash2, RotateCcw, Plus, ChevronLeft, ChevronRight
+  Sliders, Search, Filter, Edit3, Trash2, RotateCcw, Plus, ChevronLeft, ChevronRight,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import {
   downloadImportacionXlsx,
@@ -70,6 +71,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
   const [pagoFilter, setPagoFilter] = useState('ALL');
   const [rowsPerPage, setRowsPerPage] = useState<number>(100);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isTableExpanded, setIsTableExpanded] = useState(false);
 
   // Additional Data Sources for Modal
   const [comprasPurchases, setComprasPurchases] = useState<Record<string, any>>({});
@@ -584,6 +586,23 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
 
           <div className="flex items-center space-x-2 shrink-0">
             <button
+              onClick={() => setIsTableExpanded(!isTableExpanded)}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold shadow transition-all active:scale-95"
+              title={isTableExpanded ? 'Limitar altura de tabla' : 'Expandir altura completa de tabla'}
+            >
+              {isTableExpanded ? (
+                <>
+                  <Minimize2 className="h-3.5 w-3.5 text-blue-400" />
+                  <span>Reducir Altura</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3.5 w-3.5 text-blue-400" />
+                  <span>Expandir Altura</span>
+                </>
+              )}
+            </button>
+            <button
               onClick={() => {
                 setModalTargetRow(null);
                 setShowModifierModal(true);
@@ -656,12 +675,13 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
                 setRowsPerPage(parseInt(e.target.value));
                 setCurrentPage(1);
               }}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-emerald-300 font-bold focus:outline-none focus:border-emerald-400"
             >
-              <option value={50}>50 por página</option>
-              <option value={100}>100 por página</option>
-              <option value={250}>250 por página</option>
-              <option value={500}>500 por página</option>
+              <option value={10}>Ver 10</option>
+              <option value={20}>Ver 20</option>
+              <option value={50}>Ver 50</option>
+              <option value={100}>Ver 100</option>
+              <option value={1000}>Ver 1000</option>
               <option value={-1}>Ver Todo ({filteredDataRows.length})</option>
             </select>
           </div>
@@ -669,7 +689,9 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
         </div>
 
         {/* Tabla de Datos Completa */}
-        <div className="overflow-x-auto max-h-[620px] rounded-xl border border-slate-800 shadow-inner">
+        <div className={`overflow-x-auto rounded-xl border border-slate-800 shadow-inner transition-all ${
+          isTableExpanded ? 'max-h-none' : 'max-h-[620px]'
+        }`}>
           <table className="w-full text-left border-collapse text-xs">
             <thead className="sticky top-0 bg-slate-950 z-10 border-b border-slate-800 text-[11px] font-bold uppercase text-slate-400 tracking-wider shadow-sm">
               <tr>
@@ -769,26 +791,48 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
             ({previewRows.length - 1} filas totales en el archivo)
           </div>
 
-          <div className="flex items-center space-x-2">
-            <button
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-slate-800 rounded-lg text-xs font-bold transition-all text-slate-200"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              <span>Anterior</span>
-            </button>
-            <span className="font-mono text-slate-300 px-2">
-              Página {currentPage} de {totalPages}
-            </span>
-            <button
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-slate-800 rounded-lg text-xs font-bold transition-all text-slate-200"
-            >
-              <span>Siguiente</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Desplegable solicitado: Ver 10, 20, 50, 100, 1000, Ver Todo */}
+            <div className="flex items-center space-x-2 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 shadow-inner">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mostrar:</span>
+              <select
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-emerald-300 font-bold font-mono focus:outline-none focus:border-emerald-400"
+              >
+                <option value={10}>Ver 10</option>
+                <option value={20}>Ver 20</option>
+                <option value={50}>Ver 50</option>
+                <option value={100}>Ver 100</option>
+                <option value={1000}>Ver 1000</option>
+                <option value={-1}>Ver Todo ({filteredDataRows.length})</option>
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                disabled={currentPage <= 1 || rowsPerPage === -1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-slate-800 rounded-lg text-xs font-bold transition-all text-slate-200"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span>Anterior</span>
+              </button>
+              <span className="font-mono text-slate-300 px-2">
+                {rowsPerPage === -1 ? 'Vista Completa' : `Página ${currentPage} de ${totalPages}`}
+              </span>
+              <button
+                disabled={currentPage >= totalPages || rowsPerPage === -1}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-slate-800 rounded-lg text-xs font-bold transition-all text-slate-200"
+              >
+                <span>Siguiente</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
