@@ -1,4 +1,5 @@
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from "./dataSeed";
+import { getAllStations, getStationExcelCosts } from "./stationsService";
 
 export interface CellFormula {
   rawFormula: string;
@@ -86,11 +87,12 @@ export function getProgramVariables(
     } catch (e) {}
   }
 
-  const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+  const allStations = typeof window !== 'undefined' ? getAllStations() : [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+  const stationCosts = typeof window !== 'undefined' ? getStationExcelCosts() : STATION_EXCEL_COSTS;
   allStations.forEach((st) => {
     const keyGoa = st.name + "_GOA";
     const itemGoa = purchasesData[keyGoa];
-    const costs = STATION_EXCEL_COSTS[st.name] || {
+    const costs = stationCosts[st.name] || {
       porte: 0.005,
       pase: 0.01,
       fin: 0.01,
@@ -484,7 +486,7 @@ export function reevaluateAllSabanaFormulas(
   if (!formulas || Object.keys(formulas).length === 0) return {};
 
   let current: Record<string, CellFormula> = { ...formulas };
-  const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+  const allStations = typeof window !== 'undefined' ? getAllStations() : [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
 
   // Ejecutar hasta 3 pasadas para resolver cadenas de dependencias entre celdas
   for (let pass = 0; pass < 3; pass++) {

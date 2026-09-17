@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
+import { getAllStations } from '@/lib/stationsService';
 import { loadSabanaFormulas, reevaluateAllSabanaFormulas } from '@/lib/sabanaFormulaEngine';
 import { DEFAULT_SPECIAL_RATES_B50_F82 } from '@/components/Comp1PurchaseManager';
 import {
@@ -1058,8 +1059,14 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [newTariffName, setNewTariffName] = useState('');
   const [newTariffMarkup, setNewTariffMarkup] = useState('0.1350');
 
-  // Mapa de Estaciones Activas por Tarifa (TariffName -> Array de nombres de estaciones activas)
-  const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+  const [stationsVersion, setStationsVersion] = useState(0);
+  const allStations = useMemo(() => getAllStations(), [stationsVersion]);
+
+  useEffect(() => {
+    const handleStationsUpdated = () => setStationsVersion((v) => v + 1);
+    window.addEventListener('efi_stations_updated', handleStationsUpdated);
+    return () => window.removeEventListener('efi_stations_updated', handleStationsUpdated);
+  }, []);
     // Mapa para Incluir/Quitar información de HVO por Tarifa (TariffName -> boolean)
   const [includeHvoMap, setIncludeHvoMap] = useState<Record<string, boolean>>(() => {
     try {

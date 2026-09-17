@@ -1,7 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
+import {
+  PROPIAS_STATIONS as STATIC_PROPIAS,
+  COLABORADORA_STATIONS as STATIC_COLABORADORAS,
+  STATION_EXCEL_COSTS,
+  OFFICIAL_SUGGESTED_SALE_PRICES
+} from '@/lib/dataSeed';
+import {
+  getPropiasStations,
+  getColaboradoraStations,
+  getAllStations
+} from '@/lib/stationsService';
 import {
   FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check,
   Calculator, RotateCcw, Layers, Sliders, Plus, Edit3
@@ -258,6 +268,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [showTariffManagerModal, setShowTariffManagerModal] = useState(false);
   const [tariffManagerInitialId, setTariffManagerInitialId] = useState<string | undefined>(undefined);
 
+  const [stationsVersion, setStationsVersion] = useState(0);
+  const propiasStations = useMemo(() => getPropiasStations(), [stationsVersion]);
+  const colaboradoraStations = useMemo(() => getColaboradoraStations(), [stationsVersion]);
+  const allStations = useMemo(() => [...propiasStations, ...colaboradoraStations], [propiasStations, colaboradoraStations]);
+
   // Lista de tarifas estándar dinámicas (base + creadas/modificadas por el usuario)
   const effectiveStandardTariffs = useMemo(() => {
     const baseList: SabanaTariffDef[] = STANDARD_TARIFFS.map((t) => {
@@ -453,7 +468,13 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       loadPostesData();
     };
     const onValidDateChanged = () => loadComprasData();
+    const onStationsUpdated = () => {
+      setStationsVersion((v) => v + 1);
+      loadComprasData();
+      loadFormulas();
+    };
     const onStorage = () => {
+      setStationsVersion((v) => v + 1);
       loadComprasData();
       loadSpecialRates();
       loadPostesData();
@@ -464,6 +485,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     window.addEventListener('efi_sabana_updated', onSabanaUpdated);
     window.addEventListener('efi_postes_updated', onPostesUpdated);
     window.addEventListener('efi_valid_date_changed', onValidDateChanged);
+    window.addEventListener('efi_stations_updated', onStationsUpdated);
     window.addEventListener('storage', onStorage);
 
     return () => {
@@ -471,6 +493,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       window.removeEventListener('efi_sabana_updated', onSabanaUpdated);
       window.removeEventListener('efi_postes_updated', onPostesUpdated);
       window.removeEventListener('efi_valid_date_changed', onValidDateChanged);
+      window.removeEventListener('efi_stations_updated', onStationsUpdated);
       window.removeEventListener('storage', onStorage);
     };
   }, [selectedDate]);
@@ -1403,7 +1426,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
   };
 
-  const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+  // allStations memoizado reactivamente desde stationsService
 
   const filteredStations = allStations.filter((st) => {
     const matchesSearch = st.name.toLowerCase().includes(searchFilter.toLowerCase());
@@ -1513,7 +1536,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     csv += '\n';
 
     // Bloque 1: Estaciones Propias (19 EESS)
-    PROPIAS_STATIONS.forEach((st) => {
+    propiasStations.forEach((st) => {
       csv += `${st.name};`;
       effectiveStandardTariffs.forEach((t) => {
         const prices = getTariffPricesForStation(t.name, t.markup, st.name, true);
@@ -1530,7 +1553,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     csv += '\n';
 
     // Bloque 2: Estaciones Colaboradoras (34 EESS)
-    COLABORADORA_STATIONS.forEach((st) => {
+    colaboradoraStations.forEach((st) => {
       csv += `${st.name};`;
       effectiveStandardTariffs.forEach((t) => {
         const prices = getTariffPricesForStation(t.name, t.markup, st.name, false);
@@ -1547,7 +1570,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     if (block.id === 'los_javi') {
       let csv = 'EESS DE SERVICIO;ESPECIAL JAVI SIN IVA;ESPECIAL JAVI CON IVA;ESPECIAL CARRERAS SIN IVA;ESPECIAL CARRERAS CON IVA;\n';
       // Propias
-      PROPIAS_STATIONS.forEach((st) => {
+      propiasStations.forEach((st) => {
         const javi = getJaviPrices(st.name, true);
         const carreras = getCarrerasPrices(st.name, true);
         csv += `${st.name};${javi.sinIva.toFixed(3).replace('.', ',')};${javi.conIva.toFixed(3).replace('.', ',')};${carreras.sinIva.toFixed(3).replace('.', ',')};${carreras.conIva.toFixed(3).replace('.', ',')};\n`;
@@ -1555,7 +1578,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       // Separador COLABORADORAS
       csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
       // Colaboradoras
-      COLABORADORA_STATIONS.forEach((st) => {
+      colaboradoraStations.forEach((st) => {
         const javi = getJaviPrices(st.name, false);
         const carreras = getCarrerasPrices(st.name, false);
         csv += `${st.name};${javi.sinIva.toFixed(3).replace('.', ',')};${javi.conIva.toFixed(3).replace('.', ',')};${carreras.sinIva.toFixed(3).replace('.', ',')};${carreras.conIva.toFixed(3).replace('.', ',')};\n`;
@@ -1567,14 +1590,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     if (block.id === 'transfrired') {
       let csv = 'EESS DE SERVICIO;ESPECIAL TRANSFRIRED SIN IVA;CON IVA;\n';
       // Propias
-      PROPIAS_STATIONS.forEach((st) => {
+      propiasStations.forEach((st) => {
         const tf = getTransfriredPrices(st.name, true);
         csv += `${st.name};${tf.sinIva.toFixed(3).replace('.', ',')};${tf.conIva.toFixed(3).replace('.', ',')};\n`;
       });
       // Separador COLABORADORAS
       csv += 'COLABORADORAS;-;0,000;\n';
       // Colaboradoras
-      COLABORADORA_STATIONS.forEach((st) => {
+      colaboradoraStations.forEach((st) => {
         const tf = getTransfriredPrices(st.name, false);
         csv += `${st.name};${tf.sinIva.toFixed(3).replace('.', ',')};${tf.conIva.toFixed(3).replace('.', ',')};\n`;
       });
@@ -1585,14 +1608,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     if (block.id === 'c0_general') {
       let csv = 'EESS DE SERVICIO;ESPECIAL GENERAL C-0 SIN IVA;CON IVA;\n';
       // Propias
-      PROPIAS_STATIONS.forEach((st) => {
+      propiasStations.forEach((st) => {
         const c0 = getC0Prices(st.name, true);
         csv += `${st.name};${c0.sinIva.toFixed(3).replace('.', ',')};${c0.conIva.toFixed(3).replace('.', ',')};\n`;
       });
       // Separador COLABORADORAS
       csv += 'COLABORADORAS;-;0,000;\n';
       // Colaboradoras
-      COLABORADORA_STATIONS.forEach((st) => {
+      colaboradoraStations.forEach((st) => {
         const c0 = getC0Prices(st.name, false);
         csv += `${st.name};${c0.sinIva.toFixed(3).replace('.', ',')};${c0.conIva.toFixed(3).replace('.', ',')};\n`;
       });
@@ -1603,7 +1626,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     if (block.id === 'ror_esteban') {
       let csv = 'EESS DE SERVICIO;ESPECIAL ROR SIN IVA;ESPECIAL ROR CON IVA;ESPECIAL ESTEBAN SIN IVA;ESPECIAL ESTEBAN CON IVA;\n';
       // Propias
-      PROPIAS_STATIONS.forEach((st) => {
+      propiasStations.forEach((st) => {
         const ror = getRorPrices(st.name, true);
         const esteban = getEstebanPrices(st.name, true);
         csv += `${st.name};${ror.sinIva.toFixed(3).replace('.', ',')};${ror.conIva.toFixed(3).replace('.', ',')};${esteban.sinIva.toFixed(3).replace('.', ',')};${esteban.conIva.toFixed(3).replace('.', ',')};\n`;
@@ -1611,7 +1634,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       // Separador COLABORADORAS
       csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
       // Colaboradoras
-      COLABORADORA_STATIONS.forEach((st) => {
+      colaboradoraStations.forEach((st) => {
         const ror = getRorPrices(st.name, false);
         const esteban = getEstebanPrices(st.name, false);
         csv += `${st.name};${ror.sinIva.toFixed(3).replace('.', ',')};${ror.conIva.toFixed(3).replace('.', ',')};${esteban.sinIva.toFixed(3).replace('.', ',')};${esteban.conIva.toFixed(3).replace('.', ',')};\n`;
@@ -1623,7 +1646,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     if (block.id === 'miki_ecotrans_tarifa30') {
       let csv = 'EESS DE SERVICIO;TARIFA 90 MIKI SIN IVA;CON IVA;TARIFA ECOTRANS SIN IVA;CON IVA;TARIFA 30 SIN IVA;CON IVA;\n';
       // Propias
-      PROPIAS_STATIONS.forEach((st) => {
+      propiasStations.forEach((st) => {
         const miki = getMikiPrices(st.name, true);
         const eco = getEcotransPrices(st.name, true);
         const t30 = getTarifa30Prices(st.name, true);
@@ -1632,7 +1655,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       // Separador COLABORADORAS
       csv += 'COLABORADORAS;-;0,000;-;0,000;-;0,000;\n';
       // Colaboradoras
-      COLABORADORA_STATIONS.forEach((st) => {
+      colaboradoraStations.forEach((st) => {
         const miki = getMikiPrices(st.name, false);
         const eco = getEcotransPrices(st.name, false);
         const t30 = getTarifa30Prices(st.name, false);
@@ -1645,7 +1668,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     if (block.id === 'sur_benito') {
       let csv = 'EESS DE SERVICIO;TARIFA 27 SUR SIN IVA;CON IVA;TARIFA 15 SUR SIN IVA;CON IVA;\n';
       // Propias
-      PROPIAS_STATIONS.forEach((st) => {
+      propiasStations.forEach((st) => {
         const t27 = getTarifa27SurPrices(st.name, true);
         const t15 = getTarifa15SurPrices(st.name, true);
         csv += `${st.name};${t27.sinIva.toFixed(3).replace('.', ',')};${t27.conIva.toFixed(3).replace('.', ',')};${t15.sinIva.toFixed(3).replace('.', ',')};${t15.conIva.toFixed(3).replace('.', ',')};\n`;
@@ -1653,7 +1676,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       // Separador COLABORADORAS
       csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
       // Colaboradoras
-      COLABORADORA_STATIONS.forEach((st) => {
+      colaboradoraStations.forEach((st) => {
         const t27 = getTarifa27SurPrices(st.name, false);
         const t15 = getTarifa15SurPrices(st.name, false);
         csv += `${st.name};${t27.sinIva.toFixed(3).replace('.', ',')};${t27.conIva.toFixed(3).replace('.', ',')};${t15.sinIva.toFixed(3).replace('.', ',')};${t15.conIva.toFixed(3).replace('.', ',')};\n`;
@@ -1665,14 +1688,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     if (block.id === 'tarifa_75') {
       let csv = 'EESS DE SERVICIO;TARIFA 75 SIN IVA;CON IVA;\n';
       // Propias
-      PROPIAS_STATIONS.forEach((st) => {
+      propiasStations.forEach((st) => {
         const t75 = getTarifa75Prices(st.name, true);
         csv += `${st.name};${t75.sinIva.toFixed(3).replace('.', ',')};${t75.conIva.toFixed(3).replace('.', ',')};\n`;
       });
       // Separador COLABORADORAS
       csv += 'COLABORADORAS;-;0,000;\n';
       // Colaboradoras
-      COLABORADORA_STATIONS.forEach((st) => {
+      colaboradoraStations.forEach((st) => {
         const t75 = getTarifa75Prices(st.name, false);
         csv += `${st.name};${t75.sinIva.toFixed(3).replace('.', ',')};${t75.conIva.toFixed(3).replace('.', ',')};\n`;
       });
@@ -1687,7 +1710,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     csv += '\n';
 
     // Propias
-    PROPIAS_STATIONS.forEach((st) => {
+    propiasStations.forEach((st) => {
       const base = getStationBasePrice(st.name, true);
       csv += `${st.name};`;
       block.tariffs.forEach((t) => {
@@ -1712,7 +1735,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     csv += '\n';
 
     // Colaboradoras
-    COLABORADORA_STATIONS.forEach((st) => {
+    colaboradoraStations.forEach((st) => {
       const base = getStationBasePrice(st.name, false);
       csv += `${st.name};`;
       block.tariffs.forEach((t) => {
@@ -2115,7 +2138,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                 typeFilter === 'ALL' &&
                 !searchFilter &&
                 st.type === 'COLABORADORA' &&
-                (idx === PROPIAS_STATIONS.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
+                (idx === propiasStations.length || (idx > 0 && filteredStations[idx - 1]?.type === 'PROPIA'));
               const isRedAccent = st.name === 'GUARROMAN' || st.name === 'MURCIA';
 
               return (
@@ -2379,7 +2402,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                   : 'text-slate-400 hover:text-blue-300'
               }`}
             >
-              Propias ({PROPIAS_STATIONS.length})
+              Propias ({propiasStations.length})
             </button>
             <button
               onClick={() => setTypeFilter('COLABORADORA')}
@@ -2389,7 +2412,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                   : 'text-slate-400 hover:text-purple-300'
               }`}
             >
-              Colaboradoras ({COLABORADORA_STATIONS.length})
+              Colaboradoras ({colaboradoraStations.length})
             </button>
           </div>
         </div>

@@ -85,6 +85,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
     window.addEventListener('efi_postes_updated', handleUpdate);
     window.addEventListener('efi_valid_date_changed', handleUpdate);
     window.addEventListener('efi_export_updated', handleUpdate);
+    window.addEventListener('efi_stations_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
     return () => {
@@ -93,6 +94,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
       window.removeEventListener('efi_postes_updated', handleUpdate);
       window.removeEventListener('efi_valid_date_changed', handleUpdate);
       window.removeEventListener('efi_export_updated', handleUpdate);
+      window.removeEventListener('efi_stations_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
   }, []);

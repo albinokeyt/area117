@@ -8,6 +8,7 @@ import {
   Calendar, CreditCard, Hash, Percent, Edit3
 } from 'lucide-react';
 import { IMPORT_STATIONS_56, EfiExportRowOverride, EfiExportAddedRow } from '@/lib/excelExportService';
+import { getImportStations } from '@/lib/stationsService';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 
 interface EfiExportModifierModalProps {
@@ -321,10 +322,14 @@ export function EfiExportModifierModal({
     }
   }, [initialSelectedRow]);
 
+  const importStations = useMemo(() => {
+    return typeof window !== 'undefined' ? getImportStations() : IMPORT_STATIONS_56;
+  }, [isOpen]);
+
   // Current station name
   const currentStation = useMemo(() => {
-    return IMPORT_STATIONS_56.find((s) => s.id === selectedStationId) || IMPORT_STATIONS_56[0];
-  }, [selectedStationId]);
+    return importStations.find((s) => s.id === selectedStationId) || importStations[0];
+  }, [selectedStationId, importStations]);
 
   // Helper to calculate sample source value
   const resolveSourceValue = (type: string, stName: string): number => {
@@ -462,7 +467,7 @@ export function EfiExportModifierModal({
   const handleCreateNewRow = () => {
     const pvpNum = parseFloat(newRowPvp.replace(',', '.')) || 0;
     const codeANum = parseInt(newRowCodeA) || 6;
-    const stObj = IMPORT_STATIONS_56.find((s) => s.id === newRowStationId) || IMPORT_STATIONS_56[0];
+    const stObj = importStations.find((s) => s.id === newRowStationId) || importStations[0];
 
     const newRow: EfiExportAddedRow = {
       id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -679,7 +684,7 @@ export function EfiExportModifierModal({
                     disabled={modifyScope === 'TARIFF'}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none disabled:opacity-50"
                   >
-                    {IMPORT_STATIONS_56.map((st) => (
+                    {importStations.map((st) => (
                       <option key={st.id} value={st.id}>
                         {st.id} — {st.name}
                       </option>
@@ -906,7 +911,7 @@ export function EfiExportModifierModal({
                         onChange={(e) => setNewRowStationId(parseInt(e.target.value))}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none"
                       >
-                        {IMPORT_STATIONS_56.map((s) => (
+                        {importStations.map((s) => (
                           <option key={s.id} value={s.id}>{s.id} — {s.name}</option>
                         ))}
                       </select>
@@ -1224,7 +1229,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {IMPORT_STATIONS_56.slice(0, 30).map((st) => {
+                      {importStations.slice(0, 30).map((st) => {
                         const v12 = resolveSourceValue('SABANA_T12', st.name);
                         const v18 = resolveSourceValue('SABANA_T18', st.name);
                         const v24 = resolveSourceValue('SABANA_T24', st.name);
@@ -1269,7 +1274,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {IMPORT_STATIONS_56.slice(0, 30).map((st) => {
+                      {importStations.slice(0, 30).map((st) => {
                         const vs = resolveSourceValue('COMPRAS_VENTA_SUGERIDO', st.name);
                         const vc = resolveSourceValue('COMPRAS_PRECIO_COMPRA', st.name);
                         return (
@@ -1319,7 +1324,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {IMPORT_STATIONS_56.slice(0, 30).map((st) => {
+                      {importStations.slice(0, 30).map((st) => {
                         const vr = resolveSourceValue('ESPECIAL_REF', st.name);
                         const va = resolveSourceValue('ESPECIAL_ACTUAL', st.name);
                         return (
@@ -1369,7 +1374,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {IMPORT_STATIONS_56.slice(0, 30).map((st) => {
+                      {importStations.slice(0, 30).map((st) => {
                         const vpGoa = resolveSourceValue('POSTES_GOA', st.name);
                         const vpGas = resolveSourceValue('POSTES_GAS95', st.name);
                         return (

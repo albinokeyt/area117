@@ -6,6 +6,7 @@ import {
   Layers, Fuel, Table, Star, Flame, FileSpreadsheet
 } from 'lucide-react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
+import { getAllStations } from '@/lib/stationsService';
 import {
   getProgramVariables,
   evaluateFormula
@@ -49,7 +50,7 @@ export function SabanaFormulaModal({
   }, [selectedDate]);
 
   const stationName = useMemo(() => {
-    const all = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+    const all = getAllStations();
     for (const st of all) {
       if (cellKey.includes(st.name) || cellTitle.includes(st.name)) {
         return st.name;

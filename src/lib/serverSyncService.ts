@@ -67,6 +67,8 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
     window.dispatchEvent(new Event('efi_postes_updated'));
     window.dispatchEvent(new Event('efi_sabana_updated'));
     window.dispatchEvent(new Event('efi_valid_date_changed'));
+    window.dispatchEvent(new Event('efi_stations_updated'));
+    window.dispatchEvent(new Event('efi_export_updated'));
     window.dispatchEvent(new Event('efi_users_updated'));
   } catch (e) {
     console.error('[SyncService] Error al aplicar estado del servidor:', e);

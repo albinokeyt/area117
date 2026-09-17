@@ -7,6 +7,7 @@ import {
   AlertCircle, Sparkles, CheckCircle2, ChevronRight, Info
 } from 'lucide-react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
+import { getAllStations } from '@/lib/stationsService';
 
 export interface SabanaTariffDef {
   id: string;
@@ -242,11 +243,8 @@ export function SabanaTariffManagerModal({
   }, [activeTariff, sourcesMapping]);
 
   const allStations = useMemo(() => {
-    return [
-      ...PROPIAS_STATIONS.map((s) => ({ name: s.name, type: 'PROPIA' as const })),
-      ...COLABORADORA_STATIONS.map((s) => ({ name: s.name, type: 'COLABORADORA' as const })),
-    ];
-  }, []);
+    return getAllStations().map((s) => ({ name: s.name, type: s.type }));
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

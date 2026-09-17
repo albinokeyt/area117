@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { STATION_EXCEL_COSTS } from '@/lib/dataSeed';
+import { getPostesStations } from '@/lib/stationsService';
 import {
   Layers, Flame, Zap, Droplet, Check, Save, Sparkles,
   TrendingUp, ArrowRightLeft, Fuel, ShieldCheck, Gauge,
@@ -63,6 +64,24 @@ export function PostesManager() {
     return num.toFixed(decimals);
   };
 
+  const [stationsVersion, setStationsVersion] = useState(0);
+  const postesStations = useMemo(() => getPostesStations(), [stationsVersion]);
+
+  useEffect(() => {
+    const handleStationsUpdated = () => {
+      setStationsVersion((v) => v + 1);
+      const saved = localStorage.getItem('efi_postes_data_v2');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.postes) setPostes({ ...parsed.postes });
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('efi_stations_updated', handleStationsUpdated);
+    return () => window.removeEventListener('efi_stations_updated', handleStationsUpdated);
+  }, []);
+
   const [postes, setPostes] = useState<Record<string, { goa: string; gasolina: string; gasolinaGain: string }>>(() => {
     try {
       const saved = localStorage.getItem('efi_postes_data_v2');
@@ -72,7 +91,7 @@ export function PostesManager() {
       }
     } catch (e) {}
     const init: Record<string, { goa: string; gasolina: string; gasolinaGain: string }> = {};
-    POSTES_PROPIAS_STATIONS.forEach((st) => {
+    getPostesStations().forEach((st) => {
       init[st.name] = {
         goa: st.defaultGoa,
         gasolina: st.defaultGasolina,
@@ -1110,7 +1129,7 @@ export function PostesManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
-              {POSTES_PROPIAS_STATIONS.map((st) => {
+              {postesStations.map((st) => {
                 const item = postes[st.name] || { goa: st.defaultGoa, gasolina: st.defaultGasolina, gasolinaGain: st.defaultGain };
                 const goaNum = parseNum(item.goa);
                 const gasNum = parseNum(item.gasolina);

@@ -1,7 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  PROPIAS_STATIONS,
+  COLABORADORA_STATIONS,
+  STATION_EXCEL_COSTS,
+  OFFICIAL_SUGGESTED_SALE_PRICES,
+} from '@/lib/dataSeed';
+import {
+  getPropiasStations,
+  getColaboradoraStations,
+  getAllStations,
+  getStationExcelCosts,
+  getOfficialSuggestedSalePrices,
+  getAdblueStationsConfig,
+} from '@/lib/stationsService';
+import { StationManagerModal } from './StationManagerModal';
 import { generateAndDownloadCierreWorkbook, GasolinaBroncoRow } from '@/lib/excelExportService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
@@ -134,14 +148,47 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     }
   });
 
-  // 3 Bloques Estructurales
-  const propiasStations = PROPIAS_STATIONS;
-  const fixedCollaborators = FIXED_COLLABORATOR_NAMES
-    .map((fname) => COLABORADORA_STATIONS.find((st) => st.name.toUpperCase().includes(fname.toUpperCase())))
-    .filter(Boolean) as typeof COLABORADORA_STATIONS;
-  const remainingCollaborators = COLABORADORA_STATIONS.filter(
-    (st) => !FIXED_COLLABORATOR_NAMES.some((fname) => st.name.toUpperCase().includes(fname.toUpperCase()))
-  );
+  const [stationsVersion, setStationsVersion] = useState(0);
+  const [showStationManagerModal, setShowStationManagerModal] = useState(false);
+
+  // 3 Bloques Estructurales dinámicos
+  const propiasStations = useMemo(() => getPropiasStations(), [stationsVersion]);
+  const colaboradoraStations = useMemo(() => getColaboradoraStations(), [stationsVersion]);
+  const fixedCollaborators = useMemo(() => {
+    return colaboradoraStations.filter((st) => st.isFixedColaboradora);
+  }, [colaboradoraStations]);
+  const remainingCollaborators = useMemo(() => {
+    return colaboradoraStations.filter((st) => !st.isFixedColaboradora);
+  }, [colaboradoraStations]);
+  const stationCosts = useMemo(() => getStationExcelCosts(), [stationsVersion]);
+  const suggestedSalePrices = useMemo(() => getOfficialSuggestedSalePrices(), [stationsVersion]);
+  const adblueStationsConfig = useMemo(() => getAdblueStationsConfig(), [stationsVersion]);
+
+  // Sincronizar reactivamente cuando el usuario agregue, modifique o elimine estaciones
+  useEffect(() => {
+    const handleStationsUpdated = () => {
+      setStationsVersion((v) => v + 1);
+      try {
+        const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
+        const savedGlobal = localStorage.getItem('efi_compras_data');
+        let currentData: Record<string, PurchaseRowValues> | null = null;
+        if (savedDate) {
+          const parsed = JSON.parse(savedDate);
+          if (parsed.data) currentData = parsed.data;
+        } else if (savedGlobal) {
+          const parsed = JSON.parse(savedGlobal);
+          if (parsed.data) currentData = parsed.data;
+        }
+
+        if (currentData) {
+          setPurchases({ ...currentData });
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('efi_stations_updated', handleStationsUpdated);
+    return () => window.removeEventListener('efi_stations_updated', handleStationsUpdated);
+  }, [selectedDate]);
 
   const parseNum = (val: string | number | undefined): number => {
     if (typeof val === 'number') return val;
@@ -160,7 +207,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       { code: 'GOA', name: 'Gasóleo A (GOA)' },
       { code: 'GASOLINA', name: 'Gasolina 95' },
     ];
-    if (ADBLUE_STATIONS_CONFIG[stationName]) {
+    if (adblueStationsConfig[stationName] || ADBLUE_STATIONS_CONFIG[stationName]) {
       allForStation.push({ code: 'ADBLUE', name: 'AdBlue' });
     }
 
@@ -185,9 +232,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     } catch (e) {}
 
     const initial: Record<string, PurchaseRowValues> = {};
+    const costsMap = getStationExcelCosts();
+    const suggestedMap = getOfficialSuggestedSalePrices();
+    const adblueMap = getAdblueStationsConfig();
     
-    [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS].forEach((st) => {
-      const costs = STATION_EXCEL_COSTS[st.name] || {
+    getAllStations().forEach((st) => {
+      const costs = costsMap[st.name] || {
         porte: 0.0050,
         pase: 0.0100,
         fin: 0.0100,
@@ -199,7 +249,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const goaPrev = costs.defaultPrev;
       const goaCurr = costs.defaultCurr;
       const totalCostGoa = Number((goaCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
-      const suggestedGoa = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? totalCostGoa;
+      const suggestedGoa = suggestedMap[st.name] ?? totalCostGoa;
 
       const gasPrev = costs.defaultPrev + 0.1200;
       const gasCurr = costs.defaultCurr + 0.1200;
@@ -229,8 +279,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         isCustomSale: false,
       };
 
-      if (ADBLUE_STATIONS_CONFIG[st.name]) {
-        const adblueData = ADBLUE_STATIONS_CONFIG[st.name];
+      if (adblueMap[st.name] || ADBLUE_STATIONS_CONFIG[st.name]) {
+        const adblueData = adblueMap[st.name] || ADBLUE_STATIONS_CONFIG[st.name];
         initial[`${st.name}_ADBLUE`] = {
           prev: formatNum(adblueData.defaultBuy),
           curr: formatNum(adblueData.defaultBuy),
@@ -1404,6 +1454,15 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             </div>
 
             <button
+              onClick={() => setShowStationManagerModal(true)}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/40 shadow-md transition-all active:scale-95"
+              title="Gestionar estaciones de servicio (crear, modificar, eliminar) con actualización en todo el sistema"
+            >
+              <Building2 className="h-4 w-4 text-amber-400" />
+              <span>Gestión de Estaciones</span>
+            </button>
+
+            <button
               onClick={handleExportDailyExcel}
               className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-xl text-xs font-bold border border-emerald-500/30 shadow-md transition-all active:scale-95"
               title="Descargar toda la información del día en archivo Excel CSV con fecha"
@@ -1812,6 +1871,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           <Check className="h-5 w-5" />
           <span>{toastMessage}</span>
         </div>
+      )}
+
+      {/* Modal Integral de Gestión de Estaciones de Servicio */}
+      {showStationManagerModal && (
+        <StationManagerModal
+          isOpen={showStationManagerModal}
+          onClose={() => setShowStationManagerModal(false)}
+        />
       )}
     </div>
   );

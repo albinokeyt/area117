@@ -1,5 +1,12 @@
 import * as XLSX from 'xlsx';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from './dataSeed';
+import {
+  getPropiasStations,
+  getColaboradoraStations,
+  getAllStations,
+  getStationExcelCosts,
+  getImportStations,
+} from './stationsService';
 import { loadSabanaFormulas, reevaluateAllSabanaFormulas } from './sabanaFormulaEngine';
 
 export interface PurchaseRowValues {
@@ -1195,10 +1202,12 @@ export function buildImportacionTable(
     ]);
   };
 
+  const effectiveImportStations = typeof window !== 'undefined' ? getImportStations() : IMPORT_STATIONS_56;
+
   // Bloques 1 a 16 (T12 a ESTEBAN)
   const first16 = IMPORT_TARIFF_METADATA.slice(0, 16);
   first16.forEach((tDef) => {
-    IMPORT_STATIONS_56.forEach((st) => {
+    effectiveImportStations.forEach((st) => {
       const pvp = getPvpConIva(st, tDef);
       appendRowIfActive(tDef.codeA, st.id, tDef.prod, validFrom, validFinal, pvp, st.name, tDef.pago || 'MENSUAL', tDef.name);
     });
@@ -1246,7 +1255,7 @@ export function buildImportacionTable(
   // Bloques 18 a 25 (ECOTRANS, TARIFA 30, 27 SUR, 15 SUR, PREPAGO 10, PREPAGO 20, PREPAGO 30)
   const remainingTariffs = IMPORT_TARIFF_METADATA.slice(16);
   remainingTariffs.forEach((tDef) => {
-    IMPORT_STATIONS_56.forEach((st) => {
+    effectiveImportStations.forEach((st) => {
       const pvp = getPvpConIva(st, tDef);
       appendRowIfActive(tDef.codeA, st.id, tDef.prod, validFrom, validFinal, pvp, st.name, tDef.pago || 'MENSUAL', tDef.name);
     });
@@ -1282,7 +1291,7 @@ export function buildImportacionTable(
         const tariffName = `TARIFA ${cTariff.name.toUpperCase().trim()}`;
         if (deletedTariffs.includes(tariffName)) return;
 
-        IMPORT_STATIONS_56.forEach((st) => {
+        effectiveImportStations.forEach((st) => {
           if (st.isZero) return;
           const sabanaName = resolveSabanaStationName(st.name);
           const base = getStationBasePrice(sabanaName);
