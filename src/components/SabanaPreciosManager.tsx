@@ -1776,7 +1776,81 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       XLSX.utils.book_append_sheet(wb, wsBlock, sheetName);
     });
 
+    // Si existen tarifas especiales personalizadas, agregar su hoja
+    if (customSpecialTariffs.length > 0) {
+      const wsCustom = buildCustomSpecialTariffsSheet();
+      XLSX.utils.book_append_sheet(wb, wsCustom, 'ESPECIALES_PERSONALIZADAS');
+    }
+
     const filename = `SABANA_COMPLETA_AREA117_${selectedDate}_VALIDO_${validDate}.xlsx`;
+    downloadWorkbookAsXlsx(wb, filename);
+    setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
+    setTimeout(() => setDownloadToast(null), 3500);
+  };
+
+  // Genera la hoja de Tarifas Especiales Personalizadas
+  const buildCustomSpecialTariffsSheet = () => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+
+    const rows: any[][] = [
+      ['SÁBANA DE PRECIOS - TARIFAS ESPECIALES PERSONALIZADAS - AREA 117'],
+      ['FECHA EMISIÓN:', selectedDate, 'PRECIOS VÁLIDOS A PARTIR DE:', validDate],
+      [],
+    ];
+
+    const cols: string[] = ['EESS DE SERVICIO'];
+    customSpecialTariffs.forEach((t) => {
+      cols.push(`${t.name.toUpperCase()} SIN IVA`, `${t.name.toUpperCase()} CON IVA`);
+    });
+    rows.push(cols);
+
+    // Propias
+    propiasStations.forEach((st) => {
+      const rowData: any[] = [st.name];
+      customSpecialTariffs.forEach((t) => {
+        const prices = getTariffPricesForStation(t.name, t.markup, st.name, true);
+        rowData.push(prices.sinIva, prices.conIva);
+      });
+      rows.push(rowData);
+    });
+
+    // Separador Colaboradoras
+    rows.push(['COLABORADORAS', ...customSpecialTariffs.flatMap(() => [0, 0])]);
+
+    // Colaboradoras
+    colaboradoraStations.forEach((st) => {
+      const rowData: any[] = [st.name];
+      customSpecialTariffs.forEach((t) => {
+        const prices = getTariffPricesForStation(t.name, t.markup, st.name, false);
+        rowData.push(prices.sinIva, prices.conIva);
+      });
+      rows.push(rowData);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = cols.map((_, i) => ({ wch: i === 0 ? 30 : 16 }));
+    return ws;
+  };
+
+  // Descarga individual de Tarifas Especiales Personalizadas en formato LIBRO DE EXCEL (*.XLSX)
+  const handleExportCustomSpecialTariffsXlsx = () => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    const wb = XLSX.utils.book_new();
+    const ws = buildCustomSpecialTariffsSheet();
+    XLSX.utils.book_append_sheet(wb, ws, 'ESPECIALES_PERSONALIZADAS');
+    const filename = `TARIFAS_ESPECIALES_PERSONALIZADAS_${selectedDate}_VALIDO_${validDate}.xlsx`;
     downloadWorkbookAsXlsx(wb, filename);
     setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
     setTimeout(() => setDownloadToast(null), 3500);
@@ -2763,6 +2837,15 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                 </div>
 
                 <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleExportCustomSpecialTariffsXlsx}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow transition-all active:scale-95 shrink-0"
+                    title="Descargar Tarifas Especiales Personalizadas en formato Libro de Excel (*.xlsx)"
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Descargar Excel</span>
+                  </button>
+
                   <button
                     onClick={() => {
                       setTariffManagerInitialId(customSpecialTariffs[0].id);
