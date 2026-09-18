@@ -46,20 +46,20 @@ const STORAGE_KEY = 'efi_stations_catalog_v1';
 
 // Catálogo inicial semilla
 const INITIAL_POSTES: PostesStationDef[] = [
-  { name: 'ARCOS', defaultGoa: '1.779', defaultGasolina: '', defaultGain: '', hasGasolina: false },
-  { name: 'ALCUBILLAS', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.271', hasGasolina: true },
-  { name: 'ALFAJARIN', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.271', hasGasolina: true },
-  { name: 'TORREMOCHA', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.272', hasGasolina: true },
-  { name: 'UCLES', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.284', hasGasolina: true },
-  { name: 'VALLECAS', defaultGoa: '1.709', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'GANESHA MADRID', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'GANESHA TORREJON', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'VALDEMORO', defaultGoa: '1.659', defaultGasolina: '1.649', defaultGain: '0.122', hasGasolina: true },
-  { name: 'BENAMEJI', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
-  { name: 'HUMILLADERO', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
-  { name: 'ES RIBA-ROJA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
-  { name: 'ES PISTA DE SILLA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
-  { name: 'ES REAL DE GANDIA', defaultGoa: '1.680', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
+  { name: 'ARCOS', defaultGoa: '1,779', defaultGasolina: '', defaultGain: '', hasGasolina: false },
+  { name: 'ALCUBILLAS', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,271', hasGasolina: true },
+  { name: 'ALFAJARIN', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,271', hasGasolina: true },
+  { name: 'TORREMOCHA', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,272', hasGasolina: true },
+  { name: 'UCLES', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,284', hasGasolina: true },
+  { name: 'VALLECAS', defaultGoa: '1,709', defaultGasolina: '1,739', defaultGain: '0,212', hasGasolina: true },
+  { name: 'GANESHA MADRID', defaultGoa: '1,699', defaultGasolina: '1,739', defaultGain: '0,212', hasGasolina: true },
+  { name: 'GANESHA TORREJON', defaultGoa: '1,699', defaultGasolina: '1,739', defaultGain: '0,212', hasGasolina: true },
+  { name: 'VALDEMORO', defaultGoa: '1,659', defaultGasolina: '1,649', defaultGain: '0,122', hasGasolina: true },
+  { name: 'BENAMEJI', defaultGoa: '1,839', defaultGasolina: '1,799', defaultGain: '0,274', hasGasolina: true },
+  { name: 'HUMILLADERO', defaultGoa: '1,839', defaultGasolina: '1,799', defaultGain: '0,274', hasGasolina: true },
+  { name: 'ES RIBA-ROJA', defaultGoa: '1,659', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
+  { name: 'ES PISTA DE SILLA', defaultGoa: '1,659', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
+  { name: 'ES REAL DE GANDIA', defaultGoa: '1,680', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
 ];
 
 const INITIAL_IMPORT_STATIONS: ImportStationDef[] = [
@@ -236,7 +236,12 @@ export function getOfficialSuggestedSalePrices(): Record<string, number> {
  * Obtiene la lista de estaciones para Postes
  */
 export function getPostesStations(): PostesStationDef[] {
-  return getStationsCatalog().postesStations;
+  return getStationsCatalog().postesStations.map((p) => ({
+    ...p,
+    defaultGoa: (p.defaultGoa || '').replace('.', ','),
+    defaultGasolina: (p.defaultGasolina || '').replace('.', ','),
+    defaultGain: (p.defaultGain || '').replace('.', ','),
+  }));
 }
 
 /**

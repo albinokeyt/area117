@@ -186,7 +186,7 @@ export function SabanaFormulaModal({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Celda: <strong className="text-white">{cellTitle}</strong> • Valor Base: <span className="font-mono text-amber-300 font-bold">{cellDefaultValue.toFixed(3)} €</span>
+                Celda: <strong className="text-white">{cellTitle}</strong> • Valor Base: <span className="font-mono text-amber-300 font-bold">{cellDefaultValue.toFixed(3).replace('.', ',')} €</span>
               </p>
             </div>
           </div>
@@ -245,10 +245,10 @@ export function SabanaFormulaModal({
                     <div>
                       <span className="text-slate-400">Resultado Evaluado: </span>
                       <strong className="text-lg font-mono font-black text-emerald-400">
-                        {evalResult.value.toFixed(3)} €
+                        {evalResult.value.toFixed(3).replace('.', ',')} €
                       </strong>
                       <span className="ml-3 text-[11px] text-slate-400">
-                        (Diferencia vs base: {(evalResult.value - cellDefaultValue >= 0 ? '+' : '') + (evalResult.value - cellDefaultValue).toFixed(3)} €)
+                        (Diferencia vs base: {(evalResult.value - cellDefaultValue >= 0 ? '+' : '') + (evalResult.value - cellDefaultValue).toFixed(3).replace('.', ',')} €)
                       </span>
                     </div>
                   ) : (
@@ -408,7 +408,7 @@ export function SabanaFormulaModal({
                           {v.windowName}
                         </span>
                         <span className="text-xs font-mono font-extrabold text-amber-400">
-                          {v.currentValue.toFixed(3)} €
+                          {v.currentValue.toFixed(3).replace('.', ',')} €
                         </span>
                       </div>
                       <div className="text-xs font-bold text-slate-200 group-hover:text-white truncate mt-0.5">

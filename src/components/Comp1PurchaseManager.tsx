@@ -34,10 +34,10 @@ const formatToDMY = (dateStr: string): string => {
 
 const DEFAULT_GASOLINA_BRONCO: GasolinaBroncoRow = {
   name: 'GASOLINA BRONCO',
-  sinIva: '1.397',
-  conIva: '1.690',
-  beneficio: '0.034',
-  compra: '1.348',
+  sinIva: '1,397',
+  conIva: '1,690',
+  beneficio: '0,034',
+  compra: '1,348',
   fecha: '04/09/2026',
 };
 
@@ -199,7 +199,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   };
 
   const formatNum = (num: number, decimals: number = 3): string => {
-    return num.toFixed(decimals);
+    if (isNaN(num) || !isFinite(num)) return '0,000';
+    return num.toFixed(decimals).replace('.', ',');
   };
 
   const getFilteredProductsForStation = (stationName: string) => {
@@ -221,13 +222,30 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     try {
       const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
       const savedGlobal = localStorage.getItem('efi_compras_data');
+      let rawData: Record<string, PurchaseRowValues> | null = null;
       if (savedDate) {
         const parsed = JSON.parse(savedDate);
-        if (parsed.data && Object.keys(parsed.data).length > 0) return parsed.data;
+        if (parsed.data && Object.keys(parsed.data).length > 0) rawData = parsed.data;
       }
-      if (savedGlobal) {
+      if (!rawData && savedGlobal) {
         const parsed = JSON.parse(savedGlobal);
-        if (parsed.data && Object.keys(parsed.data).length > 0) return parsed.data;
+        if (parsed.data && Object.keys(parsed.data).length > 0) rawData = parsed.data;
+      }
+      if (rawData) {
+        const sanitized: Record<string, PurchaseRowValues> = {};
+        Object.entries(rawData).forEach(([k, v]) => {
+          sanitized[k] = {
+            ...v,
+            prev: (v.prev || '').replace('.', ','),
+            curr: (v.curr || '').replace('.', ','),
+            porte: (v.porte || '').replace('.', ','),
+            pase: (v.pase || '').replace('.', ','),
+            fin: (v.fin || '').replace('.', ','),
+            prevSale: v.prevSale !== undefined ? String(v.prevSale).replace('.', ',') : undefined,
+            sale: (v.sale || '').replace('.', ','),
+          };
+        });
+        return sanitized;
       }
     } catch (e) {}
 
@@ -313,9 +331,18 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   const [gasolinaBronco, setGasolinaBronco] = useState<GasolinaBroncoRow>(() => {
     try {
       const savedDate = localStorage.getItem(`efi_purchases_bronco_${selectedDate}`);
-      if (savedDate) return JSON.parse(savedDate);
       const savedGlobal = localStorage.getItem('efi_compras_gasolina_bronco');
-      if (savedGlobal) return JSON.parse(savedGlobal);
+      const raw = savedDate ? JSON.parse(savedDate) : savedGlobal ? JSON.parse(savedGlobal) : null;
+      if (raw) {
+        return {
+          ...raw,
+          sinIva: (raw.sinIva || '').replace('.', ','),
+          conIva: (raw.conIva || '').replace('.', ','),
+          beneficio: (raw.beneficio || '').replace('.', ','),
+          compra: (raw.compra || '').replace('.', ','),
+          fecha: selectedDate ? formatToDMY(selectedDate) : (raw.fecha || DEFAULT_GASOLINA_BRONCO.fecha),
+        };
+      }
     } catch (e) {}
     return {
       ...DEFAULT_GASOLINA_BRONCO,
@@ -342,18 +369,56 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       if (savedDate) {
         const parsed = JSON.parse(savedDate);
-        if (parsed.data) setPurchases(parsed.data);
+        if (parsed.data) {
+          const sanitized: Record<string, PurchaseRowValues> = {};
+          Object.entries(parsed.data as Record<string, PurchaseRowValues>).forEach(([k, v]) => {
+            sanitized[k] = {
+              ...v,
+              prev: (v.prev || '').replace('.', ','),
+              curr: (v.curr || '').replace('.', ','),
+              porte: (v.porte || '').replace('.', ','),
+              pase: (v.pase || '').replace('.', ','),
+              fin: (v.fin || '').replace('.', ','),
+              prevSale: v.prevSale !== undefined ? String(v.prevSale).replace('.', ',') : undefined,
+              sale: (v.sale || '').replace('.', ','),
+            };
+          });
+          setPurchases(sanitized);
+        }
         if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
       } else if (savedGlobal) {
         const parsed = JSON.parse(savedGlobal);
-        if (parsed.data) setPurchases(parsed.data);
+        if (parsed.data) {
+          const sanitized: Record<string, PurchaseRowValues> = {};
+          Object.entries(parsed.data as Record<string, PurchaseRowValues>).forEach(([k, v]) => {
+            sanitized[k] = {
+              ...v,
+              prev: (v.prev || '').replace('.', ','),
+              curr: (v.curr || '').replace('.', ','),
+              porte: (v.porte || '').replace('.', ','),
+              pase: (v.pase || '').replace('.', ','),
+              fin: (v.fin || '').replace('.', ','),
+              prevSale: v.prevSale !== undefined ? String(v.prevSale).replace('.', ',') : undefined,
+              sale: (v.sale || '').replace('.', ','),
+            };
+          });
+          setPurchases(sanitized);
+        }
         if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
       }
 
       if (savedSpecial) {
         try {
           const parsed = JSON.parse(savedSpecial);
-          if (Array.isArray(parsed) && parsed.length > 0) setSpecialRates(parsed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sanitized = parsed.map((row: any) => ({
+              ...row,
+              actualPrice: (row.actualPrice || '').replace('.', ','),
+              refPrice: (row.refPrice || '').replace('.', ','),
+              basePrice: (row.basePrice || '').replace('.', ','),
+            }));
+            setSpecialRates(sanitized);
+          }
         } catch (e) {}
       } else {
         setSpecialRates(DEFAULT_SPECIAL_RATES_B50_F82);
@@ -363,11 +428,22 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }
 
       if (savedBroncoDate) {
-        setGasolinaBronco(JSON.parse(savedBroncoDate));
+        const parsed = JSON.parse(savedBroncoDate);
+        setGasolinaBronco({
+          ...parsed,
+          sinIva: (parsed.sinIva || '').replace('.', ','),
+          conIva: (parsed.conIva || '').replace('.', ','),
+          beneficio: (parsed.beneficio || '').replace('.', ','),
+          compra: (parsed.compra || '').replace('.', ','),
+        });
       } else if (savedBroncoGlobal) {
         const parsed = JSON.parse(savedBroncoGlobal);
         setGasolinaBronco({
           ...parsed,
+          sinIva: (parsed.sinIva || '').replace('.', ','),
+          conIva: (parsed.conIva || '').replace('.', ','),
+          beneficio: (parsed.beneficio || '').replace('.', ','),
+          compra: (parsed.compra || '').replace('.', ','),
           fecha: selectedDate ? formatToDMY(selectedDate) : parsed.fecha,
         });
       } else if (selectedDate) {
@@ -382,35 +458,36 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   }, [selectedDate]);
 
   const handleBroncoChange = (field: keyof GasolinaBroncoRow, val: string) => {
+    const cleanVal = field === 'name' || field === 'fecha' ? val : val.replace('.', ',');
     setGasolinaBronco((prev) => {
-      const updated = { ...prev, [field]: val };
+      const updated = { ...prev, [field]: cleanVal };
 
       if (field === 'conIva') {
-        const conIvaN = parseNum(val);
+        const conIvaN = parseNum(cleanVal);
         const sinIvaN = conIvaN > 0 ? Number((conIvaN / 1.21).toFixed(3)) : 0;
         const compraN = parseNum(updated.compra);
         const beneficioN = Number((sinIvaN - (compraN + 0.015)).toFixed(3));
-        updated.sinIva = sinIvaN.toFixed(3);
-        updated.beneficio = beneficioN.toFixed(3);
+        updated.sinIva = formatNum(sinIvaN, 3);
+        updated.beneficio = formatNum(beneficioN, 3);
       } else if (field === 'sinIva') {
-        const sinIvaN = parseNum(val);
+        const sinIvaN = parseNum(cleanVal);
         const conIvaN = Number((sinIvaN * 1.21).toFixed(3));
         const compraN = parseNum(updated.compra);
         const beneficioN = Number((sinIvaN - (compraN + 0.015)).toFixed(3));
-        updated.conIva = conIvaN.toFixed(3);
-        updated.beneficio = beneficioN.toFixed(3);
+        updated.conIva = formatNum(conIvaN, 3);
+        updated.beneficio = formatNum(beneficioN, 3);
       } else if (field === 'compra') {
-        const compraN = parseNum(val);
+        const compraN = parseNum(cleanVal);
         const sinIvaN = parseNum(updated.sinIva);
         const beneficioN = Number((sinIvaN - (compraN + 0.015)).toFixed(3));
-        updated.beneficio = beneficioN.toFixed(3);
+        updated.beneficio = formatNum(beneficioN, 3);
       } else if (field === 'beneficio') {
-        const beneficioN = parseNum(val);
+        const beneficioN = parseNum(cleanVal);
         const compraN = parseNum(updated.compra);
         const sinIvaN = Number((compraN + 0.015 + beneficioN).toFixed(3));
         const conIvaN = Number((sinIvaN * 1.21).toFixed(3));
-        updated.sinIva = sinIvaN.toFixed(3);
-        updated.conIva = conIvaN.toFixed(3);
+        updated.sinIva = formatNum(sinIvaN, 3);
+        updated.conIva = formatNum(conIvaN, 3);
       }
 
       try {
@@ -440,36 +517,37 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     field: keyof PurchaseRowValues,
     rawVal: string
   ) => {
+    const cleanVal = field === 'clh' ? rawVal : rawVal.replace('.', ',');
     const key = `${stationName}_${prodCode}`;
     const fieldKey = `${key}_${field}`;
 
     setPurchases((prev) => {
       const currentItem = prev[key] || {
-        prev: '0',
-        curr: '0',
+        prev: '0,000',
+        curr: '0,000',
         clh: 'TORREJON',
-        porte: '0',
-        pase: '0',
-        fin: '0',
-        sale: '0',
+        porte: '0,000',
+        pase: '0,000',
+        fin: '0,000',
+        sale: '0,000',
         isCustomSale: false,
       };
 
-      const updated = { ...currentItem, [field]: rawVal };
+      const updated = { ...currentItem, [field]: cleanVal };
 
       if (field === 'sale') {
         updated.isCustomSale = true;
       }
 
       if (['curr', 'porte', 'pase', 'fin'].includes(field)) {
-        const currN = parseNum(field === 'curr' ? rawVal : updated.curr);
-        const porteN = parseNum(field === 'porte' ? rawVal : updated.porte);
-        const paseN = parseNum(field === 'pase' ? rawVal : updated.pase);
-        const finN = parseNum(field === 'fin' ? rawVal : updated.fin);
+        const currN = parseNum(field === 'curr' ? cleanVal : updated.curr);
+        const porteN = parseNum(field === 'porte' ? cleanVal : updated.porte);
+        const paseN = parseNum(field === 'pase' ? cleanVal : updated.pase);
+        const finN = parseNum(field === 'fin' ? cleanVal : updated.fin);
         const newTotalCost = Number((currN + porteN + paseN + finN).toFixed(3));
 
         if (!updated.isCustomSale) {
-          updated.sale = formatNum(newTotalCost);
+          updated.sale = formatNum(newTotalCost, 3);
         }
       }
 
@@ -547,7 +625,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       // Si no, tomar el precio oficial sugerido de Gasóleo A
       const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
       if (officialPrice !== undefined) {
-        return officialPrice.toFixed(3);
+        return formatNum(officialPrice, 3);
       }
 
       // Fallback a costo total de la estación
@@ -557,13 +635,13 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const finNum = parseNum(item.fin);
       const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
       if (totalCost > 0) {
-        return totalCost.toFixed(3);
+        return formatNum(totalCost, 3);
       }
     }
 
     const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
     if (officialPrice !== undefined) {
-      return officialPrice.toFixed(3);
+      return formatNum(officialPrice, 3);
     }
 
     const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[cleanName] || {
@@ -572,7 +650,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       fin: 0.0100,
       defaultCurr: 1.2000,
     };
-    return (costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(3);
+    return formatNum(costs.defaultCurr + costs.porte + costs.pase + costs.fin, 3);
   };
 
   // 2) Obtener Costo Total de Gasóleo A (GOA) dividido entre mil + 0.008 (o Costo Total + 0.008 si ya está en euros)
@@ -598,7 +676,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     }
 
     const baseVal = totalCostNum > 50 ? (totalCostNum / 1000) + 0.008 : totalCostNum + 0.008;
-    return baseVal.toFixed(3);
+    return formatNum(baseVal, 3);
   };
 
   // 1. Precio Actual / Especial: SIEMPRE se copia de la columna P. Venta Sugerido de Gasóleo A (GOA)
@@ -616,7 +694,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     }
     const actNum = parseNum(actualVal);
     if (actNum > 0) {
-      return (actNum + 0.0080).toFixed(3);
+      return formatNum(actNum + 0.0080, 3);
     }
     return actualVal;
   };
@@ -631,6 +709,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   // Manejador para Tarifas Especiales
   const handleSpecialRateChange = (id: string, field: 'actualPrice' | 'refPrice' | 'basePrice', rawVal: string) => {
+    const cleanVal = rawVal.replace('.', ',');
     const fieldKey = `special_${id}_${field}`;
     const customFlag =
       field === 'actualPrice' ? 'isCustomActual' : field === 'refPrice' ? 'isCustomRef' : 'isCustomBase';
@@ -640,8 +719,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         if (row.id !== id) return row;
         return {
           ...row,
-          [field]: rawVal,
-          [customFlag]: rawVal.trim() !== '',
+          [field]: cleanVal,
+          [customFlag]: cleanVal.trim() !== '',
         };
       });
 
@@ -655,7 +734,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
     setModifiedKeys((prev) => {
       const nextSet = new Set(prev);
-      if (rawVal.trim() !== '') {
+      if (cleanVal.trim() !== '') {
         nextSet.add(fieldKey);
       } else {
         nextSet.delete(fieldKey);
@@ -1069,12 +1148,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
                   const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
                   const defaultSale = prod.code === 'GOA' && OFFICIAL_SUGGESTED_SALE_PRICES[st.name]
-                    ? OFFICIAL_SUGGESTED_SALE_PRICES[st.name].toFixed(3)
-                    : totalCost.toFixed(3);
-                  const displaySale = item.sale && item.sale !== '0' && item.sale !== '0.000' ? item.sale : defaultSale;
+                    ? formatNum(OFFICIAL_SUGGESTED_SALE_PRICES[st.name], 3)
+                    : formatNum(totalCost, 3);
+                  const displaySale = item.sale && item.sale !== '0' && item.sale !== '0,000' && item.sale !== '0.000' ? item.sale : defaultSale;
                   const saleNum = parseNum(displaySale);
                   const margin = Number((saleNum - totalCost).toFixed(3));
-                  const displayPrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || totalCost.toFixed(3));
+                  const displayPrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || formatNum(totalCost, 3));
 
                   const isCurrMod = modifiedKeys.has(`${key}_curr`);
                   const isPrevMod = modifiedKeys.has(`${key}_prev`);
@@ -1091,10 +1170,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   if (activeProductTab === 'ADBLUE') {
                     const adblueSinIva = currNum;
                     const adblueConIva = Number((currNum * 1.21).toFixed(3));
-                    const displayAdblueSale = item.isCustomSale && item.sale ? item.sale : currNum.toFixed(3);
+                    const displayAdblueSale = item.isCustomSale && item.sale ? item.sale : formatNum(currNum, 3);
                     const adblueSaleNum = parseNum(displayAdblueSale);
                     const adblueMargin = Number((adblueSaleNum - currNum).toFixed(3));
-                    const displayAdbluePrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || currNum.toFixed(3));
+                    const displayAdbluePrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || formatNum(currNum, 3));
 
                     return (
                       <tr
@@ -1162,12 +1241,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
                         {/* 5. Precio Sin IVA (= Precio Compra Hoy) */}
                         <td className="py-2.5 px-3 font-mono font-bold text-amber-300 bg-slate-900/40 text-center">
-                          {adblueSinIva.toFixed(3)} €
+                          {formatNum(adblueSinIva, 3)} €
                         </td>
 
                         {/* 6. Precio Con IVA 21% (= Precio Sin IVA * 1.21) */}
                         <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 bg-slate-900/60 text-center">
-                          {adblueConIva.toFixed(3)} €
+                          {formatNum(adblueConIva, 3)} €
                         </td>
 
                         {/* 7. P. Venta Ant. */}
@@ -1214,7 +1293,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                               adblueMargin >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
                             }`}
                           >
-                            {adblueMargin > 0 ? `+${adblueMargin.toFixed(3)}` : adblueMargin.toFixed(3)} €
+                            {adblueMargin > 0 ? `+${formatNum(adblueMargin, 3)}` : formatNum(adblueMargin, 3)} €
                           </span>
                         </td>
                       </tr>
@@ -1362,7 +1441,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
                       {/* 9. Costo Total (€) */}
                       <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 bg-slate-900/40">
-                        {totalCost.toFixed(3)} €
+                        {formatNum(totalCost, 3)} €
                       </td>
 
                       {/* 10. P. Venta Ant. (€) */}
@@ -1408,7 +1487,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           margin >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {margin > 0 ? `+${margin.toFixed(3)}` : margin.toFixed(3)} €
+                        {margin > 0 ? `+${formatNum(margin, 3)}` : formatNum(margin, 3)} €
                       </td>
                     </tr>
                   );

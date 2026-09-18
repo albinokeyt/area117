@@ -76,21 +76,21 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
     setFormType('PROPIA');
     setFormIsFixedColab(false);
     setFormClhName('TORREJON');
-    setFormPorte('0.0050');
-    setFormPase('0.0100');
-    setFormFin('0.0100');
-    setFormDefaultPrev('1.2000');
-    setFormDefaultCurr('1.2000');
-    setFormSuggestedPrice('1.3200');
-    setFormInitialBuyPrice('1.2000');
+    setFormPorte('0,005');
+    setFormPase('0,010');
+    setFormFin('0,010');
+    setFormDefaultPrev('1,200');
+    setFormDefaultCurr('1,200');
+    setFormSuggestedPrice('1,320');
+    setFormInitialBuyPrice('1,200');
     setFormIsPoste(true);
     setFormHasGasolina(true);
-    setFormDefaultGoaPoste('1.749');
-    setFormDefaultGasolinaPoste('1.749');
-    setFormDefaultGainPoste('0.250');
+    setFormDefaultGoaPoste('1,749');
+    setFormDefaultGasolinaPoste('1,749');
+    setFormDefaultGainPoste('0,250');
     setFormHasAdblue(false);
-    setFormAdblueBuy('0.4000');
-    setFormAdblueSale('0.7990');
+    setFormAdblueBuy('0,400');
+    setFormAdblueSale('0,799');
     setFormImportId('');
     setEditingStationName(null);
   };
@@ -114,21 +114,21 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
     setFormType(st.type);
     setFormIsFixedColab(Boolean(st.isFixedColaboradora));
     setFormClhName(cost.clhName || 'TORREJON');
-    setFormPorte(String(cost.porte ?? '0.0050'));
-    setFormPase(String(cost.pase ?? '0.0100'));
-    setFormFin(String(cost.fin ?? '0.0100'));
-    setFormDefaultPrev(String(cost.defaultPrev ?? '1.2000'));
-    setFormDefaultCurr(String(cost.defaultCurr ?? '1.2000'));
-    setFormSuggestedPrice(String(suggested));
-    setFormInitialBuyPrice(String(cost.defaultCurr ?? '1.2000'));
+    setFormPorte(String(cost.porte ?? '0,005').replace('.', ','));
+    setFormPase(String(cost.pase ?? '0,010').replace('.', ','));
+    setFormFin(String(cost.fin ?? '0,010').replace('.', ','));
+    setFormDefaultPrev(String(cost.defaultPrev ?? '1,200').replace('.', ','));
+    setFormDefaultCurr(String(cost.defaultCurr ?? '1,200').replace('.', ','));
+    setFormSuggestedPrice(String(suggested).replace('.', ','));
+    setFormInitialBuyPrice(String(cost.defaultCurr ?? '1,200').replace('.', ','));
     setFormIsPoste(Boolean(posteDef));
     setFormHasGasolina(posteDef ? Boolean(posteDef.hasGasolina) : false);
-    setFormDefaultGoaPoste(posteDef?.defaultGoa || '1.749');
-    setFormDefaultGasolinaPoste(posteDef?.defaultGasolina || '');
-    setFormDefaultGainPoste(posteDef?.defaultGain || '0.250');
+    setFormDefaultGoaPoste((posteDef?.defaultGoa || '1,749').replace('.', ','));
+    setFormDefaultGasolinaPoste((posteDef?.defaultGasolina || '').replace('.', ','));
+    setFormDefaultGainPoste((posteDef?.defaultGain || '0,250').replace('.', ','));
     setFormHasAdblue(Boolean(adblue));
-    setFormAdblueBuy(adblue ? String(adblue.defaultBuy) : '0.4000');
-    setFormAdblueSale(adblue ? String(adblue.defaultSale) : '0.7990');
+    setFormAdblueBuy(adblue ? String(adblue.defaultBuy).replace('.', ',') : '0,400');
+    setFormAdblueSale(adblue ? String(adblue.defaultSale).replace('.', ',') : '0,799');
     setFormImportId(importDef ? String(importDef.id) : '');
 
     setActiveTab('EDIT');
@@ -432,16 +432,16 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                               {cost?.clhName || '-'}
                             </td>
                             <td className="py-2 px-3 text-right text-slate-300">
-                              {cost?.porte ? cost.porte.toFixed(4) : '0.0000'}
+                              {cost?.porte ? cost.porte.toFixed(3).replace('.', ',') : '0,000'}
                             </td>
                             <td className="py-2 px-3 text-right text-slate-300">
-                              {cost?.pase ? cost.pase.toFixed(4) : '0.0000'}
+                              {cost?.pase ? cost.pase.toFixed(3).replace('.', ',') : '0,000'}
                             </td>
                             <td className="py-2 px-3 text-right text-slate-300">
-                              {cost?.fin ? cost.fin.toFixed(4) : '0.0000'}
+                              {cost?.fin ? cost.fin.toFixed(3).replace('.', ',') : '0,000'}
                             </td>
                             <td className="py-2 px-3 text-right font-bold text-amber-300">
-                              {suggested ? suggested.toFixed(4) + ' €' : '-'}
+                              {suggested ? suggested.toFixed(3).replace('.', ',') + ' €' : '-'}
                             </td>
                             <td className="py-2 px-3 text-center font-sans space-x-1">
                               {hasPoste && (
@@ -593,10 +593,10 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Porte (€)</label>
                     <input
-                      type="number"
-                      step="0.0001"
+                      type="text"
+                      inputMode="decimal"
                       value={formPorte}
-                      onChange={(e) => setFormPorte(e.target.value)}
+                      onChange={(e) => setFormPorte(e.target.value.replace('.', ','))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                     />
                   </div>
@@ -604,10 +604,10 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Pase (€)</label>
                     <input
-                      type="number"
-                      step="0.0001"
+                      type="text"
+                      inputMode="decimal"
                       value={formPase}
-                      onChange={(e) => setFormPase(e.target.value)}
+                      onChange={(e) => setFormPase(e.target.value.replace('.', ','))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                     />
                   </div>
@@ -615,10 +615,10 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Financiación (€)</label>
                     <input
-                      type="number"
-                      step="0.0001"
+                      type="text"
+                      inputMode="decimal"
                       value={formFin}
-                      onChange={(e) => setFormFin(e.target.value)}
+                      onChange={(e) => setFormFin(e.target.value.replace('.', ','))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                     />
                   </div>
@@ -628,10 +628,10 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">P. Compra Referencia (€)</label>
                     <input
-                      type="number"
-                      step="0.0001"
+                      type="text"
+                      inputMode="decimal"
                       value={formDefaultCurr}
-                      onChange={(e) => setFormDefaultCurr(e.target.value)}
+                      onChange={(e) => setFormDefaultCurr(e.target.value.replace('.', ','))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                     />
                   </div>
@@ -639,10 +639,10 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 uppercase block mb-1">P. Compra Anterior (€)</label>
                     <input
-                      type="number"
-                      step="0.0001"
+                      type="text"
+                      inputMode="decimal"
                       value={formDefaultPrev}
-                      onChange={(e) => setFormDefaultPrev(e.target.value)}
+                      onChange={(e) => setFormDefaultPrev(e.target.value.replace('.', ','))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                     />
                   </div>
@@ -650,11 +650,11 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                   <div>
                     <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1">P. Venta Sugerido (€) *</label>
                     <input
-                      type="number"
-                      step="0.0001"
+                      type="text"
+                      inputMode="decimal"
                       required
                       value={formSuggestedPrice}
-                      onChange={(e) => setFormSuggestedPrice(e.target.value)}
+                      onChange={(e) => setFormSuggestedPrice(e.target.value.replace('.', ','))}
                       className="w-full bg-slate-900 border border-amber-500/50 rounded-lg px-3 py-1.5 text-xs text-amber-300 font-bold font-mono focus:border-amber-400 focus:outline-none"
                     />
                   </div>
@@ -688,8 +688,9 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                           <label className="text-[10px] text-slate-400 block mb-0.5">PVP Poste GOA</label>
                           <input
                             type="text"
+                            inputMode="decimal"
                             value={formDefaultGoaPoste}
-                            onChange={(e) => setFormDefaultGoaPoste(e.target.value)}
+                            onChange={(e) => setFormDefaultGoaPoste(e.target.value.replace('.', ','))}
                             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                           />
                         </div>
@@ -697,8 +698,9 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                           <label className="text-[10px] text-slate-400 block mb-0.5">Margen Gasolina</label>
                           <input
                             type="text"
+                            inputMode="decimal"
                             value={formDefaultGainPoste}
-                            onChange={(e) => setFormDefaultGainPoste(e.target.value)}
+                            onChange={(e) => setFormDefaultGainPoste(e.target.value.replace('.', ','))}
                             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                           />
                         </div>
@@ -740,20 +742,20 @@ export function StationManagerModal({ isOpen, onClose }: StationManagerModalProp
                       <div>
                         <label className="text-[10px] text-slate-400 block mb-0.5">P. Compra AdBlue</label>
                         <input
-                          type="number"
-                          step="0.0001"
+                          type="text"
+                          inputMode="decimal"
                           value={formAdblueBuy}
-                          onChange={(e) => setFormAdblueBuy(e.target.value)}
+                          onChange={(e) => setFormAdblueBuy(e.target.value.replace('.', ','))}
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] text-slate-400 block mb-0.5">PVP Venta AdBlue</label>
                         <input
-                          type="number"
-                          step="0.0001"
+                          type="text"
+                          inputMode="decimal"
                           value={formAdblueSale}
-                          onChange={(e) => setFormAdblueSale(e.target.value)}
+                          onChange={(e) => setFormAdblueSale(e.target.value.replace('.', ','))}
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                         />
                       </div>

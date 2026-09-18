@@ -1924,7 +1924,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               Seleccionar Tarifa: <span className="text-amber-400">{selectedTariff}</span>
             </label>
-            <span className="text-xs text-slate-500 font-mono">Markup: +{currentMarkup.toFixed(4)} €</span>
+            <span className="text-xs text-slate-500 font-mono">Markup: +{currentMarkup.toFixed(3).replace('.', ',')} €</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 max-h-64 overflow-y-auto pr-1">
@@ -2840,7 +2840,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                           </span>
                         </div>
                         <div className="text-slate-300 mt-0.5 text-[11px]">
-                          Muestra: <strong className="text-amber-300 font-mono font-bold">{selectedPointingCell.sampleValueSinIva?.toFixed(3)} €</strong> Sin IVA • <strong className="text-emerald-400 font-mono font-bold">{selectedPointingCell.sampleValueConIva?.toFixed(3)} €</strong> Con IVA
+                          Muestra: <strong className="text-amber-300 font-mono font-bold">{selectedPointingCell.sampleValueSinIva !== undefined ? selectedPointingCell.sampleValueSinIva.toFixed(3).replace('.', ',') : ''} €</strong> Sin IVA • <strong className="text-emerald-400 font-mono font-bold">{selectedPointingCell.sampleValueConIva !== undefined ? selectedPointingCell.sampleValueConIva.toFixed(3).replace('.', ',') : ''} €</strong> Con IVA
                           {selectedPointingCell.sampleStation && ` (Estación: ${selectedPointingCell.sampleStation})`}
                         </div>
                       </div>
@@ -2992,7 +2992,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                                 </td>
 
                                 <td className="py-2 px-3 text-center text-slate-400 bg-slate-900/30">
-                                  {base.toFixed(3)} €
+                                  {base.toFixed(3).replace('.', ',')} €
                                 </td>
 
                                 {SABANA_PICKER_COLUMNS.map((col) => {
@@ -3025,10 +3025,10 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                                           ? 'bg-purple-500/15 text-white font-bold'
                                           : 'text-slate-300 hover:bg-amber-500/15 hover:text-amber-200'
                                       }`}
-                                      title={`Clic para señalar: ${col.fullTitle} para ${st.name} (${p.sinIva.toFixed(3)} € Sin IVA)`}
+                                      title={`Clic para señalar: ${col.fullTitle} para ${st.name} (${p.sinIva.toFixed(3).replace('.', ',')} € Sin IVA)`}
                                     >
                                       <div className="flex items-center justify-center space-x-1">
-                                        <span>{p.sinIva.toFixed(3)}</span>
+                                        <span>{p.sinIva.toFixed(3).replace('.', ',')}</span>
                                         {isCellSourceOfThisStation && (
                                           <Check className="h-3 w-3 text-emerald-400" />
                                         )}
@@ -3149,10 +3149,10 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                                           ? 'bg-purple-600/30 font-black text-purple-200 ring-1 ring-purple-400/50'
                                           : 'text-slate-300 hover:bg-amber-500/15 hover:text-amber-200'
                                       }`}
-                                      title={`Clic para señalar: ${col.fullTitle} para ${st.name} (${p.sinIva.toFixed(3)} €)`}
+                                      title={`Clic para señalar: ${col.fullTitle} para ${st.name} (${p.sinIva.toFixed(3).replace('.', ',')} €)`}
                                     >
                                       <div className="flex items-center justify-center space-x-1.5">
-                                        <span className="font-bold">{p.sinIva.toFixed(3)} €</span>
+                                        <span className="font-bold">{p.sinIva.toFixed(3).replace('.', ',')} €</span>
                                         {isCellSourceOfThisStation && (
                                           <Check className="h-3 w-3 text-emerald-400" />
                                         )}
@@ -3322,13 +3322,13 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                                         ? 'bg-purple-500/15 text-white font-bold'
                                         : 'text-slate-300 hover:bg-amber-500/15 hover:text-amber-200'
                                     }`}
-                                    title={`Clic para señalar: ${col.fullTitle} para ${row.name} (${val.toFixed(3)} €)`}
+                                    title={`Clic para señalar: ${col.fullTitle} para ${row.name} (${val.toFixed(3).replace('.', ',')} €)`}
                                   >
                                     <div className="flex items-center justify-center space-x-1.5">
                                       <span className={`font-bold ${
                                         col.field === 'actual' ? 'text-rose-300' : col.field === 'ref' ? 'text-amber-300' : 'text-slate-300'
                                       }`}>
-                                        {val.toFixed(3)} €
+                                        {val.toFixed(3).replace('.', ',')} €
                                       </span>
                                       {isCellSourceOfThisStation && (
                                         <Check className="h-3 w-3 text-emerald-400" />
@@ -3414,8 +3414,8 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                                 <span className="text-[10px] text-slate-400">Gasóleo B Transfrired</span>
                               </div>
                               <div className="text-right font-mono">
-                                <span className="text-xs font-bold text-amber-300 block">{p.sinIva.toFixed(3)} € Sin IVA</span>
-                                <span className="text-[10px] text-emerald-400 font-bold">{p.conIva.toFixed(3)} € Con IVA</span>
+                                <span className="text-xs font-bold text-amber-300 block">{p.sinIva.toFixed(3).replace('.', ',')} € Sin IVA</span>
+                                <span className="text-[10px] text-emerald-400 font-bold">{p.conIva.toFixed(3).replace('.', ',')} € Con IVA</span>
                               </div>
                             </div>
                           );

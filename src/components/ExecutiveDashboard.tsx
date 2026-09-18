@@ -275,6 +275,11 @@ const avgMargin = Number((MOCK_PROPIAS.reduce((a, b) => a + b.margin, 0) / MOCK_
 const prevGoa = PURCHASE_TREND[PURCHASE_TREND.length - 2];
 const todayGoa = PURCHASE_TREND[PURCHASE_TREND.length - 1];
 
+const formatNum = (num: number, decimals: number = 3) => {
+  if (num === undefined || num === null || isNaN(num)) return '0,000';
+  return num.toFixed(decimals).replace('.', ',');
+};
+
 export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
   const [activeTableTab, setActiveTableTab] = useState<'PROPIAS' | 'COLABORADORAS' | 'TODAS'>('TODAS');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -369,10 +374,10 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
           <div className="mt-3">
             <p className="text-xs font-semibold text-slate-400">Precio Compra GOA (Hoy)</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              {todayGoa.toFixed(3)} <span className="text-xs text-slate-400 font-mono">€/L</span>
+              {formatNum(todayGoa, 3)} <span className="text-xs text-slate-400 font-mono">€/L</span>
             </p>
             <p className="text-[11px] text-amber-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>Ayer: {prevGoa.toFixed(3)} €</span>
+              <span>Ayer: {formatNum(prevGoa, 3)} €</span>
               <span className="text-slate-600">&bull;</span>
               <span className="underline group-hover:text-amber-300">Ver comparativa</span>
             </p>
@@ -400,10 +405,10 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
           <div className="mt-3">
             <p className="text-xs font-semibold text-slate-400">Margen Medio Global</p>
             <p className="text-2xl font-bold text-white tracking-tight mt-0.5">
-              +{avgMargin.toFixed(3)} <span className="text-xs text-slate-400 font-mono">€/L</span>
+              +{formatNum(avgMargin, 3)} <span className="text-xs text-slate-400 font-mono">€/L</span>
             </p>
             <p className="text-[11px] text-emerald-400/90 font-medium mt-1 flex items-center space-x-1">
-              <span>P. Venta medio: {(avgGoa + avgMargin).toFixed(3)} €</span>
+              <span>P. Venta medio: {formatNum(avgGoa + avgMargin, 3)} €</span>
               <span className="text-slate-600">&bull;</span>
               <span className="underline group-hover:text-emerald-300">Ver comparativa</span>
             </p>
@@ -604,17 +609,17 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
 
                     {/* 5. Precio Compra Diario Indicado Promedio (3 decimales) */}
                     <td className="py-3 px-4 font-mono font-bold text-amber-300">
-                      {st.dailyBuyPrice.toFixed(3)} €/L
+                      {formatNum(st.dailyBuyPrice, 3)} €/L
                     </td>
 
                     {/* 6. Precio Venta Diario Indicado Promedio (3 decimales) */}
                     <td className="py-3 px-4 font-mono font-bold text-blue-300">
-                      {st.dailySalePrice.toFixed(3)} €/L
+                      {formatNum(st.dailySalePrice, 3)} €/L
                     </td>
 
                     {/* 7. Margen Promedio (3 decimales) */}
                     <td className="py-3 px-4 font-mono font-bold text-emerald-400">
-                      +{st.avgMargin.toFixed(3)} €/L
+                      +{formatNum(st.avgMargin, 3)} €/L
                     </td>
 
                     {/* 8. Frecuencia de Compra */}
@@ -671,7 +676,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
               const isToday = DAYS[i] === 'Hoy';
               return (
                 <div key={i} className="flex flex-col items-center space-y-1.5 flex-1">
-                  <span className="text-[10px] font-mono text-slate-400">{v.toFixed(3)}</span>
+                  <span className="text-[10px] font-mono text-slate-400">{formatNum(v, 3)}</span>
                   <div className="w-full flex flex-col justify-end" style={{ height: '90px' }}>
                     <div
                       className={`w-full rounded-t-lg transition-all duration-300 ${
@@ -691,9 +696,9 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
           </div>
 
           <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
-            <span>Mínimo: <strong className="text-emerald-400">{Math.min(...PURCHASE_TREND).toFixed(3)} €/L</strong></span>
-            <span>Media: <strong className="text-amber-400">{(PURCHASE_TREND.reduce((a, b) => a + b, 0) / PURCHASE_TREND.length).toFixed(3)} €/L</strong></span>
-            <span>Máximo: <strong className="text-rose-400">{Math.max(...PURCHASE_TREND).toFixed(3)} €/L</strong></span>
+            <span>Mínimo: <strong className="text-emerald-400">{formatNum(Math.min(...PURCHASE_TREND), 3)} €/L</strong></span>
+            <span>Media: <strong className="text-amber-400">{formatNum(PURCHASE_TREND.reduce((a, b) => a + b, 0) / PURCHASE_TREND.length, 3)} €/L</strong></span>
+            <span>Máximo: <strong className="text-rose-400">{formatNum(Math.max(...PURCHASE_TREND), 3)} €/L</strong></span>
           </div>
         </div>
 
@@ -735,7 +740,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
                       <span>{st.fuelType}</span>
-                      <span>Margen: +{st.avgMargin.toFixed(3)} €/L</span>
+                      <span>Margen: +{formatNum(st.avgMargin, 3)} €/L</span>
                     </div>
                   </div>
                 );
@@ -827,10 +832,10 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
                       {row.type}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-mono text-amber-300 font-bold">{row.goa.toFixed(3)} €</td>
-                  <td className="py-3 px-4 font-mono text-amber-400 font-bold">{row.premium.toFixed(3)} €</td>
-                  <td className="py-3 px-4 font-mono text-blue-300">{row.gasolina.toFixed(3)} €</td>
-                  <td className="py-3 px-4 font-mono font-bold text-emerald-400">+{row.margin.toFixed(3)} €</td>
+                  <td className="py-3 px-4 font-mono text-amber-300 font-bold">{formatNum(row.goa, 3)} €</td>
+                  <td className="py-3 px-4 font-mono text-amber-400 font-bold">{formatNum(row.premium, 3)} €</td>
+                  <td className="py-3 px-4 font-mono text-blue-300">{formatNum(row.gasolina, 3)} €</td>
+                  <td className="py-3 px-4 font-mono font-bold text-emerald-400">+{formatNum(row.margin, 3)} €</td>
                   <td className="py-3 px-4 font-mono font-bold text-emerald-300">+{row.weeklyGain.toLocaleString()} €</td>
                   <td className="py-3 px-4 text-right">
                     <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
@@ -907,25 +912,25 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
                   <span className="text-[11px] text-slate-400 block font-medium">P. Compra Medio Global</span>
                   <span className="text-xl font-extrabold text-amber-300 font-mono mt-1 block">
-                    {globalAvgBuy.toFixed(3)} €/L
+                    {formatNum(globalAvgBuy, 3)} €/L
                   </span>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
                   <span className="text-[11px] text-slate-400 block font-medium">P. Venta Medio Global</span>
                   <span className="text-xl font-extrabold text-blue-300 font-mono mt-1 block">
-                    {globalAvgSale.toFixed(3)} €/L
+                    {formatNum(globalAvgSale, 3)} €/L
                   </span>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
                   <span className="text-[11px] text-slate-400 block font-medium">Margen Promedio Global</span>
                   <span className="text-xl font-extrabold text-emerald-400 font-mono mt-1 block">
-                    +{globalAvgMargin.toFixed(3)} €/L
+                    +{formatNum(globalAvgMargin, 3)} €/L
                   </span>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
                   <span className="text-[11px] text-slate-400 block font-medium">% Rentabilidad Global</span>
                   <span className="text-xl font-extrabold text-purple-300 font-mono mt-1 block">
-                    {globalMarginPct.toFixed(2)}%
+                    {formatNum(globalMarginPct, 2)}%
                   </span>
                 </div>
               </div>
@@ -997,22 +1002,22 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
 
                             {/* P. Compra (3 decimales) */}
                             <td className="py-3.5 px-4 font-mono font-bold text-amber-300 text-sm">
-                              {p.buyPrice.toFixed(3)} €
+                              {formatNum(p.buyPrice, 3)} €
                             </td>
 
                             {/* P. Venta (3 decimales) */}
                             <td className="py-3.5 px-4 font-mono font-bold text-blue-300 text-sm">
-                              {p.salePrice.toFixed(3)} €
+                              {formatNum(p.salePrice, 3)} €
                             </td>
 
                             {/* Margen (3 decimales) */}
                             <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-400 text-sm">
-                              +{margin.toFixed(3)} €
+                              +{formatNum(margin, 3)} €
                             </td>
 
                             {/* % Rentabilidad */}
                             <td className="py-3.5 px-4 font-mono font-bold text-purple-300">
-                              {marginPct.toFixed(2)}%
+                              {formatNum(marginPct, 2)}%
                             </td>
 
                             {/* Variación Compra vs período anterior */}
@@ -1025,7 +1030,7 @@ export function ExecutiveDashboard({ onNavigateTab }: DashboardProps) {
                                 }`}
                               >
                                 {isBuyPositive ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                                <span>{deltaBuy > 0 ? `+${deltaBuy.toFixed(3)}` : deltaBuy.toFixed(3)} €/L</span>
+                                <span>{deltaBuy > 0 ? `+${formatNum(deltaBuy, 3)}` : formatNum(deltaBuy, 3)} €/L</span>
                               </span>
                             </td>
 

@@ -196,7 +196,7 @@ export function SabanaTariffManagerModal({
   // Formulario para Crear Nueva Tarifa
   const [newTariffName, setNewTariffName] = useState('');
   const [newTariffBlockType, setNewTariffBlockType] = useState<'standard' | 'special'>('standard');
-  const [newTariffMarkup, setNewTariffMarkup] = useState('0.0500');
+  const [newTariffMarkup, setNewTariffMarkup] = useState('0,050');
   const [newTariffSource, setNewTariffSource] = useState('COMPRAS_VENTA_SUGERIDO');
   const [newTariffDescription, setNewTariffDescription] = useState('');
 
@@ -206,11 +206,11 @@ export function SabanaTariffManagerModal({
   }, [allTariffs, selectedTariffId]);
 
   const [editName, setEditName] = useState('');
-  const [editMarkup, setEditMarkup] = useState('0.0360');
+  const [editMarkup, setEditMarkup] = useState('0,036');
   const [editTargetStation, setEditTargetStation] = useState('__ALL__');
   const [editSelectedSource, setEditSelectedSource] = useState('DEFAULT');
-  const [editMarkupDiff, setEditMarkupDiff] = useState('0.0000');
-  const [editManualPrice, setEditManualPrice] = useState('1.200');
+  const [editMarkupDiff, setEditMarkupDiff] = useState('0,000');
+  const [editManualPrice, setEditManualPrice] = useState('1,200');
 
   // Estado del Modo Señalar en Ventana
   const [pickerWindowTab, setPickerWindowTab] = useState<'sabana' | 'compras' | 'compras_especiales' | 'postes'>('sabana');
@@ -227,17 +227,17 @@ export function SabanaTariffManagerModal({
   useEffect(() => {
     if (activeTariff) {
       setEditName(activeTariff.name);
-      setEditMarkup(activeTariff.markup.toFixed(4));
+      setEditMarkup(activeTariff.markup.toFixed(3).replace('.', ','));
       
       const defaultMapping = sourcesMapping[`${activeTariff.name}::__DEFAULT__`];
       if (defaultMapping) {
         setEditSelectedSource(defaultMapping.sourceType || 'DEFAULT');
-        setEditMarkupDiff((defaultMapping.markupDiff ?? 0).toFixed(4));
-        setEditManualPrice((defaultMapping.manualPriceSinIva ?? 1.200).toFixed(3));
+        setEditMarkupDiff((defaultMapping.markupDiff ?? 0).toFixed(3).replace('.', ','));
+        setEditManualPrice((defaultMapping.manualPriceSinIva ?? 1.200).toFixed(3).replace('.', ','));
       } else {
         setEditSelectedSource('DEFAULT');
-        setEditMarkupDiff('0.0000');
-        setEditManualPrice('1.200');
+        setEditMarkupDiff('0,000');
+        setEditManualPrice('1,200');
       }
     }
   }, [activeTariff, sourcesMapping]);
@@ -413,7 +413,7 @@ export function SabanaTariffManagerModal({
     });
     onSaveSourceMapping(updated);
     setEditSelectedSource('DEFAULT');
-    setEditMarkupDiff('0.0000');
+    setEditMarkupDiff('0,000');
   };
 
   return (
@@ -442,69 +442,57 @@ export function SabanaTariffManagerModal({
           </button>
         </div>
 
-        {/* Modal Tabs Bar */}
-        <div className="px-6 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('manage')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
-                activeTab === 'manage'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                  : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Sliders className="h-4 w-4" />
-              <span>Modificar y Configurar Origen</span>
-            </button>
+        {/* Tab Switcher */}
+        <div className="flex border-b border-slate-800 px-6 bg-slate-950/50 shrink-0">
+          <button
+            onClick={() => setActiveTab('manage')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+              activeTab === 'manage'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sliders className="h-4 w-4" />
+            <span>1. Modificar Tarifa y Fuentes</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('create')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
-                activeTab === 'create'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                  : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Plus className="h-4 w-4" />
-              <span>➕ Crear Nueva Tarifa</span>
-            </button>
+          <button
+            onClick={() => setActiveTab('create')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+              activeTab === 'create'
+                ? 'border-amber-400 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <PlusCircle className="h-4 w-4" />
+            <span>2. Crear Nueva Tarifa</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('picker')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
-                activeTab === 'picker'
-                  ? 'bg-purple-600 text-white font-black shadow-md shadow-purple-600/30'
-                  : 'bg-slate-800/80 text-purple-300 hover:text-white hover:bg-slate-800 border border-purple-500/30'
-              }`}
-            >
-              <MousePointerClick className="h-4 w-4" />
-              <span>Modo Señalar en Ventanas</span>
-            </button>
-          </div>
-
-          <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-            Fecha: <strong className="text-amber-300">{selectedDate}</strong>
-          </span>
+          <button
+            onClick={() => setActiveTab('picker')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+              activeTab === 'picker'
+                ? 'border-purple-400 text-purple-300'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <MousePointerClick className="h-4 w-4" />
+            <span>3. Señalar en Ventana</span>
+          </button>
         </div>
 
-        {/* Modal Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* TAB 1: MODIFICAR Y CONFIGURAR ORIGEN */}
+        {/* Modal Body */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {/* TAB 1: MODIFICAR TARIFA EXISTENTE */}
           {activeTab === 'manage' && (
             <div className="space-y-6">
-              {/* Selector de Tarifa a Modificar */}
+              {/* Selector de la Tarifa a Gestionar */}
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center space-x-3 flex-1">
-                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
-                    <Table className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-slate-300 block mb-1">
-                      Selecciona la Tarifa a Modificar:
-                    </label>
+                <div className="flex-1">
+                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                    Selecciona la Tarifa a Configurar o Modificar:
+                  </label>
+                  <div className="relative">
                     <select
                       value={selectedTariffId}
                       onChange={(e) => setSelectedTariffId(e.target.value)}
@@ -515,7 +503,7 @@ export function SabanaTariffManagerModal({
                           .filter((t) => t.blockType === 'standard')
                           .map((t) => (
                             <option key={t.id} value={t.id}>
-                              {t.name} (Margen: +{t.markup.toFixed(4)}) {t.isCustom ? '★ Creada por Usuario' : ''}
+                              {t.name} (Margen: +{t.markup.toFixed(3).replace('.', ',')}) {t.isCustom ? '★ Creada por Usuario' : ''}
                             </option>
                           ))}
                       </optgroup>
@@ -524,7 +512,7 @@ export function SabanaTariffManagerModal({
                           .filter((t) => t.blockType === 'special')
                           .map((t) => (
                             <option key={t.id} value={t.id}>
-                              {t.name} (Margen: +{t.markup.toFixed(4)}) {t.isCustom ? '★ Creada por Usuario' : ''}
+                              {t.name} (Margen: +{t.markup.toFixed(3).replace('.', ',')}) {t.isCustom ? '★ Creada por Usuario' : ''}
                             </option>
                           ))}
                       </optgroup>
@@ -574,14 +562,14 @@ export function SabanaTariffManagerModal({
                       Margen / Diferencial Predeterminado (+ €/L):
                     </label>
                     <input
-                      type="number"
-                      step="0.001"
+                      type="text"
+                      inputMode="decimal"
                       value={editMarkup}
-                      onChange={(e) => setEditMarkup(e.target.value)}
+                      onChange={(e) => setEditMarkup(e.target.value.replace('.', ','))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
                     />
                     <p className="text-[10px] text-slate-400">
-                      Ejemplos: <code className="text-amber-300 font-mono">0.0360</code> (Tarifa 36), <code className="text-amber-300 font-mono">0.0800</code> (Tarifa 60).
+                      Ejemplos: <code className="text-amber-300 font-mono">0,036</code> (Tarifa 36), <code className="text-amber-300 font-mono">0,080</code> (Tarifa 60).
                     </p>
                   </div>
                 </div>
@@ -634,11 +622,11 @@ export function SabanaTariffManagerModal({
                         Diferencial / Margen Adicional sobre el Origen (+/- €/L):
                       </label>
                       <input
-                        type="number"
-                        step="0.001"
+                        type="text"
+                        inputMode="decimal"
                         value={editMarkupDiff}
-                        onChange={(e) => setEditMarkupDiff(e.target.value)}
-                        placeholder="0.0000"
+                        onChange={(e) => setEditMarkupDiff(e.target.value.replace('.', ','))}
+                        placeholder="0,000"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
                       />
                     </div>
@@ -650,10 +638,10 @@ export function SabanaTariffManagerModal({
                         Precio Fijo Manual Sin IVA (€/L):
                       </label>
                       <input
-                        type="number"
-                        step="0.001"
+                        type="text"
+                        inputMode="decimal"
                         value={editManualPrice}
-                        onChange={(e) => setEditManualPrice(e.target.value)}
+                        onChange={(e) => setEditManualPrice(e.target.value.replace('.', ','))}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400"
                       />
                     </div>
@@ -756,12 +744,12 @@ export function SabanaTariffManagerModal({
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-300">Margen / Diferencial (+ €/L):</label>
                   <input
-                    type="number"
-                    step="0.001"
+                    type="text"
+                    inputMode="decimal"
                     required
                     value={newTariffMarkup}
-                    onChange={(e) => setNewTariffMarkup(e.target.value)}
-                    placeholder="0.0500"
+                    onChange={(e) => setNewTariffMarkup(e.target.value.replace('.', ','))}
+                    placeholder="0,050"
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
                   />
                 </div>
@@ -928,7 +916,7 @@ export function SabanaTariffManagerModal({
                         </span>
                       </div>
                       <div className="text-slate-300 mt-0.5 text-[11px]">
-                        Muestra: <strong className="text-amber-300 font-mono">{selectedPointingCell.sampleValueSinIva?.toFixed(3)} €</strong> Sin IVA • <strong className="text-emerald-400 font-mono">{selectedPointingCell.sampleValueConIva?.toFixed(3)} €</strong> Con IVA
+                        Muestra: <strong className="text-amber-300 font-mono">{selectedPointingCell.sampleValueSinIva !== undefined ? selectedPointingCell.sampleValueSinIva.toFixed(3).replace('.', ',') : ''} €</strong> Sin IVA • <strong className="text-emerald-400 font-mono">{selectedPointingCell.sampleValueConIva !== undefined ? selectedPointingCell.sampleValueConIva.toFixed(3).replace('.', ',') : ''} €</strong> Con IVA
                       </div>
                     </div>
                   </div>
@@ -981,10 +969,10 @@ export function SabanaTariffManagerModal({
                           >
                             <div className="font-extrabold text-xs text-amber-300">TARIFA {tarId}</div>
                             <div className="text-[11px] text-slate-400 mt-1 font-mono">
-                              ~{sampleSin.toFixed(3)} € <span className="text-[9px] text-slate-500">sin IVA</span>
+                              ~{sampleSin.toFixed(3).replace('.', ',')} € <span className="text-[9px] text-slate-500">sin IVA</span>
                             </div>
                             <div className="text-[10px] text-emerald-400 font-mono">
-                              ~{sampleCon.toFixed(3)} € <span className="text-[9px] text-slate-500">con IVA</span>
+                              ~{sampleCon.toFixed(3).replace('.', ',')} € <span className="text-[9px] text-slate-500">con IVA</span>
                             </div>
                           </button>
                         );

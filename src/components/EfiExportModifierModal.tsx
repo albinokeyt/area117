@@ -314,7 +314,7 @@ export function EfiExportModifierModal({
       setSelectedTariff(initialSelectedRow.tarifa);
       setSelectedStationId(initialSelectedRow.stationId);
       setSelectedProd(initialSelectedRow.prod);
-      setManualPriceConIva(initialSelectedRow.pvp.toFixed(3));
+      setManualPriceConIva(initialSelectedRow.pvp.toFixed(3).replace('.', ','));
       setInitialDate(initialSelectedRow.initialDate);
       setFinalDate(initialSelectedRow.finalDate);
       setPagoType(initialSelectedRow.pago);
@@ -456,7 +456,7 @@ export function EfiExportModifierModal({
 
     setSuccessMsg(
       modifyScope === 'ROW'
-        ? `Modificación guardada para ${currentStation.name} (${selectedTariff}): ${finalPvp.toFixed(3)} €`
+        ? `Modificación guardada para ${currentStation.name} (${selectedTariff}): ${finalPvp.toFixed(3).replace('.', ',')} €`
         : modifyScope === 'TARIFF'
         ? `Modificación aplicada a todas las estaciones de ${selectedTariff}`
         : `Modificación aplicada a todas las tarifas de ${currentStation.name}`
@@ -747,8 +747,8 @@ export function EfiExportModifierModal({
                     <input
                       type="text"
                       value={manualPriceConIva}
-                      onChange={(e) => setManualPriceConIva(e.target.value)}
-                      placeholder="1.807"
+                      onChange={(e) => setManualPriceConIva(e.target.value.replace('.', ','))}
+                      placeholder="1,807"
                       className="w-full max-w-xs bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-emerald-300 font-bold font-mono focus:border-emerald-400 focus:outline-none"
                     />
                   </div>
@@ -781,12 +781,12 @@ export function EfiExportModifierModal({
                       <input
                         type="text"
                         value={markupDiff}
-                        onChange={(e) => setMarkupDiff(e.target.value)}
-                        placeholder="0.000"
+                        onChange={(e) => setMarkupDiff(e.target.value.replace('.', ','))}
+                        placeholder="0,000"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-purple-400 focus:outline-none"
                       />
                       <span className="text-[10px] text-slate-500 mt-1 block">
-                        Ej: +0.010 para sumar 1 céntimo o -0.005 para restar medio céntimo
+                        Ej: +0,010 para sumar 1 céntimo o -0,005 para restar medio céntimo
                       </span>
                     </div>
                   </div>
@@ -800,7 +800,7 @@ export function EfiExportModifierModal({
                       {previewComputedPvp.toFixed(3).replace('.', ',')} €
                     </span>
                     <span className="text-[10px] text-slate-500 font-mono">
-                      (Sin IVA: {(previewComputedPvp / 1.21).toFixed(3)} €)
+                      (Sin IVA: {(previewComputedPvp / 1.21).toFixed(3).replace('.', ',')} €)
                     </span>
                   </div>
                 </div>
@@ -1243,15 +1243,15 @@ export function EfiExportModifierModal({
                               <td
                                 key={idx}
                                 onClick={() => {
-                                  setManualPriceConIva(val.toFixed(3));
+                                  setManualPriceConIva(val.toFixed(3).replace('.', ','));
                                   setEditPriceMode('DIRECT');
                                   setActiveTab('modify');
-                                  setSuccessMsg(`Precio capturado: ${val.toFixed(3)} €`);
+                                  setSuccessMsg(`Precio capturado: ${val.toFixed(3).replace('.', ',')} €`);
                                   setTimeout(() => setSuccessMsg(null), 2500);
                                 }}
                                 className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 hover:scale-105 transition-all font-bold"
                               >
-                                {val.toFixed(3)} €
+                                {val.toFixed(3).replace('.', ',')} €
                               </td>
                             ))}
                           </tr>
@@ -1282,27 +1282,27 @@ export function EfiExportModifierModal({
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vs.toFixed(3));
+                                setManualPriceConIva(vs.toFixed(3).replace('.', ','));
                                 setEditPriceMode('DIRECT');
                                 setActiveTab('modify');
-                                setSuccessMsg(`P. Venta Sugerido capturado: ${vs.toFixed(3)} €`);
+                                setSuccessMsg(`P. Venta Sugerido capturado: ${vs.toFixed(3).replace('.', ',')} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vs.toFixed(3)} €
+                              {vs.toFixed(3).replace('.', ',')} €
                             </td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vc.toFixed(3));
+                                setManualPriceConIva(vc.toFixed(3).replace('.', ','));
                                 setEditPriceMode('DIRECT');
                                 setActiveTab('modify');
-                                setSuccessMsg(`P. Compra capturado: ${vc.toFixed(3)} €`);
+                                setSuccessMsg(`P. Compra capturado: ${vc.toFixed(3).replace('.', ',')} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-blue-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vc.toFixed(3)} €
+                              {vc.toFixed(3).replace('.', ',')} €
                             </td>
                           </tr>
                         );
@@ -1332,27 +1332,27 @@ export function EfiExportModifierModal({
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vr.toFixed(3));
+                                setManualPriceConIva(vr.toFixed(3).replace('.', ','));
                                 setEditPriceMode('DIRECT');
                                 setActiveTab('modify');
-                                setSuccessMsg(`Precio Referencia capturado: ${vr.toFixed(3)} €`);
+                                setSuccessMsg(`Precio Referencia capturado: ${vr.toFixed(3).replace('.', ',')} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-amber-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vr.toFixed(3)} €
+                              {vr.toFixed(3).replace('.', ',')} €
                             </td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(va.toFixed(3));
+                                setManualPriceConIva(va.toFixed(3).replace('.', ','));
                                 setEditPriceMode('DIRECT');
                                 setActiveTab('modify');
-                                setSuccessMsg(`Precio Actual capturado: ${va.toFixed(3)} €`);
+                                setSuccessMsg(`Precio Actual capturado: ${va.toFixed(3).replace('.', ',')} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-cyan-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {va.toFixed(3)} €
+                              {va.toFixed(3).replace('.', ',')} €
                             </td>
                           </tr>
                         );
@@ -1382,27 +1382,27 @@ export function EfiExportModifierModal({
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vpGoa.toFixed(3));
+                                setManualPriceConIva(vpGoa.toFixed(3).replace('.', ','));
                                 setEditPriceMode('DIRECT');
                                 setActiveTab('modify');
-                                setSuccessMsg(`PVP Poste GOA capturado: ${vpGoa.toFixed(3)} €`);
+                                setSuccessMsg(`PVP Poste GOA capturado: ${vpGoa.toFixed(3).replace('.', ',')} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vpGoa.toFixed(3)} €
+                              {vpGoa.toFixed(3).replace('.', ',')} €
                             </td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vpGas.toFixed(3));
+                                setManualPriceConIva(vpGas.toFixed(3).replace('.', ','));
                                 setEditPriceMode('DIRECT');
                                 setActiveTab('modify');
-                                setSuccessMsg(`PVP Poste Gasolina 95 capturado: ${vpGas.toFixed(3)} €`);
+                                setSuccessMsg(`PVP Poste Gasolina 95 capturado: ${vpGas.toFixed(3).replace('.', ',')} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-amber-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vpGas.toFixed(3)} €
+                              {vpGas.toFixed(3).replace('.', ',')} €
                             </td>
                           </tr>
                         );

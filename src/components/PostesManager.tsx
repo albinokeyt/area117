@@ -35,20 +35,20 @@ const POSTES_PROPIAS_STATIONS: {
   defaultGain: string;
   hasGasolina?: boolean;
 }[] = [
-  { name: 'ARCOS', defaultGoa: '1.779', defaultGasolina: '', defaultGain: '', hasGasolina: false },
-  { name: 'ALCUBILLAS', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.271', hasGasolina: true },
-  { name: 'ALFAJARIN', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.271', hasGasolina: true },
-  { name: 'TORREMOCHA', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.272', hasGasolina: true },
-  { name: 'UCLES', defaultGoa: '1.799', defaultGasolina: '1.799', defaultGain: '0.284', hasGasolina: true },
-  { name: 'VALLECAS', defaultGoa: '1.709', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'GANESHA MADRID', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'GANESHA TORREJON', defaultGoa: '1.699', defaultGasolina: '1.739', defaultGain: '0.212', hasGasolina: true },
-  { name: 'VALDEMORO', defaultGoa: '1.659', defaultGasolina: '1.649', defaultGain: '0.122', hasGasolina: true },
-  { name: 'BENAMEJI', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
-  { name: 'HUMILLADERO', defaultGoa: '1.839', defaultGasolina: '1.799', defaultGain: '0.274', hasGasolina: true },
-  { name: 'ES RIBA-ROJA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
-  { name: 'ES PISTA DE SILLA', defaultGoa: '1.659', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
-  { name: 'ES REAL DE GANDIA', defaultGoa: '1.680', defaultGasolina: '1.689', defaultGain: '0.340', hasGasolina: true },
+  { name: 'ARCOS', defaultGoa: '1,779', defaultGasolina: '', defaultGain: '', hasGasolina: false },
+  { name: 'ALCUBILLAS', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,271', hasGasolina: true },
+  { name: 'ALFAJARIN', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,271', hasGasolina: true },
+  { name: 'TORREMOCHA', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,272', hasGasolina: true },
+  { name: 'UCLES', defaultGoa: '1,799', defaultGasolina: '1,799', defaultGain: '0,284', hasGasolina: true },
+  { name: 'VALLECAS', defaultGoa: '1,709', defaultGasolina: '1,739', defaultGain: '0,212', hasGasolina: true },
+  { name: 'GANESHA MADRID', defaultGoa: '1,699', defaultGasolina: '1,739', defaultGain: '0,212', hasGasolina: true },
+  { name: 'GANESHA TORREJON', defaultGoa: '1,699', defaultGasolina: '1,739', defaultGain: '0,212', hasGasolina: true },
+  { name: 'VALDEMORO', defaultGoa: '1,659', defaultGasolina: '1,649', defaultGain: '0,122', hasGasolina: true },
+  { name: 'BENAMEJI', defaultGoa: '1,839', defaultGasolina: '1,799', defaultGain: '0,274', hasGasolina: true },
+  { name: 'HUMILLADERO', defaultGoa: '1,839', defaultGasolina: '1,799', defaultGain: '0,274', hasGasolina: true },
+  { name: 'ES RIBA-ROJA', defaultGoa: '1,659', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
+  { name: 'ES PISTA DE SILLA', defaultGoa: '1,659', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
+  { name: 'ES REAL DE GANDIA', defaultGoa: '1,680', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
 ];
 
 export function PostesManager() {
@@ -60,8 +60,9 @@ export function PostesManager() {
     return isNaN(num) ? 0 : num;
   };
 
-  const formatNum = (num: number, decimals: number = 4): string => {
-    return num.toFixed(decimals);
+  const formatNum = (num: number, decimals: number = 3): string => {
+    if (isNaN(num) || !isFinite(num)) return '0,000';
+    return num.toFixed(decimals).replace('.', ',');
   };
 
   const [stationsVersion, setStationsVersion] = useState(0);
@@ -74,7 +75,17 @@ export function PostesManager() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (parsed.postes) setPostes({ ...parsed.postes });
+          if (parsed.postes) {
+            const sanitized: Record<string, { goa: string; gasolina: string; gasolinaGain: string }> = {};
+            Object.entries(parsed.postes).forEach(([k, v]: [string, any]) => {
+              sanitized[k] = {
+                goa: (v.goa || '').replace('.', ','),
+                gasolina: (v.gasolina || '').replace('.', ','),
+                gasolinaGain: (v.gasolinaGain || '').replace('.', ','),
+              };
+            });
+            setPostes(sanitized);
+          }
         } catch (e) {}
       }
     };
@@ -87,81 +98,113 @@ export function PostesManager() {
       const saved = localStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.postes && Object.keys(parsed.postes).length > 0) return parsed.postes;
+        if (parsed.postes && Object.keys(parsed.postes).length > 0) {
+          const sanitized: Record<string, { goa: string; gasolina: string; gasolinaGain: string }> = {};
+          Object.entries(parsed.postes).forEach(([k, v]: [string, any]) => {
+            sanitized[k] = {
+              goa: (v.goa || '').replace('.', ','),
+              gasolina: (v.gasolina || '').replace('.', ','),
+              gasolinaGain: (v.gasolinaGain || '').replace('.', ','),
+            };
+          });
+          return sanitized;
+        }
       }
     } catch (e) {}
     const init: Record<string, { goa: string; gasolina: string; gasolinaGain: string }> = {};
     getPostesStations().forEach((st) => {
       init[st.name] = {
-        goa: st.defaultGoa,
-        gasolina: st.defaultGasolina,
-        gasolinaGain: st.defaultGain,
+        goa: (st.defaultGoa || '').replace('.', ','),
+        gasolina: (st.defaultGasolina || '').replace('.', ','),
+        gasolinaGain: (st.defaultGain || '').replace('.', ','),
       };
     });
     return init;
   });
 
-  // HVO Configuration con carga directa de localStorage
+  // HVO Configuration con carga directa de localStorage y sanitización a coma decimal
   const [hvoGeneralBase, setHvoGeneralBase] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoGeneralBase || '1.285' : '1.285';
-    } catch (e) { return '1.285'; }
+      return s ? (JSON.parse(s).hvoGeneralBase || '1,285').replace('.', ',') : '1,285';
+    } catch (e) { return '1,285'; }
   });
   const [hvoGeneralAddition, setHvoGeneralAddition] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoGeneralAddition || '0.243' : '0.243';
-    } catch (e) { return '0.243'; }
+      return s ? (JSON.parse(s).hvoGeneralAddition || '0,243').replace('.', ',') : '0,243';
+    } catch (e) { return '0,243'; }
   });
   const [hvoAlfajarinSinIva, setHvoAlfajarinSinIva] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoAlfajarinSinIva || '1.528' : '1.528';
-    } catch (e) { return '1.528'; }
+      return s ? (JSON.parse(s).hvoAlfajarinSinIva || '1,528').replace('.', ',') : '1,528';
+    } catch (e) { return '1,528'; }
   });
   const [hvoValdemoroAddition, setHvoValdemoroAddition] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).hvoValdemoroAddition || '0.07' : '0.07';
-    } catch (e) { return '0.07'; }
+      return s ? (JSON.parse(s).hvoValdemoroAddition || '0,070').replace('.', ',') : '0,070';
+    } catch (e) { return '0,070'; }
   });
 
-  // Gasóleo B Configuration con carga síncrona
+  // Gasóleo B Configuration con carga síncrona y sanitización a coma decimal
   const [gasoleoBPosteGlobal, setGasoleoBPosteGlobal] = useState(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      return s ? JSON.parse(s).gasoleoBPosteGlobal || '1.3504' : '1.3504';
-    } catch (e) { return '1.3504'; }
+      return s ? (JSON.parse(s).gasoleoBPosteGlobal || '1,350').replace('.', ',') : '1,350';
+    } catch (e) { return '1,350'; }
   });
   const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string; poste: string }>>(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      if (s && JSON.parse(s).gasoleoBRows) return JSON.parse(s).gasoleoBRows;
+      if (s && JSON.parse(s).gasoleoBRows) {
+        const raw = JSON.parse(s).gasoleoBRows;
+        const sanitized: Record<string, { compra: string; transfer: string; gob: string; poste: string }> = {};
+        Object.entries(raw).forEach(([k, v]: [string, any]) => {
+          sanitized[k] = {
+            compra: (v.compra || '').replace('.', ','),
+            transfer: (v.transfer || '').replace('.', ','),
+            gob: (v.gob || '').replace('.', ','),
+            poste: (v.poste || '').replace('.', ','),
+          };
+        });
+        return sanitized;
+      }
     } catch (e) {}
     return {
-      'UCLES': { compra: '1.0810', transfer: '1.0980', gob: '1.3286', poste: '1.3504' },
-      'TORREMOCHA': { compra: '1.0810', transfer: '1.0980', gob: '1.3286', poste: '1.3504' },
-      'ARCOS': { compra: '1.0810', transfer: '1.0980', gob: '1.3286', poste: '1.3504' },
+      'UCLES': { compra: '1,081', transfer: '1,098', gob: '1,329', poste: '1,350' },
+      'TORREMOCHA': { compra: '1,081', transfer: '1,098', gob: '1,329', poste: '1,350' },
+      'ARCOS': { compra: '1,081', transfer: '1,098', gob: '1,329', poste: '1,350' },
     };
   });
 
   const [adblueRows, setAdblueRows] = useState<Record<string, { compra: string; poste: string }>>(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      if (s && JSON.parse(s).adblue) return JSON.parse(s).adblue;
+      if (s && JSON.parse(s).adblue) {
+        const raw = JSON.parse(s).adblue;
+        const sanitized: Record<string, { compra: string; poste: string }> = {};
+        Object.entries(raw).forEach(([k, v]: [string, any]) => {
+          sanitized[k] = {
+            compra: (v.compra || '').replace('.', ','),
+            poste: (v.poste || '').replace('.', ','),
+          };
+        });
+        return sanitized;
+      }
     } catch (e) {}
     return {
-      'TORREJON': { compra: '0.5360', poste: '0.8490' },
-      'ARCOS JALON': { compra: '0.2650', poste: '0.7490' },
-      'ALFAJARIN': { compra: '0.4000', poste: '0.8490' },
-      'TORREMOCHA': { compra: '0.2650', poste: '0.7490' },
-      'MADRID': { compra: '0.5360', poste: '0.8490' },
-      'VALLECAS': { compra: '0.6190', poste: '0.8490' },
-      'HUMILLADERO': { compra: '0.5770', poste: '0.7900' },
-      'UCLES': { compra: '0.3000', poste: '0.7990' },
-      'BENAMEJI': { compra: '0.5360', poste: '0.7990' },
-      'SORIA ALCUBILLAS': { compra: '0.2550', poste: '0.8490' },
+      'TORREJON': { compra: '0,536', poste: '0,849' },
+      'ARCOS JALON': { compra: '0,265', poste: '0,749' },
+      'ALFAJARIN': { compra: '0,400', poste: '0,849' },
+      'TORREMOCHA': { compra: '0,265', poste: '0,749' },
+      'MADRID': { compra: '0,536', poste: '0,849' },
+      'VALLECAS': { compra: '0,619', poste: '0,849' },
+      'HUMILLADERO': { compra: '0,577', poste: '0,790' },
+      'UCLES': { compra: '0,300', poste: '0,799' },
+      'BENAMEJI': { compra: '0,536', poste: '0,799' },
+      'SORIA ALCUBILLAS': { compra: '0,255', poste: '0,849' },
     };
   });
 
@@ -175,22 +218,31 @@ export function PostesManager() {
   }>(() => {
     try {
       const s = localStorage.getItem('efi_postes_data_v2');
-      if (s && JSON.parse(s).bronco) return JSON.parse(s).bronco;
+      if (s && JSON.parse(s).bronco) {
+        const raw = JSON.parse(s).bronco;
+        return {
+          ...raw,
+          sinIva: (raw.sinIva || '').replace('.', ','),
+          conIva: (raw.conIva || '').replace('.', ','),
+          beneficio: (raw.beneficio || '').replace('.', ','),
+          compra: (raw.compra || '').replace('.', ','),
+        };
+      }
     } catch (e) {}
     return {
       name: 'GASOLINA BRONCO',
-      sinIva: '1.305',
-      conIva: '1.579',
-      beneficio: '0.048',
-      compra: '1.242',
+      sinIva: '1,305',
+      conIva: '1,579',
+      beneficio: '0,048',
+      compra: '1,242',
       fecha: '14/08/2026',
     };
   });
 
   const [gasesRows, setGasesRows] = useState<Record<string, { sinIva: string; poste: string }>>({
-    'GLP / Autogas': { sinIva: '0.7850', poste: '0.9490' },
-    'GNC (Gas Natural Comprimido)': { sinIva: '0.9500', poste: '1.1490' },
-    'GNL (Gas Natural Licuado)': { sinIva: '0.8900', poste: '1.0790' },
+    'GLP / Autogas': { sinIva: '0,785', poste: '0,949' },
+    'GNC (Gas Natural Comprimido)': { sinIva: '0,950', poste: '1,149' },
+    'GNL (Gas Natural Licuado)': { sinIva: '0,890', poste: '1,079' },
   });
 
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
@@ -377,16 +429,63 @@ export function PostesManager() {
       const saved = localStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.postes) setPostes(parsed.postes);
-        if (parsed.hvoGeneralBase) setHvoGeneralBase(parsed.hvoGeneralBase);
-        if (parsed.hvoGeneralAddition) setHvoGeneralAddition(parsed.hvoGeneralAddition);
-        if (parsed.hvoAlfajarinSinIva) setHvoAlfajarinSinIva(parsed.hvoAlfajarinSinIva);
-        if (parsed.hvoValdemoroAddition) setHvoValdemoroAddition(parsed.hvoValdemoroAddition);
-        if (parsed.gasoleoBRows) setGasoleoBRows(parsed.gasoleoBRows);
-        if (parsed.gasoleoBPosteGlobal) setGasoleoBPosteGlobal(parsed.gasoleoBPosteGlobal);
-        if (parsed.adblue) setAdblueRows(parsed.adblue);
-        if (parsed.gases) setGasesRows(parsed.gases);
-        if (parsed.bronco) setBroncoRow(parsed.bronco);
+        if (parsed.postes) {
+          const sanitized: Record<string, { goa: string; gasolina: string; gasolinaGain: string }> = {};
+          Object.entries(parsed.postes).forEach(([k, v]: [string, any]) => {
+            sanitized[k] = {
+              goa: (v.goa || '').replace('.', ','),
+              gasolina: (v.gasolina || '').replace('.', ','),
+              gasolinaGain: (v.gasolinaGain || '').replace('.', ','),
+            };
+          });
+          setPostes(sanitized);
+        }
+        if (parsed.hvoGeneralBase) setHvoGeneralBase(String(parsed.hvoGeneralBase).replace('.', ','));
+        if (parsed.hvoGeneralAddition) setHvoGeneralAddition(String(parsed.hvoGeneralAddition).replace('.', ','));
+        if (parsed.hvoAlfajarinSinIva) setHvoAlfajarinSinIva(String(parsed.hvoAlfajarinSinIva).replace('.', ','));
+        if (parsed.hvoValdemoroAddition) setHvoValdemoroAddition(String(parsed.hvoValdemoroAddition).replace('.', ','));
+        if (parsed.gasoleoBRows) {
+          const sanitized: Record<string, { compra: string; transfer: string; gob: string; poste: string }> = {};
+          Object.entries(parsed.gasoleoBRows).forEach(([k, v]: [string, any]) => {
+            sanitized[k] = {
+              compra: (v.compra || '').replace('.', ','),
+              transfer: (v.transfer || '').replace('.', ','),
+              gob: (v.gob || '').replace('.', ','),
+              poste: (v.poste || '').replace('.', ','),
+            };
+          });
+          setGasoleoBRows(sanitized);
+        }
+        if (parsed.gasoleoBPosteGlobal) setGasoleoBPosteGlobal(String(parsed.gasoleoBPosteGlobal).replace('.', ','));
+        if (parsed.adblue) {
+          const sanitized: Record<string, { compra: string; poste: string }> = {};
+          Object.entries(parsed.adblue).forEach(([k, v]: [string, any]) => {
+            sanitized[k] = {
+              compra: (v.compra || '').replace('.', ','),
+              poste: (v.poste || '').replace('.', ','),
+            };
+          });
+          setAdblueRows(sanitized);
+        }
+        if (parsed.gases) {
+          const sanitized: Record<string, { sinIva: string; poste: string }> = {};
+          Object.entries(parsed.gases).forEach(([k, v]: [string, any]) => {
+            sanitized[k] = {
+              sinIva: (v.sinIva || '').replace('.', ','),
+              poste: (v.poste || '').replace('.', ','),
+            };
+          });
+          setGasesRows(sanitized);
+        }
+        if (parsed.bronco) {
+          setBroncoRow({
+            ...parsed.bronco,
+            sinIva: (parsed.bronco.sinIva || '').replace('.', ','),
+            conIva: (parsed.bronco.conIva || '').replace('.', ','),
+            beneficio: (parsed.bronco.beneficio || '').replace('.', ','),
+            compra: (parsed.bronco.compra || '').replace('.', ','),
+          });
+        }
         if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
       } else {
         persistPostesData();
@@ -415,12 +514,13 @@ export function PostesManager() {
     };
   }, []);
 
-  const handlePosteChange = (stName: string, field: 'goa' | 'gasolina' | 'gasolinaGain', val: string) => {
+  const handlePosteChange = (stName: string, field: 'goa' | 'gasolina' | 'gasolinaGain', rawVal: string) => {
+    const cleanVal = rawVal.replace('.', ',');
     const updatedPostes = {
       ...postes,
       [stName]: {
         ...postes[stName],
-        [field]: val,
+        [field]: cleanVal,
       },
     };
     setPostes(updatedPostes);
@@ -1144,7 +1244,7 @@ export function PostesManager() {
                 const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`);
                 const displayMargenGas = isGainMod
                   ? item.gasolinaGain
-                  : (autoMargenGas !== null ? autoMargenGas.toFixed(3) : '—');
+                  : (autoMargenGas !== null ? formatNum(autoMargenGas, 3) : '—');
 
                 const isGoaMod = modifiedKeys.has(`poste_${st.name}_goa`);
                 const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
@@ -1200,17 +1300,17 @@ export function PostesManager() {
                             margenGoa >= 0 ? 'text-emerald-400' : 'text-rose-400'
                           }`}
                         >
-                          {margenGoa >= 0 ? `+${margenGoa.toFixed(3)}` : margenGoa.toFixed(3)} €
+                          {margenGoa >= 0 ? `+${formatNum(margenGoa, 3)}` : formatNum(margenGoa, 3)} €
                         </span>
                         <span className="text-[9px] text-slate-500 font-mono">
-                          T60: {t60ConIva.toFixed(3)} €
+                          T60: {formatNum(t60ConIva, 3)} €
                         </span>
                       </div>
                     </td>
 
                     {/* 3. GOA Premium (GOA + 0.04€) */}
                     <td className="py-3 px-4 bg-amber-500/5 font-mono font-bold text-amber-300 text-sm">
-                      {premiumPrice.toFixed(3)} €
+                      {formatNum(premiumPrice, 3)} €
                     </td>
 
                     {/* 4. Gasolina 95 (€/L) */}
@@ -1345,7 +1445,7 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoGeneralBase}
                   onChange={(e) => {
-                    const val = e.target.value;
+                    const val = e.target.value.replace('.', ',');
                     setHvoGeneralBase(val);
                     const updatedMods = new Set(modifiedKeys).add('hvo_gen_base');
                     setModifiedKeys(updatedMods);
@@ -1363,7 +1463,7 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoGeneralAddition}
                   onChange={(e) => {
-                    const val = e.target.value;
+                    const val = e.target.value.replace('.', ',');
                     setHvoGeneralAddition(val);
                     const updatedMods = new Set(modifiedKeys).add('hvo_gen_add');
                     setModifiedKeys(updatedMods);
@@ -1378,11 +1478,11 @@ export function PostesManager() {
             <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-400">Precio Final Sin IVA:</span>
-                <span className="font-bold text-white">{computedHvoGeneralSinIva.toFixed(4)} €/L</span>
+                <span className="font-bold text-white">{formatNum(computedHvoGeneralSinIva, 3)} €/L</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Precio Con IVA (21%):</span>
-                <span className="font-bold text-emerald-400">{computedHvoGeneralConIva.toFixed(4)} €/L</span>
+                <span className="font-bold text-emerald-400">{formatNum(computedHvoGeneralConIva, 3)} €/L</span>
               </div>
             </div>
           </div>
@@ -1402,7 +1502,7 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoAlfajarinSinIva}
                   onChange={(e) => {
-                    const val = e.target.value;
+                    const val = e.target.value.replace('.', ',');
                     setHvoAlfajarinSinIva(val);
                     const updatedMods = new Set(modifiedKeys).add('hvo_alfajarin');
                     setModifiedKeys(updatedMods);
@@ -1417,11 +1517,11 @@ export function PostesManager() {
             <div className="pt-8 border-t border-slate-800/80 space-y-1 font-mono text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-400">Precio Final Sin IVA:</span>
-                <span className="font-bold text-white">{computedHvoAlfajarinSinIva.toFixed(4)} €/L</span>
+                <span className="font-bold text-white">{formatNum(computedHvoAlfajarinSinIva, 3)} €/L</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Precio Con IVA (21%):</span>
-                <span className="font-bold text-emerald-400">{computedHvoAlfajarinConIva.toFixed(4)} €/L</span>
+                <span className="font-bold text-emerald-400">{formatNum(computedHvoAlfajarinConIva, 3)} €/L</span>
               </div>
             </div>
           </div>
@@ -1438,7 +1538,7 @@ export function PostesManager() {
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-mono">
                 <span className="text-slate-400">GOA Poste Valdemoro:</span>
-                <span className="text-amber-300 font-bold">{goaValdemoroPrice.toFixed(3)} €/L</span>
+                <span className="text-amber-300 font-bold">{formatNum(goaValdemoroPrice, 3)} €/L</span>
               </div>
 
               <div>
@@ -1448,7 +1548,7 @@ export function PostesManager() {
                   inputMode="decimal"
                   value={hvoValdemoroAddition}
                   onChange={(e) => {
-                    const val = e.target.value;
+                    const val = e.target.value.replace('.', ',');
                     setHvoValdemoroAddition(val);
                     const updatedMods = new Set(modifiedKeys).add('hvo_valdemoro_add');
                     setModifiedKeys(updatedMods);
@@ -1463,11 +1563,11 @@ export function PostesManager() {
             <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-400">Precio Final Sin IVA:</span>
-                <span className="font-bold text-white">{computedHvoValdemoroSinIva.toFixed(4)} €/L</span>
+                <span className="font-bold text-white">{formatNum(computedHvoValdemoroSinIva, 3)} €/L</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Precio Con IVA (21%):</span>
-                <span className="font-bold text-emerald-400">{computedHvoValdemoroConIva.toFixed(4)} €/L</span>
+                <span className="font-bold text-emerald-400">{formatNum(computedHvoValdemoroConIva, 3)} €/L</span>
               </div>
             </div>
           </div>
@@ -1550,7 +1650,7 @@ export function PostesManager() {
                 // 1. Transfrired = Compra Sin IVA + 0.017
                 const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
                 const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`);
-                const transferDisplay = isTransferMod && item.transfer ? item.transfer : autoTransferNum.toFixed(3);
+                const transferDisplay = isTransferMod && item.transfer ? item.transfer : formatNum(autoTransferNum, 3);
                 const transferNum = parseNum(transferDisplay);
 
                 // 2. Transfrired Con IVA = Transfrired * 1.21
@@ -1559,7 +1659,7 @@ export function PostesManager() {
                 // 3. Precio Poste Gasóleo B = (Compra Sin IVA + 0.035) * 1.21
                 const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
                 const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`);
-                const posteDisplay = isPosteMod && item.poste ? item.poste : autoPosteNum.toFixed(3);
+                const posteDisplay = isPosteMod && item.poste ? item.poste : formatNum(autoPosteNum, 3);
 
                 return (
                   <tr key={stName} className="hover:bg-slate-800/40 transition-colors">
@@ -1573,14 +1673,14 @@ export function PostesManager() {
                         inputMode="decimal"
                         value={item.compra}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          const val = e.target.value.replace('.', ',');
                           const valNum = parseNum(val);
                           const nextTransfer = modifiedKeys.has(`gasb_transfer_${stName}`)
                             ? item.transfer
-                            : Number((valNum + 0.017).toFixed(3)).toFixed(3);
+                            : formatNum(Number((valNum + 0.017).toFixed(3)), 3);
                           const nextPoste = modifiedKeys.has(`gasb_poste_${stName}`)
                             ? item.poste
-                            : Number(((valNum + 0.035) * 1.21).toFixed(3)).toFixed(3);
+                            : formatNum(Number(((valNum + 0.035) * 1.21).toFixed(3)), 3);
                           setGasoleoBRows((prev) => ({
                             ...prev,
                             [stName]: {
@@ -1606,7 +1706,7 @@ export function PostesManager() {
                         inputMode="decimal"
                         value={transferDisplay}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          const val = e.target.value.replace('.', ',');
                           setGasoleoBRows((prev) => ({
                             ...prev,
                             [stName]: { ...prev[stName], transfer: val },
@@ -1620,7 +1720,7 @@ export function PostesManager() {
 
                     {/* 4. Transfrired Con IVA (Transfrired * 1.21) */}
                     <td className="py-3 px-4 font-mono font-bold text-emerald-400 text-sm">
-                      {transfriredConIva.toFixed(3)} €
+                      {formatNum(transfriredConIva, 3)} €
                     </td>
 
                     {/* 5. Precio Poste Gasóleo B: (Compra Sin IVA + 0.035) * 1.21 */}
@@ -1630,7 +1730,7 @@ export function PostesManager() {
                         inputMode="decimal"
                         value={posteDisplay}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          const val = e.target.value.replace('.', ',');
                           setGasoleoBRows((prev) => ({
                             ...prev,
                             [stName]: { ...prev[stName], poste: val },
@@ -1688,7 +1788,7 @@ export function PostesManager() {
                     inputMode="decimal"
                     value={data.compra}
                     onChange={(e) => {
-                      const val = e.target.value;
+                      const val = e.target.value.replace('.', ',');
                       setAdblueRows((prev) => ({
                         ...prev,
                         [stName]: { ...prev[stName], compra: val },
@@ -1704,7 +1804,7 @@ export function PostesManager() {
 
                 <div className="flex justify-between text-[11px] font-mono">
                   <span className="text-slate-500">Con IVA 21%:</span>
-                  <span className="text-emerald-400 font-bold">{conIva.toFixed(4)} €</span>
+                  <span className="text-emerald-400 font-bold">{formatNum(conIva, 3)} €</span>
                 </div>
 
                 <div className="pt-2 border-t border-slate-800">
@@ -1714,7 +1814,7 @@ export function PostesManager() {
                     inputMode="decimal"
                     value={data.poste}
                     onChange={(e) => {
-                      const val = e.target.value;
+                      const val = e.target.value.replace('.', ',');
                       setAdblueRows((prev) => ({
                         ...prev,
                         [stName]: { ...prev[stName], poste: val },
@@ -1772,7 +1872,7 @@ export function PostesManager() {
                     inputMode="decimal"
                     value={data.sinIva}
                     onChange={(e) => {
-                      const val = e.target.value;
+                      const val = e.target.value.replace('.', ',');
                       setGasesRows((prev) => ({
                         ...prev,
                         [gasName]: { ...prev[gasName], sinIva: val },
@@ -1790,7 +1890,7 @@ export function PostesManager() {
 
                 <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-400">Precio Con IVA (21%):</span>
-                  <span className="font-bold text-emerald-400 text-sm">{conIva.toFixed(4)} €</span>
+                  <span className="font-bold text-emerald-400 text-sm">{formatNum(conIva, 3)} €</span>
                 </div>
 
                 <div className="space-y-1 pt-1">
@@ -1800,7 +1900,7 @@ export function PostesManager() {
                     inputMode="decimal"
                     value={data.poste}
                     onChange={(e) => {
-                      const val = e.target.value;
+                      const val = e.target.value.replace('.', ',');
                       setGasesRows((prev) => ({
                         ...prev,
                         [gasName]: { ...prev[gasName], poste: val },

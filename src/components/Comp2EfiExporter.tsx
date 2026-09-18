@@ -48,15 +48,21 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
   });
 
   // Precios especiales de proveedores con desglose de IVA (Nieves / 1.21, Petromiralles / 1.21, Valcarce)
-  const [nievesIncVat, setNievesIncVat] = useState<number>(1.4390);
-  const [petromirallesIncVat, setPetromirallesIncVat] = useState<number>(1.4420);
-  const [valcarceDirectPrice, setValcarceDirectPrice] = useState<number>(1.1890);
+  const [nievesIncVat, setNievesIncVat] = useState<string>('1,439');
+  const [petromirallesIncVat, setPetromirallesIncVat] = useState<string>('1,442');
+  const [valcarceDirectPrice, setValcarceDirectPrice] = useState<string>('1,189');
 
   const [isExported, setIsExported] = useState(false);
   const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
 
-  const nievesExclVat = Number((nievesIncVat / 1.21).toFixed(4));
-  const petromirallesExclVat = Number((petromirallesIncVat / 1.21).toFixed(4));
+  const parseProviderPrice = (v: string) => {
+    const num = parseFloat((v || '').replace(',', '.').trim());
+    return isNaN(num) ? 0 : num;
+  };
+
+  const nievesExclVat = Number((parseProviderPrice(nievesIncVat) / 1.21).toFixed(3));
+  const petromirallesExclVat = Number((parseProviderPrice(petromirallesIncVat) / 1.21).toFixed(3));
+  const valcarceNum = parseProviderPrice(valcarceDirectPrice);
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -334,9 +340,9 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
 Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
 
 🔹 *Estaciones Propias:* Precios de compra y postes cargados.
-🔹 *NIEVES (H44/H45):* ${nievesIncVat.toFixed(4)} € (Con IVA) -> *${nievesExclVat.toFixed(4)} € (Sin IVA)*
-🔹 *PETROMIRALLES (H30):* ${petromirallesIncVat.toFixed(4)} € (Con IVA) -> *${petromirallesExclVat.toFixed(4)} € (Sin IVA)*
-🔹 *VALCARCE:* ${valcarceDirectPrice.toFixed(4)} €
+🔹 *NIEVES (H44/H45):* ${parseProviderPrice(nievesIncVat).toFixed(3).replace('.', ',')} € (Con IVA) -> *${nievesExclVat.toFixed(3).replace('.', ',')} € (Sin IVA)*
+🔹 *PETROMIRALLES (H30):* ${parseProviderPrice(petromirallesIncVat).toFixed(3).replace('.', ',')} € (Con IVA) -> *${petromirallesExclVat.toFixed(3).replace('.', ',')} € (Sin IVA)*
+🔹 *VALCARCE:* ${valcarceNum.toFixed(3).replace('.', ',')} €
 🔹 *Colaboradoras Fijas (Columna J):* 13 estaciones sincronizadas.
 
 ✅ Archivo IMPORTACION (${previewRows.length - 1} filas, ${allTariffsList.length} bloques de tarifas) generado con éxito.`;
@@ -463,16 +469,16 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">Precio Recibido (Con IVA):</label>
               <input
-                type="number"
-                step="0.0001"
+                type="text"
+                inputMode="decimal"
                 value={nievesIncVat}
-                onChange={(e) => setNievesIncVat(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setNievesIncVat(e.target.value.replace('.', ','))}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
               />
             </div>
             <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
               <span className="text-slate-400">Sin IVA resultante:</span>
-              <span className="font-mono font-bold text-emerald-400">{nievesExclVat.toFixed(4)} €</span>
+              <span className="font-mono font-bold text-emerald-400">{nievesExclVat.toFixed(3).replace('.', ',')} €</span>
             </div>
           </div>
 
@@ -485,16 +491,16 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">Precio Recibido (Con IVA):</label>
               <input
-                type="number"
-                step="0.0001"
+                type="text"
+                inputMode="decimal"
                 value={petromirallesIncVat}
-                onChange={(e) => setPetromirallesIncVat(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setPetromirallesIncVat(e.target.value.replace('.', ','))}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
               />
             </div>
             <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
               <span className="text-slate-400">Sin IVA resultante:</span>
-              <span className="font-mono font-bold text-emerald-400">{petromirallesExclVat.toFixed(4)} €</span>
+              <span className="font-mono font-bold text-emerald-400">{petromirallesExclVat.toFixed(3).replace('.', ',')} €</span>
             </div>
           </div>
 
@@ -507,16 +513,16 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
             <div>
               <label className="text-[11px] text-slate-400 block mb-1">Precio Neto Recibido (€):</label>
               <input
-                type="number"
-                step="0.0001"
+                type="text"
+                inputMode="decimal"
                 value={valcarceDirectPrice}
-                onChange={(e) => setValcarceDirectPrice(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setValcarceDirectPrice(e.target.value.replace('.', ','))}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
               />
             </div>
             <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
               <span className="text-slate-400">Con IVA (21%):</span>
-              <span className="font-mono font-bold text-emerald-400">{(valcarceDirectPrice * 1.21).toFixed(4)} €</span>
+              <span className="font-mono font-bold text-emerald-400">{(valcarceNum * 1.21).toFixed(3).replace('.', ',')} €</span>
             </div>
           </div>
 
