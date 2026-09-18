@@ -462,20 +462,25 @@ export function generateAndDownloadCierreWorkbook(
 
   // Descarga del archivo .xlsx
   const filename = `CIERRE_DIARIO_AREA117_${selectedDate}_VALIDO_${validFromDate}.xlsx`;
+  downloadWorkbookAsXlsx(wb, filename);
+}
+
+export function downloadWorkbookAsXlsx(wb: XLSX.WorkBook, filename: string) {
+  const finalName = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
   try {
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = finalName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } catch (err) {
     console.error('Error al generar XLSX:', err);
-    XLSX.writeFile(wb, filename);
+    XLSX.writeFile(wb, finalName);
   }
 }
 
@@ -1397,21 +1402,7 @@ export function downloadImportacionXlsx(
   XLSX.utils.book_append_sheet(wb, ws, 'IMPORTACION');
 
   const filename = `IMPORTACION_EFI_${selectedDate}.xlsx`;
-  try {
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    console.error('Error al descargar XLSX de IMPORTACION:', err);
-    XLSX.writeFile(wb, filename);
-  }
+  downloadWorkbookAsXlsx(wb, filename);
 }
 
 export function downloadImportacionCsv(

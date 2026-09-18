@@ -16,6 +16,8 @@ import {
   FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check,
   Calculator, RotateCcw, Layers, Sliders, Plus, Edit3
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { downloadWorkbookAsXlsx } from '@/lib/excelExportService';
 import { SabanaFormulaModal } from './SabanaFormulaModal';
 import {
   SabanaTariffManagerModal,
@@ -1502,7 +1504,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     setTimeout(() => setDownloadToast(null), 3500);
   };
 
-  const triggerDownload = (fileName: string, csvContent: string) => {
+  // Helper para construir la hoja Excel de Tarifas Estándar con valores efectivos
+  const buildStandardSheet = () => {
     const validDate = (() => {
       try {
         return localStorage.getItem('efi_compras_valid_from') || selectedDate;
@@ -1510,250 +1513,273 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         return selectedDate;
       }
     })();
-    const cleanFileName = fileName.replace('.csv', `_VALIDO_${validDate}.csv`);
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = cleanFileName;
-    link.click();
-    setDownloadToast(fileName);
-    setTimeout(() => setDownloadToast(null), 3500);
-  };
 
-  // Descarga de la tabla de Tarifas Estándar con valores efectivos dinámicos
-  const handleExportStandardCsv = () => {
-    const validDate = (() => {
-      try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
-      } catch (e) {
-        return selectedDate;
-      }
-    })();
-    let csv = `SABANA DE PRECIOS - AREA 117\nFECHA EMISION:;${selectedDate};PRECIOS VALIDOS A PARTIR DE:;${validDate}\nAVISO:;PRECIOS Y CONDICIONES APLICABLES A PARTIR DEL:;${validDate}\n\nEESS DE SERVICIO;`;
+    const rows: any[][] = [];
+    rows.push(['SABANA DE PRECIOS - AREA 117']);
+    rows.push(['Fecha Emision:', selectedDate, 'Precios Validos A Partir De:', validDate]);
+    rows.push(['Aviso:', 'Precios oficiales con y sin IVA aplicables a partir del:', validDate]);
+    rows.push([]);
+
+    const headers: string[] = ['EESS DE SERVICIO'];
     effectiveStandardTariffs.forEach((t) => {
-      csv += `${t.colTitle || `${t.name} SIN IVA`};CON IVA;`;
+      headers.push(t.colTitle || `TARIFA ${t.name} SIN IVA`, `TARIFA ${t.name} CON IVA`);
     });
-    csv += '\n';
+    rows.push(headers);
 
     // Bloque 1: Estaciones Propias (19 EESS)
     propiasStations.forEach((st) => {
-      csv += `${st.name};`;
+      const rowData: any[] = [st.name];
       effectiveStandardTariffs.forEach((t) => {
         const prices = getTariffPricesForStation(t.name, t.markup, st.name, true);
-        csv += `${prices.sinIva.toFixed(3).replace('.', ',')};${prices.conIva.toFixed(3).replace('.', ',')};`;
+        rowData.push(prices.sinIva, prices.conIva);
       });
-      csv += '\n';
+      rows.push(rowData);
     });
 
-    // Fila Divisora: COLABORADORAS con 0,000
-    csv += 'COLABORADORAS;';
-    effectiveStandardTariffs.forEach(() => {
-      csv += '0,000;0,000;';
-    });
-    csv += '\n';
+    // Fila Divisora: COLABORADORAS
+    rows.push(['COLABORADORAS', ...effectiveStandardTariffs.flatMap(() => [0, 0])]);
 
     // Bloque 2: Estaciones Colaboradoras (34 EESS)
     colaboradoraStations.forEach((st) => {
-      csv += `${st.name};`;
+      const rowData: any[] = [st.name];
       effectiveStandardTariffs.forEach((t) => {
         const prices = getTariffPricesForStation(t.name, t.markup, st.name, false);
-        csv += `${prices.sinIva.toFixed(3).replace('.', ',')};${prices.conIva.toFixed(3).replace('.', ',')};`;
+        rowData.push(prices.sinIva, prices.conIva);
       });
-      csv += '\n';
+      rows.push(rowData);
     });
 
-    triggerDownload(`SABANA_TARIFAS_12_60_${selectedDate}.csv`, csv);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 30 }, ...effectiveStandardTariffs.flatMap(() => [{ wch: 15 }, { wch: 15 }])];
+    return ws;
   };
 
-  // Descarga de un bloque de Tarifa Especial individual
-  const handleExportSpecialBlockCsv = (block: SpecialTariffGroupDef) => {
-    if (block.id === 'los_javi') {
-      let csv = 'EESS DE SERVICIO;ESPECIAL JAVI SIN IVA;ESPECIAL JAVI CON IVA;ESPECIAL CARRERAS SIN IVA;ESPECIAL CARRERAS CON IVA;\n';
-      // Propias
-      propiasStations.forEach((st) => {
-        const javi = getJaviPrices(st.name, true);
-        const carreras = getCarrerasPrices(st.name, true);
-        csv += `${st.name};${javi.sinIva.toFixed(3).replace('.', ',')};${javi.conIva.toFixed(3).replace('.', ',')};${carreras.sinIva.toFixed(3).replace('.', ',')};${carreras.conIva.toFixed(3).replace('.', ',')};\n`;
-      });
-      // Separador COLABORADORAS
-      csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
-      // Colaboradoras
-      colaboradoraStations.forEach((st) => {
-        const javi = getJaviPrices(st.name, false);
-        const carreras = getCarrerasPrices(st.name, false);
-        csv += `${st.name};${javi.sinIva.toFixed(3).replace('.', ',')};${javi.conIva.toFixed(3).replace('.', ',')};${carreras.sinIva.toFixed(3).replace('.', ',')};${carreras.conIva.toFixed(3).replace('.', ',')};\n`;
-      });
-      triggerDownload(`TARIFA_ESPECIAL_LOS_JAVI_Y_CARRERAS_${selectedDate}.csv`, csv);
-      return;
-    }
+  // Helper para construir la hoja Excel de un Bloque de Tarifa Especial individual
+  const buildSpecialBlockSheet = (block: SpecialTariffGroupDef) => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
 
-    if (block.id === 'transfrired') {
-      let csv = 'EESS DE SERVICIO;ESPECIAL TRANSFRIRED SIN IVA;CON IVA;\n';
-      // Propias
+    const rows: any[][] = [];
+    rows.push([`AREA 117 - ${block.title.toUpperCase()}`]);
+    rows.push(['Fecha Emision:', selectedDate, 'Precios Validos A Partir De:', validDate]);
+    rows.push(['Descripcion:', block.description]);
+    rows.push([]);
+
+    let cols: string[] = ['EESS DE SERVICIO'];
+
+    if (block.id === 'los_javi') {
+      cols = ['EESS DE SERVICIO', 'ESPECIAL JAVI SIN IVA', 'ESPECIAL JAVI CON IVA', 'ESPECIAL CARRERAS SIN IVA', 'ESPECIAL CARRERAS CON IVA'];
+      rows.push(cols);
+      propiasStations.forEach((st) => {
+        const j = getJaviPrices(st.name, true);
+        const c = getCarrerasPrices(st.name, true);
+        rows.push([st.name, j.sinIva, j.conIva, c.sinIva, c.conIva]);
+      });
+      rows.push(['COLABORADORAS', '-', 0, '-', 0]);
+      colaboradoraStations.forEach((st) => {
+        const j = getJaviPrices(st.name, false);
+        const c = getCarrerasPrices(st.name, false);
+        rows.push([st.name, j.sinIva, j.conIva, c.sinIva, c.conIva]);
+      });
+    } else if (block.id === 'transfrired') {
+      cols = ['EESS DE SERVICIO', 'ESPECIAL TRANSFRIRED SIN IVA', 'ESPECIAL TRANSFRIRED CON IVA'];
+      rows.push(cols);
       propiasStations.forEach((st) => {
         const tf = getTransfriredPrices(st.name, true);
-        csv += `${st.name};${tf.sinIva.toFixed(3).replace('.', ',')};${tf.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, tf.sinIva, tf.conIva]);
       });
-      // Separador COLABORADORAS
-      csv += 'COLABORADORAS;-;0,000;\n';
-      // Colaboradoras
+      rows.push(['COLABORADORAS', '-', 0]);
       colaboradoraStations.forEach((st) => {
         const tf = getTransfriredPrices(st.name, false);
-        csv += `${st.name};${tf.sinIva.toFixed(3).replace('.', ',')};${tf.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, tf.sinIva, tf.conIva]);
       });
-      triggerDownload(`TARIFA_ESPECIAL_TRANSFRIRED_${selectedDate}.csv`, csv);
-      return;
-    }
-
-    if (block.id === 'c0_general') {
-      let csv = 'EESS DE SERVICIO;ESPECIAL GENERAL C-0 SIN IVA;CON IVA;\n';
-      // Propias
+    } else if (block.id === 'c0_general') {
+      cols = ['EESS DE SERVICIO', 'ESPECIAL GENERAL C-0 SIN IVA', 'ESPECIAL GENERAL C-0 CON IVA'];
+      rows.push(cols);
       propiasStations.forEach((st) => {
         const c0 = getC0Prices(st.name, true);
-        csv += `${st.name};${c0.sinIva.toFixed(3).replace('.', ',')};${c0.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, c0.sinIva, c0.conIva]);
       });
-      // Separador COLABORADORAS
-      csv += 'COLABORADORAS;-;0,000;\n';
-      // Colaboradoras
+      rows.push(['COLABORADORAS', '-', 0]);
       colaboradoraStations.forEach((st) => {
         const c0 = getC0Prices(st.name, false);
-        csv += `${st.name};${c0.sinIva.toFixed(3).replace('.', ',')};${c0.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, c0.sinIva, c0.conIva]);
       });
-      triggerDownload(`TARIFA_C0_ESPECIAL_GENERAL_${selectedDate}.csv`, csv);
-      return;
-    }
-
-    if (block.id === 'ror_esteban') {
-      let csv = 'EESS DE SERVICIO;ESPECIAL ROR SIN IVA;ESPECIAL ROR CON IVA;ESPECIAL ESTEBAN SIN IVA;ESPECIAL ESTEBAN CON IVA;\n';
-      // Propias
+    } else if (block.id === 'ror_esteban') {
+      cols = ['EESS DE SERVICIO', 'ESPECIAL ROR SIN IVA', 'ESPECIAL ROR CON IVA', 'ESPECIAL ESTEBAN SIN IVA', 'ESPECIAL ESTEBAN CON IVA'];
+      rows.push(cols);
       propiasStations.forEach((st) => {
-        const ror = getRorPrices(st.name, true);
-        const esteban = getEstebanPrices(st.name, true);
-        csv += `${st.name};${ror.sinIva.toFixed(3).replace('.', ',')};${ror.conIva.toFixed(3).replace('.', ',')};${esteban.sinIva.toFixed(3).replace('.', ',')};${esteban.conIva.toFixed(3).replace('.', ',')};\n`;
+        const r = getRorPrices(st.name, true);
+        const e = getEstebanPrices(st.name, true);
+        rows.push([st.name, r.sinIva, r.conIva, e.sinIva, e.conIva]);
       });
-      // Separador COLABORADORAS
-      csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
-      // Colaboradoras
+      rows.push(['COLABORADORAS', '-', 0, '-', 0]);
       colaboradoraStations.forEach((st) => {
-        const ror = getRorPrices(st.name, false);
-        const esteban = getEstebanPrices(st.name, false);
-        csv += `${st.name};${ror.sinIva.toFixed(3).replace('.', ',')};${ror.conIva.toFixed(3).replace('.', ',')};${esteban.sinIva.toFixed(3).replace('.', ',')};${esteban.conIva.toFixed(3).replace('.', ',')};\n`;
+        const r = getRorPrices(st.name, false);
+        const e = getEstebanPrices(st.name, false);
+        rows.push([st.name, r.sinIva, r.conIva, e.sinIva, e.conIva]);
       });
-      triggerDownload(`TARIFA_ESPECIAL_ROR_Y_ESTEBAN_${selectedDate}.csv`, csv);
-      return;
-    }
-
-    if (block.id === 'miki_ecotrans_tarifa30') {
-      let csv = 'EESS DE SERVICIO;TARIFA 90 MIKI SIN IVA;CON IVA;TARIFA ECOTRANS SIN IVA;CON IVA;TARIFA 30 SIN IVA;CON IVA;\n';
-      // Propias
+    } else if (block.id === 'miki_ecotrans_tarifa30') {
+      cols = ['EESS DE SERVICIO', 'TARIFA 90 MIKI SIN IVA', 'CON IVA', 'TARIFA ECOTRANS SIN IVA', 'CON IVA', 'TARIFA 30 SIN IVA', 'CON IVA'];
+      rows.push(cols);
       propiasStations.forEach((st) => {
-        const miki = getMikiPrices(st.name, true);
-        const eco = getEcotransPrices(st.name, true);
+        const m = getMikiPrices(st.name, true);
+        const ec = getEcotransPrices(st.name, true);
         const t30 = getTarifa30Prices(st.name, true);
-        csv += `${st.name};${miki.sinIva.toFixed(3).replace('.', ',')};${miki.conIva.toFixed(3).replace('.', ',')};${eco.sinIva.toFixed(3).replace('.', ',')};${eco.conIva.toFixed(3).replace('.', ',')};${t30.sinIva.toFixed(3).replace('.', ',')};${t30.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, m.sinIva, m.conIva, ec.sinIva, ec.conIva, t30.sinIva, t30.conIva]);
       });
-      // Separador COLABORADORAS
-      csv += 'COLABORADORAS;-;0,000;-;0,000;-;0,000;\n';
-      // Colaboradoras
+      rows.push(['COLABORADORAS', '-', 0, '-', 0, '-', 0]);
       colaboradoraStations.forEach((st) => {
-        const miki = getMikiPrices(st.name, false);
-        const eco = getEcotransPrices(st.name, false);
+        const m = getMikiPrices(st.name, false);
+        const ec = getEcotransPrices(st.name, false);
         const t30 = getTarifa30Prices(st.name, false);
-        csv += `${st.name};${miki.sinIva.toFixed(3).replace('.', ',')};${miki.conIva.toFixed(3).replace('.', ',')};${eco.sinIva.toFixed(3).replace('.', ',')};${eco.conIva.toFixed(3).replace('.', ',')};${t30.sinIva.toFixed(3).replace('.', ',')};${t30.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, m.sinIva, m.conIva, ec.sinIva, ec.conIva, t30.sinIva, t30.conIva]);
       });
-      triggerDownload(`TARIFA_90_MIKI_ECOTRANS_TARIFA30_${selectedDate}.csv`, csv);
-      return;
-    }
-
-    if (block.id === 'sur_benito') {
-      let csv = 'EESS DE SERVICIO;TARIFA 27 SUR SIN IVA;CON IVA;TARIFA 15 SUR SIN IVA;CON IVA;\n';
-      // Propias
+    } else if (block.id === 'sur_benito') {
+      cols = ['EESS DE SERVICIO', 'TARIFA 27 SUR SIN IVA', 'CON IVA', 'TARIFA 15 SUR SIN IVA', 'CON IVA'];
+      rows.push(cols);
       propiasStations.forEach((st) => {
         const t27 = getTarifa27SurPrices(st.name, true);
         const t15 = getTarifa15SurPrices(st.name, true);
-        csv += `${st.name};${t27.sinIva.toFixed(3).replace('.', ',')};${t27.conIva.toFixed(3).replace('.', ',')};${t15.sinIva.toFixed(3).replace('.', ',')};${t15.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, t27.sinIva, t27.conIva, t15.sinIva, t15.conIva]);
       });
-      // Separador COLABORADORAS
-      csv += 'COLABORADORAS;-;0,000;-;0,000;\n';
-      // Colaboradoras
+      rows.push(['COLABORADORAS', '-', 0, '-', 0]);
       colaboradoraStations.forEach((st) => {
         const t27 = getTarifa27SurPrices(st.name, false);
         const t15 = getTarifa15SurPrices(st.name, false);
-        csv += `${st.name};${t27.sinIva.toFixed(3).replace('.', ',')};${t27.conIva.toFixed(3).replace('.', ',')};${t15.sinIva.toFixed(3).replace('.', ',')};${t15.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, t27.sinIva, t27.conIva, t15.sinIva, t15.conIva]);
       });
-      triggerDownload(`TARIFA_SUR_BENITO_${selectedDate}.csv`, csv);
-      return;
-    }
-
-    if (block.id === 'tarifa_75') {
-      let csv = 'EESS DE SERVICIO;TARIFA 75 SIN IVA;CON IVA;\n';
-      // Propias
+    } else if (block.id === 'tarifa_75') {
+      cols = ['EESS DE SERVICIO', 'TARIFA 75 SIN IVA', 'CON IVA'];
+      rows.push(cols);
       propiasStations.forEach((st) => {
         const t75 = getTarifa75Prices(st.name, true);
-        csv += `${st.name};${t75.sinIva.toFixed(3).replace('.', ',')};${t75.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, t75.sinIva, t75.conIva]);
       });
-      // Separador COLABORADORAS
-      csv += 'COLABORADORAS;-;0,000;\n';
-      // Colaboradoras
+      rows.push(['COLABORADORAS', '-', 0]);
       colaboradoraStations.forEach((st) => {
         const t75 = getTarifa75Prices(st.name, false);
-        csv += `${st.name};${t75.sinIva.toFixed(3).replace('.', ',')};${t75.conIva.toFixed(3).replace('.', ',')};\n`;
+        rows.push([st.name, t75.sinIva, t75.conIva]);
       });
-      triggerDownload(`TARIFA_ESPECIAL_75_${selectedDate}.csv`, csv);
-      return;
+    } else {
+      cols = ['EESS DE SERVICIO'];
+      block.tariffs.forEach((t) => {
+        cols.push(`${t.name.toUpperCase()} SIN IVA`, `${t.name.toUpperCase()} CON IVA`);
+      });
+      rows.push(cols);
+      propiasStations.forEach((st) => {
+        const base = getStationBasePrice(st.name, true);
+        const rowData: any[] = [st.name];
+        block.tariffs.forEach((t) => {
+          const defaultSinIva = Number((base + t.markup).toFixed(3));
+          const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
+          const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+          const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+          const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
+          const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+          rowData.push(sinIva, conIva);
+        });
+        rows.push(rowData);
+      });
+      rows.push(['COLABORADORAS', ...block.tariffs.flatMap(() => [0, 0])]);
+      colaboradoraStations.forEach((st) => {
+        const base = getStationBasePrice(st.name, false);
+        const rowData: any[] = [st.name];
+        block.tariffs.forEach((t) => {
+          const defaultSinIva = Number((base + t.markup).toFixed(3));
+          const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
+          const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+          const defaultConIva = Number((sinIva * 1.21).toFixed(3));
+          const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
+          const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
+          rowData.push(sinIva, conIva);
+        });
+        rows.push(rowData);
+      });
     }
 
-    let csv = `EESS DE SERVICIO;`;
-    block.tariffs.forEach((t) => {
-      csv += `${t.name.toUpperCase()} SIN IVA;CON IVA;`;
-    });
-    csv += '\n';
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = cols.map((_, i) => ({ wch: i === 0 ? 30 : 16 }));
+    return ws;
+  };
 
-    // Propias
-    propiasStations.forEach((st) => {
-      const base = getStationBasePrice(st.name, true);
-      csv += `${st.name};`;
-      block.tariffs.forEach((t) => {
-        const defaultSinIva = Number((base + t.markup).toFixed(3));
-        const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
-        const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
+  // Descarga individual del recuadro de Tarifas Estándar en formato LIBRO DE EXCEL (*.XLSX)
+  const handleExportStandardXlsx = () => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    const wb = XLSX.utils.book_new();
+    const ws = buildStandardSheet();
+    XLSX.utils.book_append_sheet(wb, ws, 'TARIFAS_ESTANDAR');
+    const filename = `SABANA_TARIFAS_12_60_${selectedDate}_VALIDO_${validDate}.xlsx`;
+    downloadWorkbookAsXlsx(wb, filename);
+    setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
+    setTimeout(() => setDownloadToast(null), 3500);
+  };
 
-        const defaultConIva = Number((sinIva * 1.21).toFixed(3));
-        const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
-        const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
-
-        csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
-      });
-      csv += '\n';
-    });
-
-    // Separador
-    csv += 'COLABORADORAS;';
-    block.tariffs.forEach(() => {
-      csv += '0,000;0,000;';
-    });
-    csv += '\n';
-
-    // Colaboradoras
-    colaboradoraStations.forEach((st) => {
-      const base = getStationBasePrice(st.name, false);
-      csv += `${st.name};`;
-      block.tariffs.forEach((t) => {
-        const defaultSinIva = Number((base + t.markup).toFixed(3));
-        const sinIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_sinIva`;
-        const sinIva = resolvedFormulas[sinIvaKey]?.evaluatedValue ?? defaultSinIva;
-
-        const defaultConIva = Number((sinIva * 1.21).toFixed(3));
-        const conIvaKey = `SPEC_${block.id}_${st.name}_${t.name}_conIva`;
-        const conIva = resolvedFormulas[conIvaKey]?.evaluatedValue ?? defaultConIva;
-
-        csv += `${sinIva.toFixed(3).replace('.', ',')};${conIva.toFixed(3).replace('.', ',')};`;
-      });
-      csv += '\n';
-    });
-
+  // Descarga individual de un Bloque de Tarifa Especial en formato LIBRO DE EXCEL (*.XLSX)
+  const handleExportSpecialBlockXlsx = (block: SpecialTariffGroupDef) => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    const wb = XLSX.utils.book_new();
+    const ws = buildSpecialBlockSheet(block);
+    const sheetName = block.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     const cleanName = block.title.replace(/\s+/g, '_').toUpperCase();
-    triggerDownload(`${cleanName}_${selectedDate}.csv`, csv);
+    const filename = `${cleanName}_${selectedDate}_VALIDO_${validDate}.xlsx`;
+    downloadWorkbookAsXlsx(wb, filename);
+    setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
+    setTimeout(() => setDownloadToast(null), 3500);
+  };
+
+  // Descarga completa de TODA la Sábana de Precios en un único LIBRO DE EXCEL (*.XLSX) multi-hoja
+  const handleExportFullSabanaXlsx = () => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    const wb = XLSX.utils.book_new();
+
+    // Hoja 1: Tarifas Estándar
+    const wsStd = buildStandardSheet();
+    XLSX.utils.book_append_sheet(wb, wsStd, 'TARIFAS_ESTANDAR');
+
+    // Hojas para cada bloque especial
+    SPECIAL_TARIFF_BLOCKS.forEach((block) => {
+      const wsBlock = buildSpecialBlockSheet(block);
+      let sheetName = block.id.toUpperCase().replace(/[^a-zA-Z0-9]/g, '_').substring(0, 31);
+      if (block.id === 'los_javi') sheetName = 'LOS_JAVI_Y_CARRERAS';
+      else if (block.id === 'transfrired') sheetName = 'TRANSFRIRED';
+      else if (block.id === 'c0_general') sheetName = 'C0_GENERAL';
+      else if (block.id === 'ror_esteban') sheetName = 'ROR_Y_ESTEBAN';
+      else if (block.id === 'miki_ecotrans_tarifa30') sheetName = '90MIKI_ECOTRANS_T30';
+      else if (block.id === 'sur_benito') sheetName = 'SUR_BENITO_27_15';
+      else if (block.id === 'tarifa_75') sheetName = 'TARIFA_75';
+
+      XLSX.utils.book_append_sheet(wb, wsBlock, sheetName);
+    });
+
+    const filename = `SABANA_COMPLETA_AREA117_${selectedDate}_VALIDO_${validDate}.xlsx`;
+    downloadWorkbookAsXlsx(wb, filename);
+    setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
+    setTimeout(() => setDownloadToast(null), 3500);
   };
 
   const renderSpecialBlockTable = (block: SpecialTariffGroupDef) => {
@@ -2313,11 +2339,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
             </button>
 
             <button
-              onClick={handleExportStandardCsv}
+              onClick={handleExportFullSabanaXlsx}
               className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 hover:from-amber-400 hover:to-amber-300 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all active:scale-95"
             >
               <Download className="h-4 w-4" />
-              <span>Descargar Sábana Estándar (Excel)</span>
+              <span>Descargar Sábana Completa (Excel)</span>
             </button>
           </div>
         </div>
@@ -2455,7 +2481,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
           </div>
 
           <button
-            onClick={handleExportStandardCsv}
+            onClick={handleExportStandardXlsx}
             className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow-md transition-all active:scale-95"
           >
             <Download className="h-4 w-4 text-emerald-400" />
@@ -2700,9 +2726,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                   </div>
 
                   <button
-                    onClick={() => handleExportSpecialBlockCsv(block)}
+                    onClick={() => handleExportSpecialBlockXlsx(block)}
                     className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow transition-all active:scale-95 shrink-0"
-                    title={`Descargar ${block.title} en formato Excel`}
+                    title={`Descargar ${block.title} en formato Libro de Excel (*.xlsx)`}
                   >
                     <Download className="h-3.5 w-3.5 text-emerald-400" />
                     <span>Descargar Excel</span>

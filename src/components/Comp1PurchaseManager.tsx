@@ -16,7 +16,8 @@ import {
   getAdblueStationsConfig,
 } from '@/lib/stationsService';
 import { StationManagerModal } from './StationManagerModal';
-import { generateAndDownloadCierreWorkbook, GasolinaBroncoRow } from '@/lib/excelExportService';
+import * as XLSX from 'xlsx';
+import { generateAndDownloadCierreWorkbook, downloadWorkbookAsXlsx, GasolinaBroncoRow } from '@/lib/excelExportService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
@@ -964,8 +965,30 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   };
 
   const handleExportDailyExcel = () => {
-    let csv = `INFORME DIARIO DE COMPRAS Y COSTES - AREA 117\nFECHA EMISION:;${selectedDate};PRECIOS VALIDOS A PARTIR DE:;${validFromDate}\nAVISO IMPORTANTE:;TODOS LOS PRECIOS Y COSTES TIENEN VALIDEZ OFICIAL A PARTIR DEL:;${validFromDate}\n\n`;
-    csv += 'ESTACION;TIPO;PRODUCTO;P. ANT. COMPRA (EUR);PRECIO COMPRA HOY (EUR);CLH (TERMINAL);PORTE (R);PASE (S);FINANCIACION (T);COSTO TOTAL (EUR);P. VENTA ANT. (EUR);P. VENTA SUGERIDO (EUR);MARGEN (EUR)\n';
+    const wb = XLSX.utils.book_new();
+
+    // Hoja 1: COMPRAS Y COSTES
+    const comprasRows: any[][] = [
+      ['INFORME DIARIO DE COMPRAS Y COSTES - AREA 117'],
+      ['FECHA EMISION:', selectedDate, 'PRECIOS VALIDOS A PARTIR DE:', validFromDate],
+      ['AVISO IMPORTANTE:', `TODOS LOS PRECIOS Y COSTES TIENEN VALIDEZ OFICIAL A PARTIR DEL: ${validFromDate}`],
+      [],
+      [
+        'ESTACION',
+        'TIPO',
+        'PRODUCTO',
+        'P. ANT. COMPRA (EUR)',
+        'PRECIO COMPRA HOY (EUR)',
+        'CLH (TERMINAL)',
+        'PORTE (R)',
+        'PASE (S)',
+        'FINANCIACION (T)',
+        'COSTO TOTAL (EUR)',
+        'P. VENTA ANT. (EUR)',
+        'P. VENTA SUGERIDO (EUR)',
+        'MARGEN (EUR)',
+      ],
+    ];
 
     const exportSection = (stationList: typeof propiasStations, typeLabel: string) => {
       stationList.forEach((st) => {
@@ -993,7 +1016,21 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
           const prevSaleVal = item.prevSale || effectiveSale;
 
-          csv += `${st.name};${typeLabel};${prod.name};${item.prev.replace('.', ',')};${item.curr.replace('.', ',')};${clhName};${item.porte.replace('.', ',')};${item.pase.replace('.', ',')};${item.fin.replace('.', ',')};${totalCost.toFixed(3).replace('.', ',')};${prevSaleVal.replace('.', ',')};${effectiveSale.replace('.', ',')};${margin.toFixed(3).replace('.', ',')}\n`;
+          comprasRows.push([
+            st.name,
+            typeLabel,
+            prod.name,
+            Number(parseNum(item.prev).toFixed(3)),
+            Number(currNum.toFixed(3)),
+            clhName,
+            Number(porteNum.toFixed(3)),
+            Number(paseNum.toFixed(3)),
+            Number(finNum.toFixed(3)),
+            totalCost,
+            Number(parseNum(prevSaleVal).toFixed(3)),
+            saleNum,
+            margin,
+          ]);
         });
       });
     };
@@ -1003,27 +1040,69 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     exportSection(remainingCollaborators, 'COLABORADORA RESTANTE');
 
     // Cuadro Especial: GASOLINA BRONCO
-    csv += '\nCUADRO ESPECIAL: GASOLINA BRONCO;;;;;;;;;;;\n';
-    csv += 'PRODUCTO;SIN IVA (EUR);CON IVA (EUR);BENEFICIO (EUR);COMPRA (EUR);FECHA;;;;;;\n';
-    csv += `${gasolinaBronco.name};${gasolinaBronco.sinIva.replace('.', ',')};${gasolinaBronco.conIva.replace('.', ',')};${gasolinaBronco.beneficio.replace('.', ',')};${gasolinaBronco.compra.replace('.', ',')};${gasolinaBronco.fecha};;;;;;\n`;
+    comprasRows.push([]);
+    comprasRows.push(['CUADRO ESPECIAL: GASOLINA BRONCO']);
+    comprasRows.push(['PRODUCTO', 'SIN IVA (EUR)', 'CON IVA (EUR)', 'BENEFICIO (EUR)', 'COMPRA (EUR)', 'FECHA']);
+    comprasRows.push([
+      gasolinaBronco.name,
+      Number(parseNum(gasolinaBronco.sinIva).toFixed(3)),
+      Number(parseNum(gasolinaBronco.conIva).toFixed(3)),
+      Number(parseNum(gasolinaBronco.beneficio).toFixed(3)),
+      Number(parseNum(gasolinaBronco.compra).toFixed(3)),
+      gasolinaBronco.fecha,
+    ]);
 
-    // Tarifas Especiales B50:F82
-    csv += '\nTARIFAS ESPECIALES;;;;;;;;;;;\n';
-    csv += 'ESTACION;PRECIO REFERENCIA (EUR);PRECIO ACTUAL / ESPECIAL (EUR);PRECIO BASE / COSTE (EUR);;;;;;;;\n';
+    const wsCompras = XLSX.utils.aoa_to_sheet(comprasRows);
+    wsCompras['!cols'] = [
+      { wch: 28 }, // ESTACION
+      { wch: 22 }, // TIPO
+      { wch: 20 }, // PRODUCTO
+      { wch: 18 }, // P. ANT COMPRA
+      { wch: 20 }, // PRECIO COMPRA HOY
+      { wch: 16 }, // CLH
+      { wch: 12 }, // PORTE
+      { wch: 12 }, // PASE
+      { wch: 16 }, // FINANCIACION
+      { wch: 16 }, // COSTO TOTAL
+      { wch: 18 }, // P. VENTA ANT
+      { wch: 20 }, // P. VENTA SUGERIDO
+      { wch: 14 }, // MARGEN
+    ];
+    XLSX.utils.book_append_sheet(wb, wsCompras, 'COMPRAS_Y_COSTES');
+
+    // Hoja 2: TARIFAS ESPECIALES
+    const specialRows: any[][] = [
+      ['TARIFAS ESPECIALES - AREA 117'],
+      ['FECHA:', selectedDate, 'VALIDO A PARTIR DE:', validFromDate],
+      [],
+      ['ESTACION', 'PRECIO REFERENCIA (EUR)', 'PRECIO ACTUAL / ESPECIAL (EUR)', 'PRECIO BASE / COSTE (EUR)'],
+    ];
+
     specialRates.forEach((row) => {
       const actVal = getSpecialActualPrice(row);
       const refVal = getSpecialRefPrice(row, actVal);
       const baseVal = getSpecialBasePrice(row);
-      csv += `${row.name};${refVal.replace('.', ',')};${actVal.replace('.', ',')};${baseVal.replace('.', ',')};;;;;;;;\n`;
+      specialRows.push([
+        row.name,
+        Number(parseNum(refVal).toFixed(3)),
+        Number(parseNum(actVal).toFixed(3)),
+        Number(parseNum(baseVal).toFixed(3)),
+      ]);
     });
 
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `EFI_COMPRAS_VALIDO_A_PARTIR_DE_${validFromDate}.csv`;
-    link.click();
+    const wsSpecial = XLSX.utils.aoa_to_sheet(specialRows);
+    wsSpecial['!cols'] = [
+      { wch: 32 }, // ESTACION
+      { wch: 24 }, // PRECIO REFERENCIA
+      { wch: 28 }, // PRECIO ACTUAL / ESPECIAL
+      { wch: 24 }, // PRECIO BASE / COSTE
+    ];
+    XLSX.utils.book_append_sheet(wb, wsSpecial, 'TARIFAS_ESPECIALES');
 
-    setToastMessage(`Descargando archivo Excel: EFI_COMPRAS_DIARIO_${selectedDate}.csv`);
+    const filename = `EFI_COMPRAS_DIARIO_${selectedDate}_VALIDO_${validFromDate}.xlsx`;
+    downloadWorkbookAsXlsx(wb, filename);
+
+    setToastMessage(`Descargando Libro de Excel (*.xlsx): ${filename}`);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
@@ -1544,7 +1623,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             <button
               onClick={handleExportDailyExcel}
               className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-xl text-xs font-bold border border-emerald-500/30 shadow-md transition-all active:scale-95"
-              title="Descargar toda la información del día en archivo Excel CSV con fecha"
+              title="Descargar toda la información del día en formato Libro de Excel (*.xlsx)"
             >
               <Download className="h-4 w-4 text-emerald-400" />
               <span>Descargar Resumen Diario (Excel)</span>
