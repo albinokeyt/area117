@@ -7,9 +7,15 @@ import {
   AlertCircle, Sparkles, CheckCircle2, ChevronRight, Info, Search,
   Calendar, CreditCard, Hash, Percent, Edit3
 } from 'lucide-react';
-import { IMPORT_STATIONS_56, EfiExportRowOverride, EfiExportAddedRow } from '@/lib/excelExportService';
+import {
+  IMPORT_STATIONS_56,
+  EfiExportRowOverride,
+  EfiExportAddedRow,
+  resolveSabanaStationName
+} from '@/lib/excelExportService';
 import { getImportStations } from '@/lib/stationsService';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
+import { PROPIAS_STATIONS, COLABORADORA_STATIONS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
+import { SabanaTariffDef } from './SabanaTariffManagerModal';
 
 interface EfiExportModifierModalProps {
   isOpen: boolean;
@@ -51,6 +57,16 @@ interface EfiExportModifierModalProps {
     pago: string;
     tarifa: string;
   } | null;
+}
+
+export interface EfiSourceOption {
+  id: string;
+  window: string;
+  label: string;
+  description: string;
+  tariffName?: string;
+  markup?: number;
+  isCustom?: boolean;
 }
 
 export const PRESET_EFI_SOURCES = [
@@ -249,7 +265,240 @@ export function EfiExportModifierModal({
 }: EfiExportModifierModalProps) {
   const [activeTab, setActiveTab] = useState<'modify' | 'add' | 'delete' | 'picker'>('modify');
 
-  // List of unique tariffs in previewRows
+  // Reactivity tracker for changes in Sábana de Precios or EFI Export
+  const [sabanaVersion, setSabanaVersion] = useState(0);
+
+  useEffect(() => {
+    const handleSabanaUpdate = () => {
+      setSabanaVersion((v) => v + 1);
+    };
+    window.addEventListener('efi_sabana_updated', handleSabanaUpdate);
+    window.addEventListener('efi_export_updated', handleSabanaUpdate);
+    window.addEventListener('storage', handleSabanaUpdate);
+    return () => {
+      window.removeEventListener('efi_sabana_updated', handleSabanaUpdate);
+      window.removeEventListener('efi_export_updated', handleSabanaUpdate);
+      window.removeEventListener('storage', handleSabanaUpdate);
+    };
+  }, []);
+
+  // Dynamic custom tariffs & modifications loaded directly from Sábana storage
+  const sabanaTariffsData = useMemo(() => {
+    if (typeof window === 'undefined') return { cStd: [], cSpec: [], modConfig: {} };
+    try {
+      const cStdRaw = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      const cSpecRaw = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      const cStd: SabanaTariffDef[] = cStdRaw ? JSON.parse(cStdRaw) : [];
+      const cSpec: SabanaTariffDef[] = cSpecRaw ? JSON.parse(cSpecRaw) : [];
+      const modConfig: Record<string, any> = modRaw ? JSON.parse(modRaw) : {};
+      return { cStd, cSpec, modConfig };
+    } catch (e) {
+      return { cStd: [], cSpec: [], modConfig: {} };
+    }
+  }, [sabanaVersion, isOpen]);
+
+  // Dynamic list of ALL sources for the "Origen de Datos Base" dropdown
+  const allAvailableSources = useMemo<EfiSourceOption[]>(() => {
+    const list: EfiSourceOption[] = [];
+
+    // 1. Predeterminado de Sábana
+    list.push({
+      id: 'DEFAULT',
+      window: 'Sábana de Precios',
+      label: 'Cálculo Predeterminado de Sábana de Precios',
+      description: 'Toma el precio exacto calculado con IVA desde la ventana Sábana de Precios para la tarifa seleccionada',
+    });
+
+    // 2. Tarifas Estándar Base de Sábana
+    const baseStandards = [
+      { id: '12', name: 'Tarifa 12', defaultMarkup: 0.012 },
+      { id: '18', name: 'Tarifa 18', defaultMarkup: 0.018 },
+      { id: '24', name: 'Tarifa 24', defaultMarkup: 0.024 },
+      { id: '36', name: 'Tarifa 36', defaultMarkup: 0.036 },
+      { id: '40', name: 'Tarifa 40', defaultMarkup: 0.040 },
+      { id: '42', name: 'Tarifa 42', defaultMarkup: 0.042 },
+      { id: '47', name: 'Tarifa 47', defaultMarkup: 0.047 },
+      { id: '50', name: 'Tarifa 50', defaultMarkup: 0.060 },
+      { id: '60', name: 'Tarifa 60', defaultMarkup: 0.080 },
+    ];
+
+    baseStandards.forEach((t) => {
+      const mod = sabanaTariffsData.modConfig[t.id] || sabanaTariffsData.modConfig[t.name];
+      const displayName = mod?.name || t.name;
+      const effectiveMarkup = mod?.markup !== undefined ? mod.markup : t.defaultMarkup;
+      list.push({
+        id: `SABANA_T${t.id}`,
+        window: 'Sábana de Precios',
+        label: `Sábana — ${displayName} (Con IVA)`,
+        description: `Copia el precio final Con IVA de ${displayName} de la Sábana de Precios (Margen: +${effectiveMarkup.toFixed(3)} €)`,
+        tariffName: displayName,
+        markup: effectiveMarkup,
+      });
+    });
+
+    // 3. Tarifas Estándar Creadas por el Usuario en Sábana
+    sabanaTariffsData.cStd.forEach((c) => {
+      const mod = sabanaTariffsData.modConfig[c.id] || sabanaTariffsData.modConfig[c.name];
+      const rawName = mod?.name || c.name;
+      const displayName = rawName.toUpperCase().startsWith('TARIFA') ? rawName : `Tarifa ${rawName}`;
+      const sid = `SABANA_CUSTOM_STD_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
+      const effectiveMarkup = mod?.markup !== undefined ? mod.markup : (c.markup ?? 0.024);
+      list.push({
+        id: sid,
+        window: 'Sábana de Precios',
+        label: `Sábana — ${displayName} (Con IVA) [Personalizada]`,
+        description: `Copia el precio final Con IVA de ${displayName} de la Sábana de Precios (Margen: +${effectiveMarkup.toFixed(3)} €)`,
+        tariffName: displayName,
+        markup: effectiveMarkup,
+        isCustom: true,
+      });
+    });
+
+    // 4. Bloques y Tarifas Especiales Base de Sábana
+    const baseSpecials = [
+      { id: 'SABANA_JAVI', name: 'Especial Javi', label: 'Sábana — Especial Javi (Con IVA)', desc: 'Copia el precio Con IVA de Especial Javi', markup: 0.024 },
+      { id: 'SABANA_CARRERAS', name: 'Especial Carreras', label: 'Sábana — Especial Carreras (Con IVA)', desc: 'Copia el precio Con IVA de Especial Carreras', markup: 0.024 },
+      { id: 'SABANA_TRANSFRIRED', name: 'Especial Transfrired', label: 'Sábana — Especial Transfrired (Con IVA)', desc: 'Copia el precio Con IVA de Especial Transfrired', markup: 0.024 },
+      { id: 'SABANA_C0', name: 'Especial General C-0', label: 'Sábana — Especial General C-0 (Con IVA)', desc: 'Copia el precio Con IVA de Especial General C-0', markup: 0.024 },
+      { id: 'SABANA_ROR', name: 'Especial ROR', label: 'Sábana — Especial ROR (Con IVA)', desc: 'Copia el precio Con IVA de Especial ROR', markup: 0.024 },
+      { id: 'SABANA_ESTEBAN', name: 'Especial Esteban', label: 'Sábana — Especial Esteban (Con IVA)', desc: 'Copia el precio Con IVA de Especial Esteban', markup: 0.024 },
+      { id: 'SABANA_MIKI', name: 'Tarifa 90 Miki', label: 'Sábana — Tarifa 90 Miki / T85 (Con IVA)', desc: 'Copia el precio Con IVA de Tarifa 90 Miki', markup: 0.090 },
+      { id: 'SABANA_ECOTRANS', name: 'Tarifa ECOTRANS', label: 'Sábana — Tarifa ECOTRANS (Con IVA)', desc: 'Copia el precio Con IVA de Tarifa ECOTRANS', markup: 0.050 },
+      { id: 'SABANA_T30', name: 'Tarifa 30', label: 'Sábana — Tarifa 30 (Con IVA)', desc: 'Copia el precio Con IVA de Tarifa 30', markup: 0.030 },
+      { id: 'SABANA_T27', name: 'Tarifa 27 Sur', label: 'Sábana — Tarifa 27 Sur (Con IVA)', desc: 'Copia el precio Con IVA de Tarifa 27 Sur', markup: 0.027 },
+      { id: 'SABANA_T15', name: 'Tarifa 15 Sur', label: 'Sábana — Tarifa 15 Sur (Con IVA)', desc: 'Copia el precio Con IVA de Tarifa 15 Sur', markup: 0.015 },
+      { id: 'SABANA_T75', name: 'Tarifa 75', label: 'Sábana — Tarifa 75 (Con IVA)', desc: 'Copia el precio Con IVA de Tarifa 75', markup: 0.038 },
+    ];
+
+    baseSpecials.forEach((b) => {
+      const mod = sabanaTariffsData.modConfig[b.id] || sabanaTariffsData.modConfig[b.name];
+      const displayName = mod?.name || b.name;
+      const effectiveMarkup = mod?.markup !== undefined ? mod.markup : b.markup;
+      list.push({
+        id: b.id,
+        window: 'Sábana de Precios',
+        label: b.label,
+        description: b.desc,
+        tariffName: displayName,
+        markup: effectiveMarkup,
+      });
+    });
+
+    // 5. Bloques y Tarifas Especiales Creadas por el Usuario en Sábana
+    sabanaTariffsData.cSpec.forEach((c) => {
+      const mod = sabanaTariffsData.modConfig[c.id] || sabanaTariffsData.modConfig[c.name];
+      const rawName = mod?.name || c.name;
+      const displayName = rawName.toUpperCase().startsWith('TARIFA') || rawName.toUpperCase().startsWith('ESPECIAL')
+        ? rawName
+        : `Tarifa Especial ${rawName}`;
+      const sid = `SABANA_CUSTOM_SPEC_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
+      const effectiveMarkup = mod?.markup !== undefined ? mod.markup : (c.markup ?? 0.024);
+      list.push({
+        id: sid,
+        window: 'Sábana de Precios',
+        label: `Sábana — ${displayName} (Con IVA) [Cuadro Especial]`,
+        description: `Copia el precio final Con IVA de ${displayName} de Sábana de Precios (Margen: +${effectiveMarkup.toFixed(3)} €)`,
+        tariffName: displayName,
+        markup: effectiveMarkup,
+        isCustom: true,
+      });
+    });
+
+    // 6. Otras Tarifas existentes en previewRows (ej. Bronco, Transfrired GOB, Prepagos, Bloques añadidos)
+    previewRows.slice(1).forEach((r) => {
+      const t = String(r[8] || '').trim();
+      if (!t) return;
+      const tUpper = t.toUpperCase();
+      const alreadyInList = list.some(
+        (item) => item.tariffName && (
+          item.tariffName.toUpperCase() === tUpper ||
+          item.tariffName.toUpperCase().replace(/^TARIFA\s+/, '') === tUpper.replace(/^TARIFA\s+/, '')
+        )
+      );
+      if (!alreadyInList) {
+        list.push({
+          id: `EFI_${tUpper.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          window: 'EFI Export',
+          label: `EFI Export — ${t} (Con IVA)`,
+          description: `Copia el precio actual de ${t} en la exportación EFI`,
+          tariffName: t,
+        });
+      }
+    });
+
+    // 7. Fuentes de Compras
+    list.push(
+      {
+        id: 'COMPRAS_VENTA_SUGERIDO',
+        window: 'Compras',
+        label: 'Compras — P. Venta Sugerido GOA (Con IVA * 1.21)',
+        description: 'Precio oficial sugerido de Compras para la estación convertido Con IVA',
+      },
+      {
+        id: 'COMPRAS_BRONCO',
+        window: 'Compras',
+        label: 'Compras — Gasolina Bronco Con IVA',
+        description: 'Precio de venta Con IVA del producto Gasolina Bronco',
+      },
+      {
+        id: 'COMPRAS_PRECIO_COMPRA',
+        window: 'Compras',
+        label: 'Compras — P. Compra Hoy / Medio (Con IVA * 1.21)',
+        description: 'Precio de coste/compra promedio en terminales convertido Con IVA',
+      }
+    );
+
+    // 8. Tarifas Especiales
+    list.push(
+      {
+        id: 'ESPECIAL_REF',
+        window: 'Tarifas Especiales',
+        label: 'Tarifas Especiales — Precio Referencia (B50:F82) Con IVA',
+        description: 'Precio de referencia (celdas anaranjadas) convertido Con IVA',
+      },
+      {
+        id: 'ESPECIAL_ACTUAL',
+        window: 'Tarifas Especiales',
+        label: 'Tarifas Especiales — Precio Actual Especial Con IVA',
+        description: 'Precio actual especial negociado convertido Con IVA',
+      }
+    );
+
+    // 9. Postes
+    list.push(
+      {
+        id: 'POSTES_GOA',
+        window: 'Postes',
+        label: 'Postes — Precio Poste Gasóleo A (PVP Con IVA)',
+        description: 'PVP de cartelera física para Gasóleo A',
+      },
+      {
+        id: 'POSTES_GAS95',
+        window: 'Postes',
+        label: 'Postes — Precio Poste Gasolina 95 (PVP Con IVA)',
+        description: 'PVP de cartelera física para Gasolina 95',
+      },
+      {
+        id: 'POSTES_GOB',
+        window: 'Postes',
+        label: 'Postes — Precio Poste Gasóleo B (PVP Con IVA)',
+        description: 'Precio transfer de cartelera para Gasóleo B Agrícola',
+      }
+    );
+
+    // 10. Manual
+    list.push({
+      id: 'MANUAL',
+      window: 'Manual',
+      label: 'Precio Fijo / Manual',
+      description: 'Fijar un precio numérico manual específico',
+    });
+
+    return list;
+  }, [sabanaTariffsData, previewRows]);
+
+  // List of unique tariffs in previewRows + all custom standard and special tariffs from Sábana
   const availableTariffs = useMemo(() => {
     const setT = new Set<string>();
     previewRows.slice(1).forEach((r) => {
@@ -258,8 +507,19 @@ export function EfiExportModifierModal({
         setT.add(t.trim());
       }
     });
+
+    // Also include all custom standard and special tariffs from Sábana
+    sabanaTariffsData.cStd.forEach((c) => {
+      const raw = c.name.toUpperCase().trim();
+      setT.add(raw.startsWith('TARIFA') ? raw : `TARIFA ${raw}`);
+    });
+    sabanaTariffsData.cSpec.forEach((c) => {
+      const raw = c.name.toUpperCase().trim();
+      setT.add(raw.startsWith('TARIFA') ? raw : `TARIFA ${raw}`);
+    });
+
     return Array.from(setT);
-  }, [previewRows]);
+  }, [previewRows, sabanaTariffsData]);
 
   // Scope selection: 'ROW' | 'TARIFF' | 'STATION'
   const [modifyScope, setModifyScope] = useState<'ROW' | 'TARIFF' | 'STATION'>('ROW');
@@ -331,44 +591,121 @@ export function EfiExportModifierModal({
     return importStations.find((s) => s.id === selectedStationId) || importStations[0];
   }, [selectedStationId, importStations]);
 
+  // Helper para obtener el precio base de compras de cualquier estación
+  const getStationBasePrice = (stName: string): number => {
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    let p = comprasPurchases[`${stName}_GOA`]?.sale;
+    if (!p) {
+      const matchK = Object.keys(comprasPurchases).find((k) => {
+        if (!k.endsWith('_GOA')) return false;
+        const b = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+        return b === cleanTarget || b.includes(cleanTarget) || cleanTarget.includes(b);
+      });
+      if (matchK) p = comprasPurchases[matchK]?.sale;
+    }
+    if (p) {
+      const num = parseFloat(String(p).replace(',', '.'));
+      if (!isNaN(num) && num > 0) return num;
+    }
+    if (OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] !== undefined) {
+      return OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget];
+    }
+    if (OFFICIAL_SUGGESTED_SALE_PRICES[stName] !== undefined) {
+      return OFFICIAL_SUGGESTED_SALE_PRICES[stName];
+    }
+    return 1.480;
+  };
+
   // Helper to calculate sample source value
   const resolveSourceValue = (type: string, stName: string): number => {
     const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const sabanaStation = resolveSabanaStationName(stName);
 
-    if (type.startsWith('SABANA_')) {
-      // Find matching column in previewRows for this station
-      const tariffSuffix = type.replace('SABANA_', '');
-      const matchedRow = previewRows.find((r) => {
-        const rTariff = String(r[8] || '').toUpperCase();
+    if (type.startsWith('SABANA_') || type.startsWith('EFI_') || type === 'DEFAULT') {
+      const sourceOpt = allAvailableSources.find((s) => s.id === type);
+      const targetTariffName = sourceOpt?.tariffName || (type === 'DEFAULT' ? selectedTariff : '');
+
+      // 1. Try finding in previewRows
+      if (targetTariffName) {
+        const cleanT = targetTariffName.toUpperCase().replace(/^TARIFA\s+/, '').trim();
+        const matchedRow = previewRows.find((r) => {
+          const rTariff = String(r[8] || '').toUpperCase().trim();
+          const rCleanT = rTariff.replace(/^TARIFA\s+/, '').trim();
+          const rSt = String(r[6] || '').toUpperCase().trim();
+          const rStId = r[1];
+
+          const stationMatches =
+            rStId === selectedStationId ||
+            rSt === cleanTarget ||
+            rSt === sabanaStation.toUpperCase() ||
+            rSt.includes(cleanTarget) ||
+            cleanTarget.includes(rSt);
+
+          const tariffMatches =
+            rTariff === targetTariffName.toUpperCase().trim() ||
+            rCleanT === cleanT ||
+            rTariff.includes(cleanT) ||
+            cleanT.includes(rCleanT);
+
+          return stationMatches && tariffMatches;
+        });
+
+        if (matchedRow && typeof matchedRow[5] === 'number' && matchedRow[5] > 0) {
+          return matchedRow[5];
+        }
+      }
+
+      // Also search previewRows with suffix if legacy SABANA_TX
+      const tariffSuffix = type.replace(/^SABANA_/, '').toUpperCase();
+      const matchedRowBySuffix = previewRows.find((r) => {
+        const rTariff = String(r[8] || '').toUpperCase().trim();
         const rSt = String(r[6] || '').toUpperCase().trim();
         return rTariff.includes(tariffSuffix) && (rSt.includes(cleanTarget) || cleanTarget.includes(rSt));
       });
-      if (matchedRow && typeof matchedRow[5] === 'number') {
-        return matchedRow[5];
+      if (matchedRowBySuffix && typeof matchedRowBySuffix[5] === 'number') {
+        return matchedRowBySuffix[5];
       }
-      return 1.800;
+
+      // 2. Direct calculation fallback
+      const base = getStationBasePrice(stName);
+      const markup = sourceOpt?.markup ?? 0.024;
+      return Number(((base + markup) * 1.21).toFixed(3));
     }
 
     if (type === 'COMPRAS_VENTA_SUGERIDO') {
-      const p = comprasPurchases[`${stName}_GOA`]?.sale;
-      const num = parseFloat(String(p || '').replace(',', '.'));
-      if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
-      return 1.810;
+      const base = getStationBasePrice(stName);
+      return Number((base * 1.21).toFixed(3));
     }
 
     if (type === 'COMPRAS_BRONCO') {
+      try {
+        const b = localStorage.getItem('efi_compras_gasolina_bronco') || localStorage.getItem('efi_purchases_bronco_' + selectedDate);
+        if (b) {
+          const parsed = JSON.parse(b);
+          const p = parseFloat(String(parsed.conIva || '').replace(',', '.'));
+          if (!isNaN(p) && p > 0) return p;
+        }
+      } catch (e) {}
       return 1.690;
     }
 
     if (type === 'COMPRAS_PRECIO_COMPRA') {
-      const p = comprasPurchases[`${stName}_GOA`]?.buy;
+      let p = comprasPurchases[`${stName}_GOA`]?.buy;
+      if (!p) {
+        const matchK = Object.keys(comprasPurchases).find((k) => {
+          if (!k.endsWith('_GOA')) return false;
+          const b = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
+          return b === cleanTarget || b.includes(cleanTarget) || cleanTarget.includes(b);
+        });
+        if (matchK) p = comprasPurchases[matchK]?.buy;
+      }
       const num = parseFloat(String(p || '').replace(',', '.'));
       if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
       return 1.450;
     }
 
     if (type === 'ESPECIAL_REF') {
-      const r = specialRates.find((s) => s.name?.toUpperCase().includes(cleanTarget));
+      const r = specialRates.find((s) => s.name?.toUpperCase().includes(cleanTarget) || cleanTarget.includes(s.name?.toUpperCase() || ''));
       if (r?.refPrice) {
         const num = parseFloat(String(r.refPrice).replace(',', '.'));
         if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
@@ -377,7 +714,7 @@ export function EfiExportModifierModal({
     }
 
     if (type === 'ESPECIAL_ACTUAL') {
-      const r = specialRates.find((s) => s.name?.toUpperCase().includes(cleanTarget));
+      const r = specialRates.find((s) => s.name?.toUpperCase().includes(cleanTarget) || cleanTarget.includes(s.name?.toUpperCase() || ''));
       if (r?.actualPrice) {
         const num = parseFloat(String(r.actualPrice).replace(',', '.'));
         if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
@@ -763,14 +1100,14 @@ export function EfiExportModifierModal({
                         onChange={(e) => setSourceType(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-purple-400 focus:outline-none"
                       >
-                        {PRESET_EFI_SOURCES.map((s) => (
+                        {allAvailableSources.map((s) => (
                           <option key={s.id} value={s.id}>
                             [{s.window}] {s.label}
                           </option>
                         ))}
                       </select>
                       <span className="text-[10px] text-slate-500 mt-1 block">
-                        {PRESET_EFI_SOURCES.find((s) => s.id === sourceType)?.description}
+                        {allAvailableSources.find((s) => s.id === sourceType)?.description}
                       </span>
                     </div>
 
@@ -1226,6 +1563,16 @@ export function EfiExportModifierModal({
                         <th className="py-2 px-2 text-right">T24 Con IVA</th>
                         <th className="py-2 px-2 text-right">T36 Con IVA</th>
                         <th className="py-2 px-2 text-right">T60 Con IVA</th>
+                        {sabanaTariffsData.cStd.map((c) => (
+                          <th key={c.id || c.name} className="py-2 px-2 text-right text-purple-300 whitespace-nowrap">
+                            {c.name} Con IVA
+                          </th>
+                        ))}
+                        {sabanaTariffsData.cSpec.map((c) => (
+                          <th key={c.id || c.name} className="py-2 px-2 text-right text-amber-300 whitespace-nowrap">
+                            {c.name} Con IVA
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
@@ -1236,22 +1583,40 @@ export function EfiExportModifierModal({
                         const v36 = resolveSourceValue('SABANA_T36', st.name);
                         const v60 = resolveSourceValue('SABANA_T60', st.name);
 
+                        const customStdValues = sabanaTariffsData.cStd.map((c) => {
+                          const sid = `SABANA_CUSTOM_STD_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
+                          return { name: c.name, val: resolveSourceValue(sid, st.name) };
+                        });
+
+                        const customSpecValues = sabanaTariffsData.cSpec.map((c) => {
+                          const sid = `SABANA_CUSTOM_SPEC_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
+                          return { name: c.name, val: resolveSourceValue(sid, st.name) };
+                        });
+
                         return (
                           <tr key={st.id} className="hover:bg-slate-800/40">
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
-                            {[v12, v18, v24, v36, v60].map((val, idx) => (
+                            {[
+                              { label: 'T12', val: v12 },
+                              { label: 'T18', val: v18 },
+                              { label: 'T24', val: v24 },
+                              { label: 'T36', val: v36 },
+                              { label: 'T60', val: v60 },
+                              ...customStdValues.map((c) => ({ label: c.name, val: c.val })),
+                              ...customSpecValues.map((c) => ({ label: c.name, val: c.val })),
+                            ].map((col, idx) => (
                               <td
                                 key={idx}
                                 onClick={() => {
-                                  setManualPriceConIva(val.toFixed(3).replace('.', ','));
+                                  setManualPriceConIva(col.val.toFixed(3).replace('.', ','));
                                   setEditPriceMode('DIRECT');
                                   setActiveTab('modify');
-                                  setSuccessMsg(`Precio capturado: ${val.toFixed(3).replace('.', ',')} €`);
+                                  setSuccessMsg(`Precio de ${col.label} capturado: ${col.val.toFixed(3).replace('.', ',')} €`);
                                   setTimeout(() => setSuccessMsg(null), 2500);
                                 }}
-                                className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 hover:scale-105 transition-all font-bold"
+                                className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 hover:scale-105 transition-all font-bold whitespace-nowrap"
                               >
-                                {val.toFixed(3).replace('.', ',')} €
+                                {col.val.toFixed(3).replace('.', ',')} €
                               </td>
                             ))}
                           </tr>

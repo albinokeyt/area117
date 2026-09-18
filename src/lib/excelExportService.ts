@@ -1019,8 +1019,20 @@ export function buildImportacionTable(
         return round3(resolvedSabanaFormulas[legSinKey].evaluatedValue * 1.21);
       }
 
+      let effectiveMarkup = tDef.markup ?? 0.024;
+      try {
+        if (typeof window !== 'undefined') {
+          const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+          if (modRaw) {
+            const modMap = JSON.parse(modRaw);
+            const mod = modMap[tDef.key] || modMap[tDef.name];
+            if (mod?.markup !== undefined) effectiveMarkup = mod.markup;
+          }
+        }
+      } catch (e) {}
+
       const base = getStationBasePrice(sabanaName);
-      const defaultSinIva = round3(base + (tDef.markup ?? 0.024));
+      const defaultSinIva = round3(base + effectiveMarkup);
       return round3(defaultSinIva * 1.21);
     }
 
@@ -1283,26 +1295,59 @@ export function buildImportacionTable(
     if (typeof window !== 'undefined') {
       const cStdRaw = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
       const cSpecRaw = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      const smRaw = localStorage.getItem('efi_sabana_tariff_source_mapping_v1');
+
       const cStd: any[] = cStdRaw ? JSON.parse(cStdRaw) : [];
       const cSpec: any[] = cSpecRaw ? JSON.parse(cSpecRaw) : [];
+      const modConfig: Record<string, any> = modRaw ? JSON.parse(modRaw) : {};
+      const sourceMap: Record<string, any> = smRaw ? JSON.parse(smRaw) : {};
       const allCustom = [...cStd, ...cSpec];
 
       allCustom.forEach((cTariff, idx) => {
-        const tariffName = `TARIFA ${cTariff.name.toUpperCase().trim()}`;
+        const cleanName = cTariff.name.toUpperCase().trim();
+        const tariffName = cleanName.startsWith('TARIFA') ? cleanName : `TARIFA ${cleanName}`;
         if (deletedTariffs.includes(tariffName)) return;
+
+        const mod = modConfig[cTariff.id] || modConfig[cTariff.name];
+        const markup = mod?.markup !== undefined ? mod.markup : (cTariff.markup ?? 0.024);
+        const customSrc = sourceMap[`${cTariff.name}::__DEFAULT__`] || sourceMap[`${cleanName}::__DEFAULT__`];
 
         effectiveImportStations.forEach((st) => {
           if (st.isZero) return;
           const sabanaName = resolveSabanaStationName(st.name);
-          const base = getStationBasePrice(sabanaName);
-          const markup = cTariff.markup ?? 0.024;
-          const conKey = `STD_${sabanaName}_T${cTariff.name}_conIva`;
-          const sinKey = `STD_${sabanaName}_T${cTariff.name}_sinIva`;
+
+          let base = getStationBasePrice(sabanaName);
+          if (customSrc && customSrc.sourceType && customSrc.sourceType !== 'DEFAULT') {
+            if (customSrc.sourceType === 'COMPRAS_VENTA_SUGERIDO') {
+              base = getStationBasePrice(sabanaName);
+            } else if (customSrc.sourceType === 'COMPRAS_BRONCO') {
+              base = parseNum(broncoData.sinIva) || 1.397;
+            } else if (customSrc.sourceType === 'COMPRAS_MEDIO' || customSrc.sourceType === 'COMPRAS_PRECIO_COMPRA') {
+              const b = purchasesData[`${sabanaName}_GOA`]?.buy || purchasesData[`${st.name}_GOA`]?.buy;
+              base = parseNum(b) || 1.200;
+            } else if (customSrc.sourceType === 'POSTE_GOA') {
+              const p = postesData?.propiasPvpRows?.[sabanaName]?.gasoleoA || postesData?.propiasPvpRows?.[st.name]?.gasoleoA;
+              if (p) base = round3(parseNum(p) / 1.21);
+            } else if (customSrc.sourceType === 'MANUAL' && customSrc.manualPriceSinIva !== undefined) {
+              base = customSrc.manualPriceSinIva;
+            }
+          }
+
+          const conKey1 = `STD_${sabanaName}_T${cTariff.name}_conIva`;
+          const sinKey1 = `STD_${sabanaName}_T${cTariff.name}_sinIva`;
+          const conKey2 = `SPEC_${cTariff.specialBlockId || 'custom'}_${sabanaName}_${cTariff.name}_conIva`;
+          const sinKey2 = `SPEC_${cTariff.specialBlockId || 'custom'}_${sabanaName}_${cTariff.name}_sinIva`;
+
           let pvp = round3((base + markup) * 1.21);
-          if (resolvedSabanaFormulas[conKey]?.evaluatedValue !== undefined) {
-            pvp = resolvedSabanaFormulas[conKey].evaluatedValue;
-          } else if (resolvedSabanaFormulas[sinKey]?.evaluatedValue !== undefined) {
-            pvp = round3(resolvedSabanaFormulas[sinKey].evaluatedValue * 1.21);
+          if (resolvedSabanaFormulas[conKey1]?.evaluatedValue !== undefined) {
+            pvp = resolvedSabanaFormulas[conKey1].evaluatedValue;
+          } else if (resolvedSabanaFormulas[conKey2]?.evaluatedValue !== undefined) {
+            pvp = resolvedSabanaFormulas[conKey2].evaluatedValue;
+          } else if (resolvedSabanaFormulas[sinKey1]?.evaluatedValue !== undefined) {
+            pvp = round3(resolvedSabanaFormulas[sinKey1].evaluatedValue * 1.21);
+          } else if (resolvedSabanaFormulas[sinKey2]?.evaluatedValue !== undefined) {
+            pvp = round3(resolvedSabanaFormulas[sinKey2].evaluatedValue * 1.21);
           }
 
           appendRowIfActive(
