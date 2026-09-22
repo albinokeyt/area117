@@ -1809,11 +1809,11 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   }, [allStations, searchFilter]);
 
   // Paginación limpia para el documento PDF y vista previa:
-  // - Página 1: con Banner superior oficial y tarjetas HVO (si aplica). Caben 11 estaciones (con HVO) o 13 (sin HVO).
-  // - Páginas siguientes: cabecera compacta y caben 18 estaciones cómodamente sin desbordar jamás en A4.
+  // - Página 1: con Banner superior oficial y tarjetas HVO (si aplica). Caben 10 estaciones (con HVO) o 12 (sin HVO) holgadamente.
+  // - Páginas siguientes: mini-cabecera y caben 14 estaciones con márgenes redondeados y espacio perfecto sin desbordar jamás en A4.
   const stationPages = useMemo(() => {
-    const firstPageCapacity = isHvoIncluded ? 11 : 13;
-    const subsequentCapacity = 18;
+    const firstPageCapacity = isHvoIncluded ? 10 : 12;
+    const subsequentCapacity = 14;
     const pages: (typeof allStations)[] = [];
 
     if (filteredStations.length === 0) {
@@ -1829,11 +1829,10 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     return pages;
   }, [filteredStations, isHvoIncluded]);
 
-  // Índice global correlativo (1..N) para la columna Nº
-  const getStationGlobalIndex = (pageIdx: number, itemIdx: number) => {
-    if (pageIdx === 0) return itemIdx + 1;
-    const firstPageCapacity = isHvoIncluded ? 11 : 13;
-    return firstPageCapacity + (pageIdx - 1) * 18 + itemIdx + 1;
+  // Índice global correlativo (1..N) exacto para la columna Nº
+  const getStationGlobalIndex = (stName: string) => {
+    const idx = filteredStations.findIndex((s) => s.name === stName);
+    return idx >= 0 ? idx + 1 : 1;
   };
 
   // Formateador de fecha en orden DIA, MES, AÑO (DD/MM/YYYY)
@@ -2145,14 +2144,14 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 </>
               ) : (
                 /* Mini-Cabecera para páginas 2 en adelante con margen y espacio */
-                <div className="border-b-2 border-slate-900 pb-2 flex items-center justify-between gap-4 pt-1">
+                <div className="border-b-2 border-slate-900 pb-3 mb-4 flex items-center justify-between gap-4 pt-3 print:pt-4">
                   <div className="flex items-center space-x-3">
-                    <span className="text-sm font-black text-slate-950 uppercase tracking-tight">
+                    <span className="text-base font-black text-slate-950 uppercase tracking-tight">
                       Área 117
                     </span>
-                    <span className="text-slate-300 print:hidden">|</span>
-                    <span className="text-xs font-bold text-slate-600 uppercase print:hidden">
-                      Tarifa: <strong className="text-slate-900">{selectedTariff}</strong>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-xs font-bold text-slate-700 uppercase">
+                      Tarifa: <strong className="text-slate-950 font-black">{selectedTariff}</strong>
                     </span>
                   </div>
                   <div className="text-right flex items-center space-x-3">
@@ -2162,7 +2161,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                         {formatDateDDMMYYYY(targetDate)}
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 font-mono">
+                    <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-300 font-mono">
                       Pág. {pageIndex + 1} de {stationPages.length}
                     </span>
                   </div>
@@ -2170,24 +2169,24 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
               )}
 
               {/* Tabla de Estaciones de la Página Actual con Borde Redondeado y Final de Hoja */}
-              <div className="overflow-x-auto border border-slate-300 rounded-xl">
-                <table className="w-full text-left border-collapse text-xs">
+              <div className="border border-slate-300 rounded-2xl overflow-hidden shadow-sm print:shadow-none print:rounded-xl">
+                <table className="w-full text-left border-collapse text-xs table-auto">
                   <thead>
                     <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold">
-                      <th className="py-2.5 px-2.5 w-12 min-w-[48px] text-center">Nº</th>
+                      <th className="py-2.5 px-2 w-10 min-w-[38px] text-center">Nº</th>
                       <th className="py-2.5 px-3 print:hidden text-center w-28 min-w-[110px] bg-slate-800 text-emerald-300">
                         Estación Activa
                       </th>
-                      <th className="py-2.5 px-3 min-w-[140px]">E.E.S.S</th>
-                      <th className="py-2.5 px-3 w-28 min-w-[90px]">Bandera</th>
-                      <th className="py-2.5 px-3 min-w-[180px]">Ubicación</th>
-                      <th className="py-2.5 px-3 text-right whitespace-nowrap w-24 min-w-[95px]">Sin IVA</th>
-                      <th className="py-2.5 px-3 text-right whitespace-nowrap w-24 min-w-[95px]">Con IVA</th>
+                      <th className="py-2.5 px-3 min-w-[125px]">E.E.S.S</th>
+                      <th className="py-2.5 px-2.5 w-24 min-w-[80px]">Bandera</th>
+                      <th className="py-2.5 px-3 min-w-[165px]">Ubicación</th>
+                      <th className="py-2.5 px-2.5 text-right whitespace-nowrap w-28 min-w-[105px]">Sin IVA</th>
+                      <th className="py-2.5 px-2.5 text-right whitespace-nowrap w-28 min-w-[105px]">Con IVA</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-900">
-                    {pageStations.map((st, itemIdx) => {
-                      const globalIdx = getStationGlobalIndex(pageIndex, itemIdx);
+                    {pageStations.map((st) => {
+                      const globalIdx = getStationGlobalIndex(st.name);
                       const active = isStationActive(st.name);
                       const isPropia = st.type === 'PROPIA';
                       const prices = getStationPrice(st.name, isPropia);
@@ -2200,7 +2199,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                             active ? 'hover:bg-slate-50' : 'bg-slate-100/60 opacity-40 print:hidden'
                           }`}
                         >
-                          <td className="py-2 px-2.5 text-center font-bold text-slate-500 font-mono text-xs">
+                          <td className="py-2 px-2 text-center font-bold text-slate-500 font-mono text-xs">
                             {globalIdx}
                           </td>
 
@@ -2250,7 +2249,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                               })()}
                             </div>
                           </td>
-                          <td className="py-2 px-3 font-semibold text-slate-700">
+                          <td className="py-2 px-2.5 font-semibold text-slate-700">
                             <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold border border-slate-300 inline-block">
                               {meta.bandera}
                             </span>
@@ -2270,13 +2269,13 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                               {meta.ubicacion}
                             </a>
                           </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap w-24 min-w-[95px]">
-                            <span className="whitespace-nowrap inline-flex items-center justify-end font-mono">
+                          <td className="py-2 px-2.5 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap w-28 min-w-[105px]">
+                            <span className="whitespace-nowrap font-mono tabular-nums font-bold text-slate-900 inline-block text-right" style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all' }}>
                               {prices.sinIva.toFixed(3).replace('.', ',')}&nbsp;€
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-right font-mono font-black text-emerald-700 text-xs bg-emerald-50/50 whitespace-nowrap w-24 min-w-[95px]">
-                            <span className="whitespace-nowrap inline-flex items-center justify-end font-mono">
+                          <td className="py-2 px-2.5 text-right font-mono font-black text-emerald-700 text-xs bg-emerald-50/50 whitespace-nowrap w-28 min-w-[105px]">
+                            <span className="whitespace-nowrap font-mono tabular-nums font-black text-emerald-700 inline-block text-right" style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all' }}>
                               {prices.conIva.toFixed(3).replace('.', ',')}&nbsp;€
                             </span>
                           </td>
@@ -2285,6 +2284,12 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Cierre limpio de la hoja de PDF con espacio y margen redondeado */}
+              <div className="pt-2.5 flex items-center justify-between text-[10px] text-slate-400 font-medium border-t border-slate-200 mt-2">
+                <span>Inversiones Energéticas Coral S.L. — Red de Estaciones Área 117</span>
+                <span className="font-mono font-bold text-slate-500">Página {pageIndex + 1} de {stationPages.length}</span>
               </div>
             </div>
           );
