@@ -238,9 +238,16 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [customSpecialTariffs, setCustomSpecialTariffs] = useState<SabanaTariffDef[]>(() => {
     try {
       const saved = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {}
-    return [];
+    return [
+      { id: 'spec_prepago_10', name: 'PREPAGO 10', markup: -0.002, blockType: 'special', isCustom: true },
+      { id: 'spec_prepago_20', name: 'PREPAGO 20', markup: 0.008, blockType: 'special', isCustom: true },
+      { id: 'spec_prepago_30', name: 'PREPAGO 30', markup: 0.018, blockType: 'special', isCustom: true },
+    ];
   });
 
   const [tariffSourcesMapping, setTariffSourcesMapping] = useState<Record<string, SabanaSourceConfig>>(() => {
@@ -267,6 +274,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     return null;
   });
 
+  const [deletedTariffIds, setDeletedTariffIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('efi_sabana_deleted_tariffs_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+
   const [showTariffManagerModal, setShowTariffManagerModal] = useState(false);
   const [tariffManagerInitialId, setTariffManagerInitialId] = useState<string | undefined>(undefined);
 
@@ -275,7 +290,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const colaboradoraStations = useMemo(() => getColaboradoraStations(), [stationsVersion]);
   const allStations = useMemo(() => [...propiasStations, ...colaboradoraStations], [propiasStations, colaboradoraStations]);
 
-  // Lista de tarifas estándar dinámicas (base + creadas/modificadas por el usuario)
+  // Lista de tarifas estándar dinámicas (base + creadas/modificadas por el usuario, excluyendo eliminadas)
   const effectiveStandardTariffs = useMemo(() => {
     const baseList: SabanaTariffDef[] = STANDARD_TARIFFS.map((t) => {
       const mod = modifiedTariffsConfig[t.id] || modifiedTariffsConfig[t.name];
@@ -299,10 +314,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       };
     });
 
-    return [...baseList, ...userCreated];
-  }, [modifiedTariffsConfig, customStandardTariffs]);
+    const filteredBase = baseList.filter((t) => !deletedTariffIds.includes(t.id));
+    const filteredCustom = userCreated.filter((t) => !deletedTariffIds.includes(t.id));
+    return [...filteredBase, ...filteredCustom];
+  }, [modifiedTariffsConfig, customStandardTariffs, deletedTariffIds]);
 
-  // Lista consolidada de todas las tarifas para el modal de gestión
+  // Lista consolidada de todas las tarifas para el modal de gestión (filtrando eliminadas)
   const allTariffsForManager = useMemo(() => {
     const specials: SabanaTariffDef[] = [];
     SPECIAL_TARIFF_BLOCKS.forEach((block) => {
@@ -331,8 +348,39 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       };
     });
 
-    return [...effectiveStandardTariffs, ...specials, ...userSpecials];
-  }, [effectiveStandardTariffs, modifiedTariffsConfig, customSpecialTariffs]);
+    const combined = [...effectiveStandardTariffs, ...specials, ...userSpecials];
+    return combined.filter((t) => !deletedTariffIds.includes(t.id));
+  }, [effectiveStandardTariffs, modifiedTariffsConfig, customSpecialTariffs, deletedTariffIds]);
+
+  // Lista de tarifas eliminadas para permitir su restauración
+  const deletedTariffsForManager = useMemo(() => {
+    const specials: SabanaTariffDef[] = [];
+    SPECIAL_TARIFF_BLOCKS.forEach((block) => {
+      block.tariffs.forEach((t) => {
+        const id = t.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        specials.push({
+          id,
+          name: t.name,
+          colTitle: `${t.name} SIN IVA`,
+          markup: t.markup,
+          blockType: 'special',
+          specialBlockId: block.id,
+          isCustom: false,
+        });
+      });
+    });
+
+    const allDefs: SabanaTariffDef[] = [
+      ...STANDARD_TARIFFS.map((t) => ({ ...t, blockType: 'standard' as const, isCustom: false })),
+      ...customStandardTariffs,
+      ...specials,
+      ...customSpecialTariffs,
+    ];
+
+    const map = new Map<string, SabanaTariffDef>();
+    allDefs.forEach((t) => map.set(t.id, t));
+    return deletedTariffIds.map((id) => map.get(id)).filter(Boolean) as SabanaTariffDef[];
+  }, [deletedTariffIds, customStandardTariffs, customSpecialTariffs]);
 
   const handleCreateTariff = (tariff: SabanaTariffDef, initialSource?: SabanaSourceConfig) => {
     if (tariff.blockType === 'standard') {
@@ -388,13 +436,30 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     setCustomStandardTariffs(nextStd);
     const nextSpec = customSpecialTariffs.filter((t) => t.id !== tariffId);
     setCustomSpecialTariffs(nextSpec);
+
+    const nextDeleted = Array.from(new Set([...deletedTariffIds, tariffId]));
+    setDeletedTariffIds(nextDeleted);
+
     try {
       localStorage.setItem('efi_sabana_custom_standard_tariffs_v1', JSON.stringify(nextStd));
       localStorage.setItem('efi_sabana_custom_special_tariffs_v1', JSON.stringify(nextSpec));
+      localStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
     } catch (e) {}
 
     window.dispatchEvent(new Event('efi_sabana_updated'));
-    setDownloadToast(`Tarifa eliminada.`);
+    setDownloadToast(`Tarifa eliminada con éxito.`);
+    setTimeout(() => setDownloadToast(null), 2500);
+  };
+
+  const handleRestoreTariff = (tariffId: string) => {
+    const nextDeleted = deletedTariffIds.filter((id) => id !== tariffId);
+    setDeletedTariffIds(nextDeleted);
+    try {
+      localStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
+    } catch (e) {}
+
+    window.dispatchEvent(new Event('efi_sabana_updated'));
+    setDownloadToast(`Tarifa restaurada con éxito.`);
     setTimeout(() => setDownloadToast(null), 2500);
   };
 
@@ -661,12 +726,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       }
       case 'COMPRAS_MEDIO': {
         const item = comprasPurchases[`${stName}_GOA`];
-        const val = item?.avg ? parseFloat(item.avg.replace(',', '.')) : (baseSale - 0.0425);
+        const val = (item as any)?.avg ? parseFloat((item as any).avg.replace(',', '.')) : (baseSale - 0.0425);
         return isNaN(val) ? baseSale : val;
       }
       case 'COMPRAS_MINIMO': {
         const item = comprasPurchases[`${stName}_GOA`];
-        const val = item?.min ? parseFloat(item.min.replace(',', '.')) : (baseSale - 0.05);
+        const val = (item as any)?.min ? parseFloat((item as any).min.replace(',', '.')) : (baseSale - 0.05);
         return isNaN(val) ? baseSale : val;
       }
       case 'COMPRAS_ESPECIAL_REF':
@@ -790,6 +855,135 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
   };
 
+  // Publicar copia exacta de los datos calculados de Tarifas Especiales y Tarifas Estándar (Tarifa 60 para Postes)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const cache: Record<string, number> = {};
+      const fullCache: Record<string, { sinIva: number; conIva: number }> = {};
+
+      customSpecialTariffs.forEach((t) => {
+        const cleanTariff = t.name.toUpperCase().trim();
+        const cleanTariffNoSpace = cleanTariff.replace(/\s+/g, '');
+        const normNoTariff = cleanTariff.replace(/^TARIFA\s+/, '').trim();
+        const num = normNoTariff.replace(/[^0-9]/g, '');
+
+        allStations.forEach((st) => {
+          const isPropia = st.type === 'PROPIA';
+          const prices = getTariffPricesForStation(t.name, t.markup, st.name, isPropia);
+          const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+
+          const keys = [
+            `${cleanTariff}::${st.name}`,
+            `${cleanTariff}::${cleanTarget}`,
+            `${cleanTariff}::ES ${cleanTarget}`,
+            `${cleanTariffNoSpace}::${st.name}`,
+            `${cleanTariffNoSpace}::${cleanTarget}`,
+            `${cleanTariffNoSpace}::ES ${cleanTarget}`,
+            `TARIFA ${cleanTariff}::${st.name}`,
+            `TARIFA ${cleanTariff}::${cleanTarget}`,
+            `TARIFA ${cleanTariff}::ES ${cleanTarget}`,
+            `TARIFA ${normNoTariff}::${st.name}`,
+            `TARIFA ${normNoTariff}::${cleanTarget}`,
+            `TARIFA ${normNoTariff}::ES ${cleanTarget}`,
+            `${normNoTariff}::${st.name}`,
+            `${normNoTariff}::${cleanTarget}`,
+            `${normNoTariff}::ES ${cleanTarget}`,
+            `${t.name}::${st.name}`,
+            `${t.name}::${cleanTarget}`,
+          ];
+
+          if (num) {
+            keys.push(
+              `PREPAGO ${num}::${st.name}`,
+              `PREPAGO ${num}::${cleanTarget}`,
+              `PREPAGO ${num}::ES ${cleanTarget}`,
+              `TARIFA PREPAGO ${num}::${st.name}`,
+              `TARIFA PREPAGO ${num}::${cleanTarget}`,
+              `TARIFA PREPAGO ${num}::ES ${cleanTarget}`,
+              `PREPAGO${num}::${st.name}`,
+              `PREPAGO${num}::${cleanTarget}`,
+              `PREPAGO${num}::ES ${cleanTarget}`,
+              `TARIFA PREPAGO${num}::${st.name}`,
+              `TARIFA PREPAGO${num}::${cleanTarget}`,
+              `TARIFA PREPAGO${num}::ES ${cleanTarget}`
+            );
+          }
+
+          keys.forEach((k) => {
+            cache[k] = prices.conIva;
+          });
+
+          fullCache[`${cleanTariff}::${st.name}`] = { sinIva: prices.sinIva, conIva: prices.conIva };
+          fullCache[`TARIFA ${cleanTariff}::${st.name}`] = { sinIva: prices.sinIva, conIva: prices.conIva };
+          if (num) {
+            fullCache[`TARIFA PREPAGO ${num}::${st.name}`] = { sinIva: prices.sinIva, conIva: prices.conIva };
+            fullCache[`PREPAGO ${num}::${st.name}`] = { sinIva: prices.sinIva, conIva: prices.conIva };
+          }
+        });
+      });
+
+      localStorage.setItem('efi_sabana_custom_special_table_cache_v1', JSON.stringify(cache));
+      localStorage.setItem(`efi_sabana_custom_special_table_cache_${selectedDate}`, JSON.stringify(cache));
+      localStorage.setItem('efi_sabana_custom_special_table_full_v1', JSON.stringify(fullCache));
+
+      // Publicar también Tarifas Estándar (incluyendo Tarifa 60 con IVA para la ventana POSTES)
+      const stdCache: Record<string, number> = {};
+      const stdFullCache: Record<string, { sinIva: number; conIva: number }> = {};
+
+      effectiveStandardTariffs.forEach((t) => {
+        const cleanTariff = t.name.toUpperCase().trim();
+        const cleanTariffNoSpace = cleanTariff.replace(/\s+/g, '');
+
+        allStations.forEach((st) => {
+          const isPropia = st.type === 'PROPIA';
+          const prices = getTariffPricesForStation(t.name, t.markup, st.name, isPropia);
+          const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+
+          const keys = [
+            `T${cleanTariff}::${st.name}`,
+            `T${cleanTariff}::${cleanTarget}`,
+            `T${cleanTariff}::ES ${cleanTarget}`,
+            `${cleanTariff}::${st.name}`,
+            `${cleanTariff}::${cleanTarget}`,
+            `${cleanTariff}::ES ${cleanTarget}`,
+            `TARIFA ${cleanTariff}::${st.name}`,
+            `TARIFA ${cleanTariff}::${cleanTarget}`,
+            `TAR_${cleanTariff}_${st.name}`,
+            `TAR_${cleanTariff}_${cleanTarget}`,
+            `STD_${st.name}_T${cleanTariff}`,
+            `STD_${cleanTarget}_T${cleanTariff}`,
+          ];
+
+          keys.forEach((k) => {
+            stdCache[k] = prices.conIva;
+            stdCache[k.toUpperCase()] = prices.conIva;
+          });
+
+          stdFullCache[`${cleanTariff}::${st.name}`] = { sinIva: prices.sinIva, conIva: prices.conIva };
+        });
+      });
+
+      localStorage.setItem('efi_sabana_standard_table_cache_v1', JSON.stringify(stdCache));
+      localStorage.setItem(`efi_sabana_standard_table_cache_${selectedDate}`, JSON.stringify(stdCache));
+      localStorage.setItem('efi_sabana_standard_table_full_v1', JSON.stringify(stdFullCache));
+
+      window.dispatchEvent(new Event('efi_export_updated'));
+      window.dispatchEvent(new Event('efi_sabana_updated'));
+    } catch (e) {}
+  }, [
+    customSpecialTariffs,
+    effectiveStandardTariffs,
+    allStations,
+    resolvedFormulas,
+    tariffSourcesMapping,
+    modifiedTariffsConfig,
+    comprasPurchases,
+    specialRates,
+    postesData,
+    selectedDate,
+  ]);
+
   // Helper para resolver fuente personalizada o sobreescritura de tarifas especiales
   const getSpecialCustomConfig = (specialTariffName: string, stName: string, isPropia?: boolean) => {
     const cleanTariff = specialTariffName.toUpperCase().trim();
@@ -806,7 +1000,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         : null);
 
     if (customCfg && customCfg.sourceType && customCfg.sourceType !== 'DEFAULT') {
-      const baseVal = resolveCustomSourceValue(customCfg.sourceType, stName, isPropia, customCfg.manualPriceSinIva);
+      const baseVal = resolveCustomSourceValue(customCfg.sourceType, stName, !!isPropia, customCfg.manualPriceSinIva);
       const diff = customCfg.markupDiff ?? 0;
       return {
         sinIva: Number((baseVal + diff).toFixed(3)),
@@ -2382,7 +2576,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Botón Crear y Modificar Tarifas */}
+            {/* Botón Crear, Modificar y Eliminar Tarifas */}
             <button
               onClick={() => {
                 setTariffManagerInitialId(undefined);
@@ -2391,7 +2585,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/25 transition-all active:scale-95"
             >
               <Sliders className="h-4 w-4" />
-              <span>Crear / Modificar Tarifas</span>
+              <span>Crear / Modificar / Eliminar Tarifas</span>
             </button>
 
             {/* Botón Formular */}
@@ -3011,6 +3205,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         onCreateTariff={handleCreateTariff}
         onUpdateTariff={handleUpdateTariff}
         onDeleteTariff={handleDeleteTariff}
+        deletedTariffs={deletedTariffsForManager}
+        onRestoreTariff={handleRestoreTariff}
         sourcesMapping={tariffSourcesMapping}
         onSaveSourceMapping={handleSaveSourceMapping}
         selectedDate={selectedDate}

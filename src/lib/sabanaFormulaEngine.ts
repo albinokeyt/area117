@@ -157,6 +157,14 @@ export function getProgramVariables(
     if (s) postesStorage = JSON.parse(s);
   } catch (e) {}
 
+  let postesFormulas: Record<string, CellFormula> = {};
+  try {
+    const pfDate = localStorage.getItem(`efi_postes_custom_formulas_${selectedDate}`);
+    const pfGlob = localStorage.getItem('efi_postes_custom_formulas_global');
+    if (pfDate) postesFormulas = JSON.parse(pfDate) || {};
+    else if (pfGlob) postesFormulas = JSON.parse(pfGlob) || {};
+  } catch (e) {}
+
   const defaultPostesProp: Record<string, { goa: number; gas: number; gain: number }> = {
     "ARCOS": { goa: 1.702, gas: 0, gain: 0 },
     "ALCUBILLAS": { goa: 1.799, gas: 1.799, gain: 0.271 },
@@ -175,17 +183,60 @@ export function getProgramVariables(
 
   Object.entries(defaultPostesProp).forEach(([stName, def]) => {
     const saved = postesStorage?.postes?.[stName];
-    const goa = saved?.goa ? parseNum(saved.goa) : def.goa;
-    const gas = saved?.gasolina ? parseNum(saved.gasolina) : def.gas;
-    const gain = saved?.gasolinaGain ? parseNum(saved.gasolinaGain) : def.gain;
+    const rawGoa = saved?.goa ? parseNum(saved.goa) : def.goa;
+    const goaFormula = postesFormulas[`POSTE_${stName}_GOA`];
+    const goa = goaFormula ? goaFormula.evaluatedValue : rawGoa;
+
+    const rawGas = saved?.gasolina ? parseNum(saved.gasolina) : def.gas;
+    const gasFormula = postesFormulas[`POSTE_${stName}_GASOLINA`];
+    const gas = gasFormula ? gasFormula.evaluatedValue : rawGas;
+
+    const rawGain = saved?.gasolinaGain ? parseNum(saved.gasolinaGain) : def.gain;
+    const gainFormula = postesFormulas[`POSTE_${stName}_MARGEN_GASOLINA`];
+    const gain = gainFormula ? gainFormula.evaluatedValue : rawGain;
+
     const norm = stName.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
 
+    // Tarifa 60 con IVA y Margen GOA
+    const t60ConIva = getSabanaTariff60ConIvaForStation(stName, selectedDate);
+    const margenGoaFormula = postesFormulas[`POSTE_${stName}_MARGEN_GOA`];
+    const margenGoa = margenGoaFormula ? margenGoaFormula.evaluatedValue : round3(t60ConIva - goa);
+
+    const goaPremiumFormula = postesFormulas[`POSTE_${stName}_GOA_PREMIUM`];
+    const goaPremium = goaPremiumFormula ? goaPremiumFormula.evaluatedValue : round3(goa + 0.04);
+
     addVar("postes", "Postes", "Postes Estaciones Propias", "POSTES:" + norm + ":POSTE_GOA", "Poste GOA (" + stName + ")", goa, stName);
+    addVar("postes", "Postes", "Postes Estaciones Propias", "POSTES:" + norm + ":MARGEN_GOA", "Margen GOA (" + stName + ")", margenGoa, stName);
+    addVar("postes", "Postes", "Postes Estaciones Propias", "POSTES:" + norm + ":GOA_PREMIUM", "GOA Premium (" + stName + ")", goaPremium, stName);
+    addVar("postes", "Postes", "Postes Estaciones Propias", "POSTES:" + norm + ":T60_CON_IVA", "Tarifa 60 Con IVA (" + stName + ")", t60ConIva, stName);
+
     if (def.gas > 0 || gas > 0) {
       addVar("postes", "Postes", "Postes Estaciones Propias", "POSTES:" + norm + ":POSTE_GASOLINA", "Poste Gasolina (" + stName + ")", gas, stName);
       addVar("postes", "Postes", "Postes Estaciones Propias", "POSTES:" + norm + ":MARGEN_GASOLINA", "Margen Gasolina (" + stName + ")", gain, stName);
     }
   });
+
+  // HVO
+  const hvoBase = postesStorage?.hvoGeneralBase ? parseNum(postesStorage.hvoGeneralBase) : 1.285;
+  const hvoAdd = postesStorage?.hvoGeneralAddition ? parseNum(postesStorage.hvoGeneralAddition) : 0.243;
+  const hvoSinIva = round3(hvoBase + hvoAdd);
+  const hvoConIva = round3(hvoSinIva * 1.21);
+  const hvoAlfaSinIva = postesStorage?.hvoAlfajarinSinIva && parseNum(postesStorage.hvoAlfajarinSinIva) > 0 ? parseNum(postesStorage.hvoAlfajarinSinIva) : hvoSinIva;
+  const hvoAlfaConIva = round3(hvoAlfaSinIva * 1.21);
+  const valGoaPoste = defaultPostesProp["VALDEMORO"]?.goa || 1.649;
+  const hvoValAdd = postesStorage?.hvoValdemoroAddition ? parseNum(postesStorage.hvoValdemoroAddition) : 0.07;
+  const hvoValConIva = round3(valGoaPoste + hvoValAdd);
+  const hvoValSinIva = round3(hvoValConIva / 1.21);
+
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_GENERAL_BASE", "HVO General Base Sin IVA", hvoBase);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_GENERAL_ADD", "HVO General Monto Sumar", hvoAdd);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_GENERAL_SIN_IVA", "HVO General Sin IVA", hvoSinIva);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_GENERAL_CON_IVA", "HVO General Con IVA", hvoConIva);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_ALFAJARIN_SIN_IVA", "HVO Alfajarin Sin IVA", hvoAlfaSinIva);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_ALFAJARIN_CON_IVA", "HVO Alfajarin Con IVA", hvoAlfaConIva);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_VALDEMORO_ADD", "HVO Valdemoro Monto Sumar", hvoValAdd);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_VALDEMORO_CON_IVA", "HVO Valdemoro Con IVA", hvoValConIva);
+  addVar("postes", "Postes", "HVO", "POSTES:HVO_VALDEMORO_SIN_IVA", "HVO Valdemoro Sin IVA", hvoValSinIva);
 
   // Gasoleo B
   const gasoleoBRows = postesStorage?.gasoleoBRows || {
@@ -203,6 +254,28 @@ export function getProgramVariables(
     addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_TRANSFRIRED", "Gasoleo B Transfrired (" + stName + ")", transferNum, stName);
     addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_TRANSFRIRED_CON_IVA", "Gasoleo B Transfrired Con IVA (" + stName + ")", transConIva, stName);
     addVar("postes", "Postes", "Gasoleo B", "POSTES:" + norm + ":GOB_POSTE", "Gasoleo B Poste (" + stName + ")", parseNum(row.poste), stName);
+  });
+
+  // AdBlue (10 Estaciones Clave)
+  const adblueRows = postesStorage?.adblue || {
+    'TORREJON': { compra: '0.536', poste: '0.849' },
+    'ARCOS JALON': { compra: '0.265', poste: '0.749' },
+    'ALFAJARIN': { compra: '0.400', poste: '0.849' },
+    'TORREMOCHA': { compra: '0.265', poste: '0.749' },
+    'MADRID': { compra: '0.536', poste: '0.849' },
+    'VALLECAS': { compra: '0.619', poste: '0.849' },
+    'HUMILLADERO': { compra: '0.577', poste: '0.790' },
+    'UCLES': { compra: '0.300', poste: '0.799' },
+    'BENAMEJI': { compra: '0.536', poste: '0.799' },
+    'SORIA ALCUBILLAS': { compra: '0.255', poste: '0.849' },
+  };
+
+  Object.entries(adblueRows).forEach(([stName, data]: [string, any]) => {
+    const norm = stName.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+    const cNum = parseNum(data.compra);
+    const pNum = parseNum(data.poste);
+    addVar("postes", "Postes", "AdBlue", "POSTES:" + norm + ":ADBLUE_COMPRA", "AdBlue Compra (" + stName + ")", cNum, stName);
+    addVar("postes", "Postes", "AdBlue", "POSTES:" + norm + ":ADBLUE_POSTE", "AdBlue Poste (" + stName + ")", pNum, stName);
   });
 
   // 4. TARIFAS ESPECIALES (B50:F82 en Compras)
@@ -585,4 +658,405 @@ export function clearAllSabanaFormulas(selectedDate: string): void {
     window.dispatchEvent(new Event("efi_sabana_updated"));
     window.dispatchEvent(new Event("storage"));
   } catch (e) {}
+}
+
+/**
+ * Obtiene el precio CON IVA exacto de la TARIFA 60 de la Sábana de Precios para una estación dada.
+ * Prioriza:
+ * 1. Caché publicada de la tabla de tarifas estándar de Sábana de Precios.
+ * 2. Evaluación de fórmulas personalizadas (fx) de la celda de T60 Con IVA o Sin IVA (* 1.21).
+ * 3. Configuración de margen modificado o fuente personalizada.
+ * 4. Cálculo estándar: (Precio Base Compras + Margen T60 [0.0800]) * 1.21.
+ * Maneja equivalencias de nombres de estaciones (ej. ARCOS <-> ARCOS JALON, GANESHA MADRID <-> MADRID, etc.).
+ */
+export function getSabanaTariff60ConIvaForStation(
+  stName: string,
+  selectedDate?: string
+): number {
+  if (typeof window === 'undefined') return 0;
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  let activeDate = selectedDate || '';
+  try {
+    if (!activeDate) {
+      activeDate = localStorage.getItem('efi_compras_valid_from') || todayStr;
+    }
+  } catch (e) {
+    activeDate = todayStr;
+  }
+
+  // 1. Generar lista exhaustiva de nombres/alias para la estación
+  const upper = stName.toUpperCase().trim();
+  const clean = upper.replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+  const aliases = new Set<string>([upper, clean, `ES ${clean}`, `GANESHA ${clean}`]);
+
+  if (clean === 'ARCOS' || clean === 'ARCOS JALON') {
+    aliases.add('ARCOS');
+    aliases.add('ARCOS JALON');
+    aliases.add('ES ARCOS JALON');
+  }
+  if (clean === 'ALCUBILLAS' || clean === 'SORIA ALCUBILLAS') {
+    aliases.add('ALCUBILLAS');
+    aliases.add('SORIA ALCUBILLAS');
+    aliases.add('ES SORIA ALCUBILLAS');
+  }
+  if (clean === 'MADRID') {
+    aliases.add('MADRID');
+    aliases.add('GANESHA MADRID');
+    aliases.add('ES MADRID');
+  }
+  if (clean === 'TORREJON') {
+    aliases.add('TORREJON');
+    aliases.add('GANESHA TORREJON');
+    aliases.add('ES TORREJON');
+  }
+  if (clean === 'VALDEMORO') {
+    aliases.add('VALDEMORO');
+    aliases.add('ES VALDEMORO');
+  }
+  if (clean === 'RIBA-ROJA' || clean === 'RIBA ROJA') {
+    aliases.add('RIBA-ROJA');
+    aliases.add('ES RIBA-ROJA');
+    aliases.add('RIBA ROJA');
+  }
+  if (clean === 'PISTA DE SILLA' || clean === 'PISTA SILLA') {
+    aliases.add('PISTA DE SILLA');
+    aliases.add('ES PISTA DE SILLA');
+    aliases.add('PISTA SILLA');
+  }
+  if (clean === 'REAL DE GANDIA' || clean === 'GANDIA') {
+    aliases.add('REAL DE GANDIA');
+    aliases.add('ES REAL DE GANDIA');
+    aliases.add('GANDIA');
+  }
+  if (clean === 'CHIVA') {
+    aliases.add('CHIVA');
+    aliases.add('ES CHIVA');
+  }
+  if (clean === 'ALBERIC') {
+    aliases.add('ALBERIC');
+    aliases.add('ES ALBERIC');
+  }
+  if (clean === 'CATARROJA') {
+    aliases.add('CATARROJA');
+    aliases.add('ES CATARROJA');
+  }
+  if (clean.includes('MANISES')) {
+    aliases.add('MANISES');
+    aliases.add('MANISES - EXOIL');
+  }
+
+  const aliasList = Array.from(aliases);
+
+  // 2. Comprobar caché de Sábana de Precios (publicada por SabanaPreciosManager)
+  const checkCache = (cacheKey: string): number | null => {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+
+      for (const al of aliasList) {
+        const candidateKeys = [
+          `T60::${al}`,
+          `60::${al}`,
+          `TARIFA 60::${al}`,
+          `STD_${al}_T60`,
+          `TAR_60_${al}`,
+        ];
+        for (const ck of candidateKeys) {
+          if (parsed[ck] !== undefined && typeof parsed[ck] === 'number' && parsed[ck] > 0) {
+            return parsed[ck];
+          }
+          const up = ck.toUpperCase();
+          if (parsed[up] !== undefined && typeof parsed[up] === 'number' && parsed[up] > 0) {
+            return parsed[up];
+          }
+        }
+      }
+
+      // Estructura fullCache { "60::station": { sinIva, conIva } }
+      for (const al of aliasList) {
+        const fullKey = `60::${al}`;
+        if (parsed[fullKey]?.conIva && typeof parsed[fullKey].conIva === 'number' && parsed[fullKey].conIva > 0) {
+          return parsed[fullKey].conIva;
+        }
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  const cachedVal =
+    checkCache(`efi_sabana_standard_table_cache_${activeDate}`) ||
+    checkCache(`efi_sabana_standard_table_cache_${todayStr}`) ||
+    checkCache('efi_sabana_standard_table_cache_v1') ||
+    checkCache('efi_sabana_standard_table_full_v1');
+
+  if (cachedVal !== null && cachedVal > 0) {
+    return cachedVal;
+  }
+
+  // 3. Evaluar fórmulas personalizadas de Sábana
+  let purchasesData: Record<string, any> = {};
+  try {
+    const sDate = localStorage.getItem('efi_purchases_' + activeDate);
+    const sGlob = localStorage.getItem('efi_compras_data');
+    if (sDate) purchasesData = JSON.parse(sDate).data || {};
+    else if (sGlob) purchasesData = JSON.parse(sGlob).data || {};
+  } catch (e) {}
+
+  let specialRates: any[] = [];
+  try {
+    const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
+    if (sp) specialRates = JSON.parse(sp);
+  } catch (e) {}
+
+  const rawFormulas = loadSabanaFormulas(activeDate);
+  const resolvedFormulas = reevaluateAllSabanaFormulas(rawFormulas, activeDate, purchasesData, specialRates);
+  const allFormulas = { ...rawFormulas, ...resolvedFormulas };
+
+  // a) Buscar fórmula Con IVA específica
+  for (const al of aliasList) {
+    const cleanAl = al.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+    const conKeys = [
+      `STD_${al}_T60_conIva`,
+      `STD_${cleanAl}_T60_conIva`,
+      `TAR_60_${al}_conIva`,
+      `TAR_60_${cleanAl}_conIva`,
+    ];
+    for (const k of conKeys) {
+      const f = allFormulas[k];
+      if (f && typeof f.evaluatedValue === 'number' && f.evaluatedValue > 0) {
+        return f.evaluatedValue;
+      }
+    }
+  }
+
+  // b) Búsqueda flexible para fórmulas con IVA que contengan 60 y el nombre de la estación
+  for (const [fKey, fVal] of Object.entries(allFormulas)) {
+    if (!fVal || typeof fVal.evaluatedValue !== 'number' || fVal.evaluatedValue <= 0) continue;
+    const upperKey = fKey.toUpperCase();
+    if (!upperKey.includes('60')) continue;
+    if (upperKey.includes('CONIVA')) {
+      const normKey = upperKey.replace(/[^A-Z0-9]/g, '');
+      const isMatch = aliasList.some((al) => {
+        const normAl = al.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        return normKey.includes(normAl);
+      });
+      if (isMatch) return fVal.evaluatedValue;
+    }
+  }
+
+  // c) Buscar si hay fórmula en Sin IVA (* 1.21)
+  for (const al of aliasList) {
+    const cleanAl = al.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+    const sinKeys = [
+      `STD_${al}_T60_sinIva`,
+      `STD_${cleanAl}_T60_sinIva`,
+      `TAR_60_${al}_sinIva`,
+      `TAR_60_${cleanAl}_sinIva`,
+    ];
+    for (const k of sinKeys) {
+      const f = allFormulas[k];
+      if (f && typeof f.evaluatedValue === 'number' && f.evaluatedValue > 0) {
+        return round3(f.evaluatedValue * 1.21);
+      }
+    }
+  }
+
+  for (const [fKey, fVal] of Object.entries(allFormulas)) {
+    if (!fVal || typeof fVal.evaluatedValue !== 'number' || fVal.evaluatedValue <= 0) continue;
+    const upperKey = fKey.toUpperCase();
+    if (!upperKey.includes('60')) continue;
+    if (upperKey.includes('SINIVA')) {
+      const normKey = upperKey.replace(/[^A-Z0-9]/g, '');
+      const isMatch = aliasList.some((al) => {
+        const normAl = al.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        return normKey.includes(normAl);
+      });
+      if (isMatch) return round3(fVal.evaluatedValue * 1.21);
+    }
+  }
+
+  // 4. Margen modificado para la Tarifa 60 (por defecto 0.0800)
+  let effectiveMarkup = 0.0800;
+  try {
+    const savedMods = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+    if (savedMods) {
+      const parsedMods = JSON.parse(savedMods);
+      if (parsedMods['60']?.markup !== undefined) effectiveMarkup = parsedMods['60'].markup;
+      else if (parsedMods['TARIFA 60']?.markup !== undefined) effectiveMarkup = parsedMods['TARIFA 60'].markup;
+    }
+  } catch (e) {}
+
+  // 5. Calcular Precio Base según la lógica de Sábana de Precios
+  let basePrice = 0;
+
+  for (const al of aliasList) {
+    const keyGoa = `${al}_GOA`;
+    if (purchasesData[keyGoa]?.sale) {
+      basePrice = parseNum(purchasesData[keyGoa].sale);
+      if (basePrice > 0) break;
+    }
+  }
+
+  if (!basePrice || basePrice <= 0) {
+    const matchedKey = Object.keys(purchasesData).find((k) => {
+      if (!k.endsWith('_GOA')) return false;
+      const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+      return aliasList.some((al) => {
+        const cleanAl = al.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+        return baseK === cleanAl || baseK.includes(cleanAl) || cleanAl.includes(baseK);
+      });
+    });
+    if (matchedKey && purchasesData[matchedKey]?.sale) {
+      basePrice = parseNum(purchasesData[matchedKey].sale);
+    }
+  }
+
+  if (!basePrice || basePrice <= 0) {
+    for (const al of aliasList) {
+      const cleanAl = al.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+      if (OFFICIAL_SUGGESTED_SALE_PRICES[cleanAl] !== undefined) {
+        basePrice = OFFICIAL_SUGGESTED_SALE_PRICES[cleanAl];
+        break;
+      }
+      if (OFFICIAL_SUGGESTED_SALE_PRICES[al] !== undefined) {
+        basePrice = OFFICIAL_SUGGESTED_SALE_PRICES[al];
+        break;
+      }
+    }
+  }
+
+  if (!basePrice || basePrice <= 0) {
+    const allCosts = typeof window !== 'undefined' ? getStationExcelCosts() : STATION_EXCEL_COSTS;
+    let foundCost: any = null;
+    for (const al of aliasList) {
+      if (allCosts[al]) {
+        foundCost = allCosts[al];
+        break;
+      }
+      const cleanAl = al.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+      if (allCosts[cleanAl]) {
+        foundCost = allCosts[cleanAl];
+        break;
+      }
+    }
+    if (!foundCost) {
+      foundCost = {
+        porte: 0.0050,
+        pase: 0.0100,
+        fin: 0.0100,
+        defaultCurr: 1.2000,
+      };
+    }
+    basePrice = Number((foundCost.defaultCurr + foundCost.porte + foundCost.pase + foundCost.fin).toFixed(3));
+  }
+
+  const sinIva = Number((basePrice + effectiveMarkup).toFixed(3));
+  return Number((sinIva * 1.21).toFixed(3));
+}
+
+// -------------------------------------------------------------
+// GESTIÓN DE FÓRMULAS PERSONALIZADAS PARA LA VENTANA DE POSTES
+// -------------------------------------------------------------
+
+export function loadPostesFormulas(selectedDate: string): Record<string, CellFormula> {
+  try {
+    const sDate = localStorage.getItem("efi_postes_custom_formulas_" + selectedDate);
+    const sGlob = localStorage.getItem("efi_postes_custom_formulas_global");
+    if (sDate) {
+      const parsed = JSON.parse(sDate);
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+    if (sGlob) {
+      const parsed = JSON.parse(sGlob);
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+  } catch (e) {}
+  return {};
+}
+
+export function savePostesFormula(
+  selectedDate: string,
+  cellKey: string,
+  formula: CellFormula
+): Record<string, CellFormula> {
+  const current = loadPostesFormulas(selectedDate);
+  const updated = {
+    ...current,
+    [cellKey]: {
+      ...formula,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+
+  try {
+    localStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
+    localStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
+    window.dispatchEvent(new Event("efi_postes_updated"));
+    window.dispatchEvent(new Event("storage"));
+  } catch (e) {}
+
+  return updated;
+}
+
+export function removePostesFormula(
+  selectedDate: string,
+  cellKey: string
+): Record<string, CellFormula> {
+  const current = loadPostesFormulas(selectedDate);
+  const updated = { ...current };
+  delete updated[cellKey];
+
+  try {
+    localStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
+    localStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
+    window.dispatchEvent(new Event("efi_postes_updated"));
+    window.dispatchEvent(new Event("storage"));
+  } catch (e) {}
+
+  return updated;
+}
+
+export function clearAllPostesFormulas(selectedDate: string): void {
+  try {
+    localStorage.removeItem("efi_postes_custom_formulas_" + selectedDate);
+    localStorage.removeItem("efi_postes_custom_formulas_global");
+    window.dispatchEvent(new Event("efi_postes_updated"));
+    window.dispatchEvent(new Event("storage"));
+  } catch (e) {}
+}
+
+export function reevaluateAllPostesFormulas(
+  customFormulas: Record<string, CellFormula>,
+  selectedDate: string
+): Record<string, CellFormula> {
+  if (!customFormulas || Object.keys(customFormulas).length === 0) {
+    return {};
+  }
+
+  const { map } = getProgramVariables(selectedDate);
+  const current = { ...customFormulas };
+
+  for (const [cellKey, cellData] of Object.entries(current)) {
+    if (!cellData || !cellData.rawFormula) continue;
+    let stationName: string | undefined = undefined;
+    const allStations = typeof window !== 'undefined' ? getAllStations() : [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
+    for (const st of allStations) {
+      if (cellKey.includes(st.name)) {
+        stationName = st.name;
+        break;
+      }
+    }
+    const evalRes = evaluateFormula(cellData.rawFormula, map, { stationName });
+    if (evalRes.success) {
+      current[cellKey] = {
+        ...cellData,
+        evaluatedValue: evalRes.value,
+      };
+    }
+  }
+
+  return current;
 }

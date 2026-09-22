@@ -40,7 +40,7 @@ body {
   }
 
   @page {
-    margin: 0 !important;
+    margin: 8mm 10mm !important;
     size: A4 portrait;
   }
 
@@ -50,9 +50,9 @@ body {
   }
 
   .printable-document {
-    background: #ffffff !important;
+    background: transparent !important;
     color: #000000 !important;
-    padding: 12mm 10mm !important;
+    padding: 0 !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
@@ -61,13 +61,36 @@ body {
     box-sizing: border-box !important;
   }
 
+  .printable-page {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .printable-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
   table {
-    page-break-inside: auto;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     width: 100% !important;
   }
 
   tr {
-    page-break-inside: avoid;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     page-break-after: auto;
   }
 

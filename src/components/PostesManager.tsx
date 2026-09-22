@@ -6,8 +6,20 @@ import { getPostesStations } from '@/lib/stationsService';
 import {
   Layers, Flame, Zap, Droplet, Check, Save, Sparkles,
   TrendingUp, ArrowRightLeft, Fuel, ShieldCheck, Gauge,
-  Download, Image as ImageIcon
+  Download, Image as ImageIcon, Calculator, RotateCcw
 } from 'lucide-react';
+import {
+  CellFormula,
+  getSabanaTariff60ConIvaForStation,
+  loadPostesFormulas,
+  savePostesFormula,
+  removePostesFormula,
+  clearAllPostesFormulas,
+  reevaluateAllPostesFormulas,
+  getProgramVariables,
+  evaluateFormula
+} from '@/lib/sabanaFormulaEngine';
+import { SabanaFormulaModal } from '@/components/SabanaFormulaModal';
 
 // Configuración oficial de fórmulas de costes de Gasolina de la Columna D de CALCULO INICIAL
 // Fórmula: Margen Gasolina = Precio Poste - (Base + Porte + Pase) * 1.21
@@ -256,25 +268,261 @@ export function PostesManager() {
     }
   });
 
+  // Estados de Modo Formular para Postes
+  const [isFormulaMode, setIsFormulaMode] = useState<boolean>(false);
+  const [customPostesFormulas, setCustomPostesFormulas] = useState<Record<string, CellFormula>>(() => {
+    return loadPostesFormulas(validFromDate);
+  });
+
+  // Reevaluación en vivo de todas las fórmulas de Postes en función del contexto global
+  const resolvedPostesFormulas = useMemo(() => {
+    return reevaluateAllPostesFormulas(customPostesFormulas, validFromDate);
+  }, [customPostesFormulas, validFromDate, postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, gasoleoBRows, adblueRows, broncoRow, gasesRows]);
+
+  // Sincronizar fórmulas recalculadas a localStorage si cambiaron
+  useEffect(() => {
+    let hasDiff = false;
+    for (const [key, item] of Object.entries(resolvedPostesFormulas)) {
+      if (customPostesFormulas[key]?.evaluatedValue !== item.evaluatedValue) {
+        hasDiff = true;
+        break;
+      }
+    }
+    if (hasDiff) {
+      try {
+        localStorage.setItem(`efi_postes_custom_formulas_${validFromDate}`, JSON.stringify(resolvedPostesFormulas));
+        localStorage.setItem('efi_postes_custom_formulas_global', JSON.stringify(resolvedPostesFormulas));
+      } catch (e) {}
+    }
+  }, [resolvedPostesFormulas, validFromDate, customPostesFormulas]);
+
+  const [activeModalCell, setActiveModalCell] = useState<{
+    cellKey: string;
+    cellTitle: string;
+    defaultValue: number;
+    currentFormula?: string;
+    columnLabel?: string;
+    onApplyToColumn?: (formulaStr: string) => void;
+  } | null>(null);
+
   const [, setComprasUpdateTick] = useState(0);
 
   useEffect(() => {
     const handleUpdates = () => {
       try {
         const saved = localStorage.getItem('efi_compras_valid_from');
-        if (saved) setValidFromDate(saved);
-      } catch (e) {}
+        if (saved) {
+          setValidFromDate(saved);
+          setCustomPostesFormulas(loadPostesFormulas(saved));
+        } else {
+          setCustomPostesFormulas(loadPostesFormulas(validFromDate));
+        }
+      } catch (e) {
+        setCustomPostesFormulas(loadPostesFormulas(validFromDate));
+      }
       setComprasUpdateTick((t) => t + 1);
     };
     window.addEventListener('efi_valid_date_changed', handleUpdates);
     window.addEventListener('efi_compras_updated', handleUpdates);
+    window.addEventListener('efi_sabana_updated', handleUpdates);
+    window.addEventListener('efi_export_updated', handleUpdates);
+    window.addEventListener('efi_postes_updated', handleUpdates);
     window.addEventListener('storage', handleUpdates);
     return () => {
       window.removeEventListener('efi_valid_date_changed', handleUpdates);
       window.removeEventListener('efi_compras_updated', handleUpdates);
+      window.removeEventListener('efi_sabana_updated', handleUpdates);
+      window.removeEventListener('efi_export_updated', handleUpdates);
+      window.removeEventListener('efi_postes_updated', handleUpdates);
       window.removeEventListener('storage', handleUpdates);
     };
-  }, []);
+  }, [validFromDate]);
+
+  // Guardar fórmula en celda de Postes
+  const handleSaveFormula = (cellKey: string, rawFormula: string, evaluatedValue: number) => {
+    const updated = savePostesFormula(validFromDate, cellKey, {
+      rawFormula,
+      evaluatedValue,
+      updatedAt: new Date().toISOString(),
+    });
+    setCustomPostesFormulas(updated);
+
+    // Sincronizar en el estado correspondiente de Postes para que los cálculos e imágenes se actualicen
+    postesStations.forEach((st) => {
+      if (cellKey === `POSTE_${st.name}_GOA`) {
+        const valStr = formatNum(evaluatedValue, 3);
+        setPostes((prev) => ({
+          ...prev,
+          [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), goa: valStr },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`poste_${st.name}_goa`));
+      } else if (cellKey === `POSTE_${st.name}_GASOLINA`) {
+        const valStr = formatNum(evaluatedValue, 3);
+        setPostes((prev) => ({
+          ...prev,
+          [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), gasolina: valStr },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`poste_${st.name}_gasolina`));
+      } else if (cellKey === `POSTE_${st.name}_MARGEN_GASOLINA`) {
+        const valStr = formatNum(evaluatedValue, 3);
+        setPostes((prev) => ({
+          ...prev,
+          [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), gasolinaGain: valStr },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`poste_${st.name}_gasolinaGain`));
+      }
+    });
+
+    // Casos HVO
+    if (cellKey === 'POSTE_HVO_GENERAL_BASE') {
+      setHvoGeneralBase(formatNum(evaluatedValue, 3));
+      setModifiedKeys((prev) => new Set(prev).add('hvo_gen_base'));
+    } else if (cellKey === 'POSTE_HVO_GENERAL_ADD') {
+      setHvoGeneralAddition(formatNum(evaluatedValue, 3));
+      setModifiedKeys((prev) => new Set(prev).add('hvo_gen_add'));
+    } else if (cellKey === 'POSTE_HVO_ALFAJARIN_SIN_IVA') {
+      setHvoAlfajarinSinIva(formatNum(evaluatedValue, 3));
+      setModifiedKeys((prev) => new Set(prev).add('hvo_alfajarin'));
+    } else if (cellKey === 'POSTE_HVO_VALDEMORO_ADD') {
+      setHvoValdemoroAddition(formatNum(evaluatedValue, 3));
+      setModifiedKeys((prev) => new Set(prev).add('hvo_valdemoro_add'));
+    }
+
+    // Casos Gasóleo B
+    ['UCLES', 'TORREMOCHA', 'ARCOS'].forEach((stName) => {
+      if (cellKey === `POSTE_GASB_${stName}_COMPRA`) {
+        setGasoleoBRows((prev) => ({
+          ...prev,
+          [stName]: { ...prev[stName], compra: formatNum(evaluatedValue, 3) },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`gasb_${stName}`));
+      } else if (cellKey === `POSTE_GASB_${stName}_TRANSFER`) {
+        setGasoleoBRows((prev) => ({
+          ...prev,
+          [stName]: { ...prev[stName], transfer: formatNum(evaluatedValue, 3) },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`gasb_transfer_${stName}`));
+      } else if (cellKey === `POSTE_GASB_${stName}_POSTE`) {
+        setGasoleoBRows((prev) => ({
+          ...prev,
+          [stName]: { ...prev[stName], poste: formatNum(evaluatedValue, 3) },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`gasb_poste_${stName}`));
+      }
+    });
+
+    // Casos AdBlue
+    Object.keys(adblueRows).forEach((stName) => {
+      if (cellKey === `POSTE_ADBLUE_${stName}_COMPRA`) {
+        setAdblueRows((prev) => ({
+          ...prev,
+          [stName]: { ...prev[stName], compra: formatNum(evaluatedValue, 3) },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`adblue_${stName}`));
+      } else if (cellKey === `POSTE_ADBLUE_${stName}_POSTE`) {
+        setAdblueRows((prev) => ({
+          ...prev,
+          [stName]: { ...prev[stName], poste: formatNum(evaluatedValue, 3) },
+        }));
+        setModifiedKeys((prev) => new Set(prev).add(`adblue_${stName}`));
+      }
+    });
+
+    // Casos Bronco
+    if (cellKey === 'POSTE_BRONCO_SIN_IVA') {
+      setBroncoRow((prev) => ({ ...prev, sinIva: formatNum(evaluatedValue, 3) }));
+    } else if (cellKey === 'POSTE_BRONCO_CON_IVA') {
+      setBroncoRow((prev) => ({ ...prev, conIva: formatNum(evaluatedValue, 3) }));
+    } else if (cellKey === 'POSTE_BRONCO_BENEFICIO') {
+      setBroncoRow((prev) => ({ ...prev, beneficio: formatNum(evaluatedValue, 3) }));
+    } else if (cellKey === 'POSTE_BRONCO_COMPRA') {
+      setBroncoRow((prev) => ({ ...prev, compra: formatNum(evaluatedValue, 3) }));
+    }
+
+    setImageToast(`Fórmula guardada para ${cellKey}`);
+    setTimeout(() => setImageToast(null), 3000);
+  };
+
+  // Eliminar fórmula de celda
+  const handleRemoveFormula = (cellKey: string) => {
+    const updated = removePostesFormula(validFromDate, cellKey);
+    setCustomPostesFormulas(updated);
+    setImageToast(`Fórmula restablecida a valor original`);
+    setTimeout(() => setImageToast(null), 3000);
+  };
+
+  // Limpiar todas las fórmulas de Postes
+  const handleClearAllFormulas = () => {
+    if (window.confirm('¿Seguro que deseas eliminar todas las fórmulas personalizadas de la ventana de Postes y volver a los valores estándar?')) {
+      clearAllPostesFormulas(validFromDate);
+      setCustomPostesFormulas({});
+      setImageToast('Todas las fórmulas de Postes han sido restablecidas.');
+      setTimeout(() => setImageToast(null), 3000);
+    }
+  };
+
+  // Aplicar fórmula a toda la columna de Postes
+  const handleApplyFormulaToPostesColumn = (
+    columnType: 'goa' | 'margenGoa' | 'goaPremium' | 'gasolina' | 'margenGasolina',
+    rawFormula: string,
+    sourceStationName?: string
+  ) => {
+    const { map } = getProgramVariables(validFromDate);
+    const updatedFormulas = { ...customPostesFormulas };
+    const sourceNorm = sourceStationName ? sourceStationName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase() : '';
+
+    postesStations.forEach((st) => {
+      let cellKey = '';
+      if (columnType === 'goa') cellKey = `POSTE_${st.name}_GOA`;
+      else if (columnType === 'margenGoa') cellKey = `POSTE_${st.name}_MARGEN_GOA`;
+      else if (columnType === 'goaPremium') cellKey = `POSTE_${st.name}_GOA_PREMIUM`;
+      else if (columnType === 'gasolina') cellKey = `POSTE_${st.name}_GASOLINA`;
+      else if (columnType === 'margenGasolina') cellKey = `POSTE_${st.name}_MARGEN_GASOLINA`;
+
+      const targetNorm = st.name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+
+      let adaptedFormula = rawFormula;
+      if (sourceNorm && sourceStationName && targetNorm !== sourceNorm) {
+        adaptedFormula = adaptedFormula.split(sourceNorm).join(targetNorm);
+        adaptedFormula = adaptedFormula.split(sourceStationName).join(st.name);
+      }
+
+      const evalRes = evaluateFormula(adaptedFormula, map, { stationName: st.name });
+      if (evalRes.success) {
+        savePostesFormula(validFromDate, cellKey, {
+          rawFormula: adaptedFormula,
+          evaluatedValue: evalRes.value,
+          updatedAt: new Date().toISOString(),
+        });
+        updatedFormulas[cellKey] = {
+          rawFormula: adaptedFormula,
+          evaluatedValue: evalRes.value,
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (columnType === 'goa') {
+          setPostes((prev) => ({
+            ...prev,
+            [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), goa: formatNum(evalRes.value, 3) },
+          }));
+        } else if (columnType === 'gasolina') {
+          setPostes((prev) => ({
+            ...prev,
+            [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), gasolina: formatNum(evalRes.value, 3) },
+          }));
+        } else if (columnType === 'margenGasolina') {
+          setPostes((prev) => ({
+            ...prev,
+            [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), gasolinaGain: formatNum(evalRes.value, 3) },
+          }));
+        }
+      }
+    });
+
+    setCustomPostesFormulas(updatedFormulas);
+    setImageToast(`Fórmula aplicada a toda la columna`);
+    setTimeout(() => setImageToast(null), 3500);
+  };
 
   // Helper para buscar costes en el seed de Excel con resolución flexible
   const findStationExcelCosts = (stName: string) => {
@@ -299,40 +547,7 @@ export function PostesManager() {
 
   // Obtener Tarifa 60 con IVA desde Sábana de Precios / Compras para calcular Margen GOA
   const getTarifa60ConIva = (stName: string): number => {
-    let basePrice = 0;
-    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
-
-    try {
-      const savedGlobal = localStorage.getItem('efi_compras_data');
-      const todayStr = new Date().toISOString().split('T')[0];
-      const savedDate = localStorage.getItem(`efi_purchases_${validFromDate}`) || localStorage.getItem(`efi_purchases_${todayStr}`);
-      const p = savedGlobal ? JSON.parse(savedGlobal).data : savedDate ? JSON.parse(savedDate).data : null;
-
-      if (p) {
-        const key = `${stName}_GOA`;
-        if (p[key]?.sale) {
-          basePrice = parseNum(p[key].sale);
-        } else {
-          const matchedKey = Object.keys(p).find((k) => {
-            if (!k.endsWith('_GOA')) return false;
-            const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
-            return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-          });
-          if (matchedKey && p[matchedKey]?.sale) {
-            basePrice = parseNum(p[matchedKey].sale);
-          }
-        }
-      }
-    } catch (e) {}
-
-    if (!basePrice || basePrice <= 0) {
-      const costs = findStationExcelCosts(stName);
-      basePrice = Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
-    }
-
-    // Tarifa 60 en Sábana de Precios: Sin IVA = basePrice + 0.0800 (3 dec), Con IVA = Sin IVA * 1.21 (3 dec)
-    const t60SinIva = Number((basePrice + 0.0800).toFixed(3));
-    return Number((t60SinIva * 1.21).toFixed(3));
+    return getSabanaTariff60ConIvaForStation(stName, validFromDate);
   };
 
   // Margen GOA = Tarifa 60 con IVA - Precio Poste GOA
@@ -587,11 +802,14 @@ export function PostesManager() {
       ctx.font = '14px sans-serif';
       ctx.fillText('GOA', col1Width + col2Width / 2, yStart + rowHeight / 2);
 
+      const customGoa = resolvedPostesFormulas[`POSTE_${stName}_GOA`];
+      const customGas = resolvedPostesFormulas[`POSTE_${stName}_GASOLINA`];
+
       ctx.fillStyle = '#FFF000';
       ctx.fillRect(col1Width + col2Width, yStart, col3Width, rowHeight);
       ctx.fillStyle = '#000000';
       ctx.font = 'bold 15px sans-serif';
-      const goaPriceStr = parseNum(item.goa).toFixed(3).replace('.', ',');
+      const goaPriceStr = (customGoa ? customGoa.evaluatedValue : parseNum(item.goa)).toFixed(3).replace('.', ',');
       ctx.fillText(goaPriceStr, col1Width + col2Width + col3Width / 2, yStart + rowHeight / 2);
 
       // GASOLINA
@@ -606,7 +824,7 @@ export function PostesManager() {
       ctx.fillRect(col1Width + col2Width, yGas, col3Width, rowHeight);
       ctx.fillStyle = '#000000';
       ctx.font = 'bold 15px sans-serif';
-      const gasPriceStr = parseNum(item.gasolina).toFixed(3).replace('.', ',');
+      const gasPriceStr = (customGas ? customGas.evaluatedValue : parseNum(item.gasolina)).toFixed(3).replace('.', ',');
       ctx.fillText(gasPriceStr, col1Width + col2Width + col3Width / 2, yGas + rowHeight / 2);
 
       ctx.strokeStyle = '#000000';
@@ -1174,6 +1392,24 @@ export function PostesManager() {
               <span>PNG Conjunto Sur (2 EESS)</span>
             </button>
 
+            {/* Botón Formular */}
+            <button
+              onClick={() => setIsFormulaMode((prev) => !prev)}
+              className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 ${
+                isFormulaMode
+                  ? 'bg-emerald-500 text-slate-950 ring-4 ring-emerald-500/30 font-black scale-105 shadow-emerald-500/40'
+                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 hover:border-amber-400 shadow-slate-950/50'
+              }`}
+            >
+              <Calculator className="h-4 w-4" />
+              <span>{isFormulaMode ? '✓ Modo Formular ACTIVO' : 'Formular'}</span>
+              {Object.keys(customPostesFormulas).length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-950 text-amber-300 border border-amber-500/40">
+                  {Object.keys(customPostesFormulas).length}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={handleSave}
               className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95 ${
@@ -1188,6 +1424,46 @@ export function PostesManager() {
           </div>
         </div>
       </div>
+
+      {/* Banner Informativo del Modo Formulación Activo */}
+      {isFormulaMode && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/15 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 shadow-xl">
+          <div className="flex items-center space-x-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/30">
+              <Calculator className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center space-x-2">
+                <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-black text-[10px] uppercase">
+                  Modo Formular Activo en Postes
+                </span>
+                <span>Haz clic sobre cualquiera de las celdas de la tabla para formular con fórmulas tipo Excel</span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Puedes formular Gasóleo A, Margen GOA, GOA Premium, Gasolina 95, Margen Gasolina, HVO, Gasóleo B, AdBlue y Bronco usando variables de cualquier ventana del sistema.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0">
+            {Object.keys(customPostesFormulas).length > 0 && (
+              <button
+                onClick={handleClearAllFormulas}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Restablecer Todo ({Object.keys(customPostesFormulas).length})</span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsFormulaMode(false)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all border border-slate-700"
+            >
+              Salir del Modo Formular
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 1. Tabla Postes Estaciones Propias (14 Estaciones) */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
@@ -1231,20 +1507,44 @@ export function PostesManager() {
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
               {postesStations.map((st) => {
                 const item = postes[st.name] || { goa: st.defaultGoa, gasolina: st.defaultGasolina, gasolinaGain: st.defaultGain };
-                const goaNum = parseNum(item.goa);
-                const gasNum = parseNum(item.gasolina);
-                const premiumPrice = Number((goaNum + 0.04).toFixed(3));
 
-                // 1. Margen Gasóleo A = Tarifa 60 con IVA - Precio Poste Gasóleo A
-                const { margen: margenGoa, t60ConIva } = getMargenGoa(st.name, goaNum);
+                // 1. Gasóleo A
+                const goaKey = `POSTE_${st.name}_GOA`;
+                const customGoa = resolvedPostesFormulas[goaKey];
+                const goaNum = customGoa ? customGoa.evaluatedValue : parseNum(item.goa);
+                const goaDisplay = customGoa ? formatNum(customGoa.evaluatedValue, 3) : item.goa;
 
-                // 2. Margen Gasolina según fórmula oficial de la columna D
+                // 2. Margen Gasóleo A = Tarifa 60 con IVA - Precio Poste Gasóleo A
+                const { margen: defaultMargenGoa, t60ConIva } = getMargenGoa(st.name, goaNum);
+                const margenGoaKey = `POSTE_${st.name}_MARGEN_GOA`;
+                const customMargenGoa = resolvedPostesFormulas[margenGoaKey];
+                const margenGoa = customMargenGoa ? customMargenGoa.evaluatedValue : defaultMargenGoa;
+
+                // 3. GOA Premium = GOA + 0.04€
+                const defaultPremium = Number((goaNum + 0.04).toFixed(3));
+                const premiumKey = `POSTE_${st.name}_GOA_PREMIUM`;
+                const customPremium = resolvedPostesFormulas[premiumKey];
+                const premiumPrice = customPremium ? customPremium.evaluatedValue : defaultPremium;
+
+                // 4. Gasolina 95
                 const hasGasolina = st.hasGasolina !== false && st.name !== 'ARCOS';
+                const gasKey = `POSTE_${st.name}_GASOLINA`;
+                const customGas = resolvedPostesFormulas[gasKey];
+                const gasNum = customGas ? customGas.evaluatedValue : parseNum(item.gasolina);
+                const gasDisplay = customGas ? formatNum(customGas.evaluatedValue, 3) : item.gasolina;
+
+                // 5. Margen Gasolina según fórmula oficial de la columna D
                 const autoMargenGas = hasGasolina ? getMargenGasolina(st.name, gasNum) : null;
                 const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`);
-                const displayMargenGas = isGainMod
+                const margenGasolinaKey = `POSTE_${st.name}_MARGEN_GASOLINA`;
+                const customMargenGas = resolvedPostesFormulas[margenGasolinaKey];
+                const displayMargenGas = customMargenGas
+                  ? formatNum(customMargenGas.evaluatedValue, 3)
+                  : isGainMod
                   ? item.gasolinaGain
-                  : (autoMargenGas !== null ? formatNum(autoMargenGas, 3) : '—');
+                  : autoMargenGas !== null
+                  ? formatNum(autoMargenGas, 3)
+                  : '—';
 
                 const isGoaMod = modifiedKeys.has(`poste_${st.name}_goa`);
                 const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
@@ -1271,20 +1571,68 @@ export function PostesManager() {
                     </td>
                     
                     {/* 1. Gasóleo A (€/L) */}
-                    <td className={`py-3 px-4 transition-all ${isGoaMod ? 'bg-amber-400/20' : ''}`}>
+                    <td
+                      onClick={() => {
+                        if (!isFormulaMode) return;
+                        setActiveModalCell({
+                          cellKey: goaKey,
+                          cellTitle: `${st.name} — Gasóleo A (€/L)`,
+                          defaultValue: parseNum(item.goa),
+                          currentFormula: customGoa?.rawFormula,
+                          columnLabel: `Gasóleo A (€/L) - ${st.name}`,
+                          onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('goa', f, st.name),
+                        });
+                      }}
+                      className={`py-3 px-4 transition-all ${
+                        isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10' : ''
+                      } ${isGoaMod ? 'bg-amber-400/20' : ''}`}
+                      title={
+                        isFormulaMode
+                          ? customGoa
+                            ? `Fórmula: ${customGoa.rawFormula}`
+                            : 'Haz clic para formular esta celda'
+                          : customGoa
+                          ? `Fórmula: ${customGoa.rawFormula}`
+                          : 'Precio Poste Gasóleo A'
+                      }
+                    >
                       <div className="relative inline-flex items-center">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={item.goa}
-                          onChange={(e) => handlePosteChange(st.name, 'goa', e.target.value)}
-                          className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                            isGoaMod
-                              ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30'
-                              : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
-                          }`}
-                        />
-                        {isGoaMod && (
+                        {isFormulaMode ? (
+                          <div
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all text-center flex items-center justify-between ${
+                              customGoa
+                                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 font-black shadow-md'
+                                : 'bg-slate-950 border border-slate-700 text-slate-200'
+                            }`}
+                          >
+                            {customGoa && (
+                              <span className="mr-1 text-[9px] font-black bg-slate-950 text-amber-400 px-1 rounded">
+                                fx
+                              </span>
+                            )}
+                            <span className="flex-1 text-right">{goaDisplay}</span>
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={goaDisplay}
+                            onChange={(e) => handlePosteChange(st.name, 'goa', e.target.value)}
+                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                              customGoa
+                                ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                                : isGoaMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30'
+                                : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
+                            }`}
+                          />
+                        )}
+                        {customGoa && !isFormulaMode && (
+                          <span className="ml-1.5 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            fx
+                          </span>
+                        )}
+                        {isGoaMod && !customGoa && (
                           <span className="ml-2 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
                             HOY
                           </span>
@@ -1293,15 +1641,50 @@ export function PostesManager() {
                     </td>
 
                     {/* 2. Margen Gasóleo A (€) = Tarifa 60 con IVA - Poste GOA */}
-                    <td className="py-3 px-4 bg-slate-900/40">
+                    <td
+                      onClick={() => {
+                        if (!isFormulaMode) return;
+                        setActiveModalCell({
+                          cellKey: margenGoaKey,
+                          cellTitle: `${st.name} — Margen GOA (€)`,
+                          defaultValue: defaultMargenGoa,
+                          currentFormula: customMargenGoa?.rawFormula,
+                          columnLabel: `Margen GOA (€) - ${st.name}`,
+                          onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('margenGoa', f, st.name),
+                        });
+                      }}
+                      className={`py-3 px-4 bg-slate-900/40 transition-all ${
+                        isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 hover:ring-1 hover:ring-amber-400/50' : ''
+                      }`}
+                      title={
+                        isFormulaMode
+                          ? customMargenGoa
+                            ? `Fórmula: ${customMargenGoa.rawFormula}`
+                            : 'Haz clic para formular esta celda'
+                          : customMargenGoa
+                          ? `Fórmula: ${customMargenGoa.rawFormula}`
+                          : 'T60 Con IVA - Poste'
+                      }
+                    >
                       <div className="flex flex-col">
-                        <span
-                          className={`font-mono font-bold text-xs ${
-                            margenGoa >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
-                        >
-                          {margenGoa >= 0 ? `+${formatNum(margenGoa, 3)}` : formatNum(margenGoa, 3)} €
-                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          {customMargenGoa && (
+                            <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm">
+                              fx
+                            </span>
+                          )}
+                          <span
+                            className={`font-mono font-bold text-xs ${
+                              customMargenGoa
+                                ? 'text-amber-300 font-black'
+                                : margenGoa >= 0
+                                ? 'text-emerald-400'
+                                : 'text-rose-400'
+                            }`}
+                          >
+                            {margenGoa >= 0 ? `+${formatNum(margenGoa, 3)}` : formatNum(margenGoa, 3)} €
+                          </span>
+                        </div>
                         <span className="text-[9px] text-slate-500 font-mono">
                           T60: {formatNum(t60ConIva, 3)} €
                         </span>
@@ -1309,26 +1692,105 @@ export function PostesManager() {
                     </td>
 
                     {/* 3. GOA Premium (GOA + 0.04€) */}
-                    <td className="py-3 px-4 bg-amber-500/5 font-mono font-bold text-amber-300 text-sm">
-                      {formatNum(premiumPrice, 3)} €
+                    <td
+                      onClick={() => {
+                        if (!isFormulaMode) return;
+                        setActiveModalCell({
+                          cellKey: premiumKey,
+                          cellTitle: `${st.name} — GOA Premium (€)`,
+                          defaultValue: defaultPremium,
+                          currentFormula: customPremium?.rawFormula,
+                          columnLabel: `GOA Premium (€) - ${st.name}`,
+                          onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('goaPremium', f, st.name),
+                        });
+                      }}
+                      className={`py-3 px-4 bg-amber-500/5 font-mono font-bold text-amber-300 text-sm transition-all ${
+                        isFormulaMode ? 'cursor-pointer hover:bg-amber-500/20 hover:ring-1 hover:ring-amber-400/50' : ''
+                      }`}
+                      title={
+                        isFormulaMode
+                          ? customPremium
+                            ? `Fórmula: ${customPremium.rawFormula}`
+                            : 'Haz clic para formular esta celda'
+                          : customPremium
+                          ? `Fórmula: ${customPremium.rawFormula}`
+                          : 'GOA + 0.04€'
+                      }
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        {customPremium && (
+                          <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm">
+                            fx
+                          </span>
+                        )}
+                        <span>{formatNum(premiumPrice, 3)} €</span>
+                      </div>
                     </td>
 
                     {/* 4. Gasolina 95 (€/L) */}
-                    <td className={`py-3 px-4 transition-all ${isGasMod ? 'bg-amber-400/20' : ''}`}>
+                    <td
+                      onClick={() => {
+                        if (!isFormulaMode || !hasGasolina) return;
+                        setActiveModalCell({
+                          cellKey: gasKey,
+                          cellTitle: `${st.name} — Gasolina 95 (€/L)`,
+                          defaultValue: parseNum(item.gasolina),
+                          currentFormula: customGas?.rawFormula,
+                          columnLabel: `Gasolina 95 (€/L) - ${st.name}`,
+                          onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('gasolina', f, st.name),
+                        });
+                      }}
+                      className={`py-3 px-4 transition-all ${
+                        isFormulaMode && hasGasolina ? 'cursor-pointer hover:bg-amber-500/10' : ''
+                      } ${isGasMod ? 'bg-amber-400/20' : ''}`}
+                      title={
+                        isFormulaMode
+                          ? customGas
+                            ? `Fórmula: ${customGas.rawFormula}`
+                            : 'Haz clic para formular esta celda'
+                          : customGas
+                          ? `Fórmula: ${customGas.rawFormula}`
+                          : 'Precio Poste Gasolina 95'
+                      }
+                    >
                       {hasGasolina ? (
                         <div className="relative inline-flex items-center">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={item.gasolina}
-                            onChange={(e) => handlePosteChange(st.name, 'gasolina', e.target.value)}
-                            className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                              isGasMod
-                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30'
-                                : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
-                            }`}
-                          />
-                          {isGasMod && (
+                          {isFormulaMode ? (
+                            <div
+                              className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all text-center flex items-center justify-between ${
+                                customGas
+                                  ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 font-black shadow-md'
+                                  : 'bg-slate-950 border border-slate-700 text-slate-200'
+                              }`}
+                            >
+                              {customGas && (
+                                <span className="mr-1 text-[9px] font-black bg-slate-950 text-amber-400 px-1 rounded">
+                                  fx
+                                </span>
+                              )}
+                              <span className="flex-1 text-right">{gasDisplay}</span>
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={gasDisplay}
+                              onChange={(e) => handlePosteChange(st.name, 'gasolina', e.target.value)}
+                              className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                                customGas
+                                  ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                                  : isGasMod
+                                  ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30'
+                                  : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
+                              }`}
+                            />
+                          )}
+                          {customGas && !isFormulaMode && (
+                            <span className="ml-1.5 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                              fx
+                            </span>
+                          )}
+                          {isGasMod && !customGas && (
                             <span className="ml-2 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
                               HOY
                             </span>
@@ -1340,23 +1802,71 @@ export function PostesManager() {
                     </td>
 
                     {/* 5. Margen Gasolina (€) según Columna D de CALCULO INICIAL */}
-                    <td className={`py-3 px-4 transition-all ${isGainMod ? 'bg-amber-400/20' : ''}`}>
+                    <td
+                      onClick={() => {
+                        if (!isFormulaMode || !hasGasolina) return;
+                        setActiveModalCell({
+                          cellKey: margenGasolinaKey,
+                          cellTitle: `${st.name} — Margen Gasolina (€)`,
+                          defaultValue: typeof autoMargenGas === 'number' ? autoMargenGas : 0,
+                          currentFormula: customMargenGas?.rawFormula,
+                          columnLabel: `Margen Gasolina (€) - ${st.name}`,
+                          onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('margenGasolina', f, st.name),
+                        });
+                      }}
+                      className={`py-3 px-4 transition-all ${
+                        isFormulaMode && hasGasolina ? 'cursor-pointer hover:bg-amber-500/10' : ''
+                      } ${isGainMod ? 'bg-amber-400/20' : ''}`}
+                      title={
+                        isFormulaMode
+                          ? customMargenGas
+                            ? `Fórmula: ${customMargenGas.rawFormula}`
+                            : 'Haz clic para formular esta celda'
+                          : customMargenGas
+                          ? `Fórmula: ${customMargenGas.rawFormula}`
+                          : 'Margen Gasolina'
+                      }
+                    >
                       {hasGasolina ? (
                         <div className="relative inline-flex items-center">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={displayMargenGas}
-                            onChange={(e) => handlePosteChange(st.name, 'gasolinaGain', e.target.value)}
-                            className={`w-24 rounded-lg px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
-                              isGainMod
-                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
-                                : parseNum(displayMargenGas) >= 0
-                                ? 'bg-slate-950 border border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
-                                : 'bg-slate-950 border border-rose-500/40 text-rose-400 focus:border-rose-400'
-                            }`}
-                          />
-                          {isGainMod && (
+                          {isFormulaMode ? (
+                            <div
+                              className={`w-24 rounded-lg px-2 py-1 text-xs font-mono font-bold transition-all text-center flex items-center justify-between ${
+                                customMargenGas
+                                  ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 font-black shadow-md'
+                                  : 'bg-slate-950 border border-emerald-500/40 text-emerald-400'
+                              }`}
+                            >
+                              {customMargenGas && (
+                                <span className="mr-1 text-[9px] font-black bg-slate-950 text-amber-400 px-1 rounded">
+                                  fx
+                                </span>
+                              )}
+                              <span className="flex-1 text-right">{displayMargenGas}</span>
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={displayMargenGas}
+                              onChange={(e) => handlePosteChange(st.name, 'gasolinaGain', e.target.value)}
+                              className={`w-24 rounded-lg px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
+                                customMargenGas
+                                  ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                                  : isGainMod
+                                  ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
+                                  : parseNum(displayMargenGas) >= 0
+                                  ? 'bg-slate-950 border border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
+                                  : 'bg-slate-950 border border-rose-500/40 text-rose-400 focus:border-rose-400'
+                              }`}
+                            />
+                          )}
+                          {customMargenGas && !isFormulaMode && (
+                            <span className="ml-1 text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded shadow">
+                              fx
+                            </span>
+                          )}
+                          {isGainMod && !customMargenGas && (
                             <span className="ml-1 text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded">
                               MOD
                             </span>
@@ -1916,6 +2426,27 @@ export function PostesManager() {
           })}
         </div>
       </div>
+
+      {/* Ventana Emergente de Formulación */}
+      {activeModalCell && (
+        <SabanaFormulaModal
+          isOpen={Boolean(activeModalCell)}
+          onClose={() => setActiveModalCell(null)}
+          cellKey={activeModalCell.cellKey}
+          cellTitle={activeModalCell.cellTitle}
+          cellDefaultValue={activeModalCell.defaultValue}
+          currentFormula={activeModalCell.currentFormula}
+          columnLabel={activeModalCell.columnLabel}
+          selectedDate={validFromDate}
+          onSave={(formulaStr, evaluatedVal) => {
+            handleSaveFormula(activeModalCell.cellKey, formulaStr, evaluatedVal);
+          }}
+          onRemove={() => {
+            handleRemoveFormula(activeModalCell.cellKey);
+          }}
+          onApplyToColumn={activeModalCell.onApplyToColumn}
+        />
+      )}
 
       {imageToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-5">

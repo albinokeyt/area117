@@ -638,9 +638,9 @@ export const IMPORT_TARIFF_METADATA: ImportTariffDef[] = [
   { codeA: 86, name: 'TARIFA 30', key: 't30', prod: 1, markup: 0.030, pago: 'MENSUAL' },
   { codeA: 87, name: 'TARIFA 27 SUR', key: 't27', prod: 1, markup: 0.027, pago: 'MENSUAL' },
   { codeA: 88, name: 'TARIFA 15 SUR', key: 't15', prod: 1, markup: 0.015, pago: 'MENSUAL' },
-  { codeA: 89, name: 'PREPAGO 10', key: 'prepago10', prod: 1, markup: -0.002, pago: 'PREPAGO' },
-  { codeA: 91, name: 'PREPAGO 20', key: 'prepago20', prod: 1, markup: 0.008, pago: 'PREPAGO' },
-  { codeA: 92, name: 'PREPAGO 30', key: 'prepago30', prod: 1, markup: 0.018, pago: 'PREPAGO' },
+  { codeA: 89, name: 'TARIFA PREPAGO 10', key: 'prepago10', prod: 1, markup: -0.002, pago: 'PREPAGO' },
+  { codeA: 91, name: 'TARIFA PREPAGO 20', key: 'prepago20', prod: 1, markup: 0.008, pago: 'PREPAGO' },
+  { codeA: 92, name: 'TARIFA PREPAGO 30', key: 'prepago30', prod: 1, markup: 0.018, pago: 'PREPAGO' },
 ];
 
 export const resolveSabanaStationName = (importStName: string): string => {
@@ -687,6 +687,10 @@ export function buildImportacionTable(
   let specialRates: any[] = [];
   let broncoData: any = { conIva: '1.690' };
   let postesData: any = {};
+  let customSpecialTariffs: any[] = [];
+  let customStandardTariffs: any[] = [];
+  let modifiedTariffsConfig: Record<string, any> = {};
+  let tariffSourcesMapping: Record<string, any> = {};
 
   if (typeof window !== 'undefined') {
     try {
@@ -705,7 +709,44 @@ export function buildImportacionTable(
 
       const pData = localStorage.getItem('efi_postes_data_v2');
       if (pData) postesData = JSON.parse(pData);
+
+      const cSpecRaw = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      if (cSpecRaw) {
+        try {
+          customSpecialTariffs = JSON.parse(cSpecRaw);
+        } catch (e) {}
+      }
+
+      const cStdRaw = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      if (cStdRaw) {
+        try {
+          customStandardTariffs = JSON.parse(cStdRaw);
+        } catch (e) {}
+      }
+
+      const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      if (modRaw) {
+        try {
+          modifiedTariffsConfig = JSON.parse(modRaw);
+        } catch (e) {}
+      }
+
+      const smRaw = localStorage.getItem('efi_sabana_tariff_source_mapping_v1');
+      if (smRaw) {
+        try {
+          tariffSourcesMapping = JSON.parse(smRaw);
+        } catch (e) {}
+      }
     } catch (e) {}
+  }
+
+  // Si no existen tarifas especiales personalizadas guardadas, garantizar las 3 predeterminadas
+  if (!customSpecialTariffs || customSpecialTariffs.length === 0) {
+    customSpecialTariffs = [
+      { id: 'spec_prepago_10', name: 'PREPAGO 10', markup: -0.002, blockType: 'special', isCustom: true },
+      { id: 'spec_prepago_20', name: 'PREPAGO 20', markup: 0.008, blockType: 'special', isCustom: true },
+      { id: 'spec_prepago_30', name: 'PREPAGO 30', markup: 0.018, blockType: 'special', isCustom: true },
+    ];
   }
 
   // Cargar fórmulas de Sábana y reevaluarlas reactivamente con Compras y Tarifas Especiales
@@ -998,6 +1039,318 @@ export function buildImportacionTable(
     return greenList.some((g) => u.includes(g) || g.includes(u));
   };
 
+  // Helper para resolver orígenes de datos personalizados configurados en Sábana de Precios
+  const resolveCustomSourceValue = (
+    sourceType: string,
+    stName: string,
+    isPropia?: boolean,
+    manualVal?: number
+  ): number => {
+    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const baseSale = getStationBasePrice(stName);
+
+    switch (sourceType) {
+      case 'COMPRAS_VENTA_SUGERIDO':
+        return baseSale;
+      case 'COMPRAS_BRONCO': {
+        const b = purchasesData[`${stName}_GASOLINA`] || purchasesData[`${stName}_BRONCO`] ||
+                  purchasesData[`${cleanTarget}_GASOLINA`] || purchasesData[`${cleanTarget}_BRONCO`];
+        const val = b?.sale ? parseFloat(b.sale.replace(',', '.')) : (parseNum(broncoData.sinIva) || 1.265);
+        return isNaN(val) ? 1.265 : val;
+      }
+      case 'COMPRAS_MEDIO': {
+        const item = purchasesData[`${stName}_GOA`] || purchasesData[`${cleanTarget}_GOA`];
+        const val = item?.avg ? parseFloat(item.avg.replace(',', '.')) : (baseSale - 0.0425);
+        return isNaN(val) ? baseSale : val;
+      }
+      case 'COMPRAS_MINIMO': {
+        const item = purchasesData[`${stName}_GOA`] || purchasesData[`${cleanTarget}_GOA`];
+        const val = item?.min ? parseFloat(item.min.replace(',', '.')) : (baseSale - 0.05);
+        return isNaN(val) ? baseSale : val;
+      }
+      case 'COMPRAS_ESPECIAL_REF':
+        return getSpecialRateRefPrice(stName);
+      case 'COMPRAS_ESPECIAL_ACTUAL':
+        return getSpecialRateActualPrice(stName);
+      case 'POSTE_GOA': {
+        try {
+          const row = postesData?.gasoleoARows?.[cleanTarget] || postesData?.gasoleoARows?.[stName] ||
+                      postesData?.propiasPvpRows?.[stName]?.gasoleoA || postesData?.propiasPvpRows?.[cleanTarget]?.gasoleoA;
+          const pvpStr = row?.conIva || (typeof row === 'string' ? row : '');
+          if (pvpStr && pvpStr.trim() !== '') {
+            const p = parseFloat(pvpStr.replace(',', '.'));
+            if (!isNaN(p) && p > 0) return Number((p / 1.21).toFixed(3));
+          }
+        } catch (e) {}
+        return Number((baseSale + 0.05).toFixed(3));
+      }
+      case 'POSTE_G95': {
+        try {
+          const row = postesData?.gasolina95Rows?.[cleanTarget] || postesData?.gasolina95Rows?.[stName] ||
+                      postesData?.propiasPvpRows?.[stName]?.gasolina95 || postesData?.propiasPvpRows?.[cleanTarget]?.gasolina95;
+          const pvpStr = row?.conIva || (typeof row === 'string' ? row : '');
+          if (pvpStr && pvpStr.trim() !== '') {
+            const p = parseFloat(pvpStr.replace(',', '.'));
+            if (!isNaN(p) && p > 0) return Number((p / 1.21).toFixed(3));
+          }
+        } catch (e) {}
+        return Number((baseSale + 0.09).toFixed(3));
+      }
+      case 'SABANA_TAR_12':
+        return Number((baseSale + 0.012).toFixed(3));
+      case 'SABANA_TAR_18':
+        return Number((baseSale + 0.018).toFixed(3));
+      case 'SABANA_TAR_24':
+        return Number((baseSale + 0.024).toFixed(3));
+      case 'SABANA_TAR_36':
+        return Number((baseSale + 0.036).toFixed(3));
+      case 'SABANA_TAR_40':
+        return Number((baseSale + 0.040).toFixed(3));
+      case 'SABANA_TAR_42':
+        return Number((baseSale + 0.042).toFixed(3));
+      case 'SABANA_TAR_47':
+        return Number((baseSale + 0.047).toFixed(3));
+      case 'SABANA_TAR_50':
+        return Number((baseSale + 0.060).toFixed(3));
+      case 'SABANA_TAR_60':
+        return Number((baseSale + 0.080).toFixed(3));
+      case 'SABANA_ECOTRANS':
+        return Number((baseSale + 0.050).toFixed(3));
+      case 'MANUAL':
+        return manualVal ?? 1.200;
+      default:
+        return baseSale;
+    }
+  };
+
+  // Obtener el precio CON IVA exacto de las columnas de Tarifas Especiales Personalizadas de Sábana de Precios
+  const getSpecialCustomTariffConIva = (st: ImportStationDef, tariffKey: string, defaultMarkup: number): number => {
+    const sabanaName = resolveSabanaStationName(st.name);
+    const cleanTarget = sabanaName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const stClean = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+    const num = tariffKey === 'prepago10' ? '10' : tariffKey === 'prepago20' ? '20' : tariffKey === 'prepago30' ? '30' : '';
+    const isPrepago = num === '10' || num === '20' || num === '30';
+
+    // 1. Buscar en customSpecialTariffs la tarifa correspondiente
+    const customTariffDef = customSpecialTariffs.find((t) => {
+      const n = (t.name || '').toUpperCase().trim();
+      const norm = n.replace(/^TARIFA\s+/, '').trim();
+      return (
+        norm === `PREPAGO ${num}` ||
+        norm === `PREPAGO${num}` ||
+        (norm.includes('PREPAGO') && norm.includes(num)) ||
+        t.id === `spec_prepago_${num}` ||
+        t.id === `prepago_${num}` ||
+        t.id === tariffKey
+      );
+    });
+
+    const cleanTariff = customTariffDef?.name
+      ? customTariffDef.name.toUpperCase().trim()
+      : `PREPAGO ${num}`;
+    const cleanTariffNoSpace = cleanTariff.replace(/\s+/g, '');
+    const normNoTariff = cleanTariff.replace(/^TARIFA\s+/, '').trim();
+    const tariffId = customTariffDef?.id || tariffKey;
+
+    // 0. Copia directa exacta desde la tabla Tarifas Especiales Personalizadas de Sábana de Precios
+    if (typeof window !== 'undefined') {
+      try {
+        const rawDate = localStorage.getItem(`efi_sabana_custom_special_table_cache_${selectedDate}`);
+        const rawGlobal = localStorage.getItem('efi_sabana_custom_special_table_cache_v1');
+        const liveCache: Record<string, number> = rawDate ? JSON.parse(rawDate) : rawGlobal ? JSON.parse(rawGlobal) : {};
+
+        const directKeys = [
+          `${cleanTariff}::${st.name}`,
+          `${cleanTariff}::${sabanaName}`,
+          `${cleanTariff}::${cleanTarget}`,
+          `${cleanTariff}::${stClean}`,
+          `${cleanTariff}::ES ${cleanTarget}`,
+          `TARIFA ${cleanTariff}::${st.name}`,
+          `TARIFA ${cleanTariff}::${sabanaName}`,
+          `TARIFA ${cleanTariff}::${cleanTarget}`,
+          `TARIFA ${cleanTariff}::${stClean}`,
+          `TARIFA ${cleanTariff}::ES ${cleanTarget}`,
+          `TARIFA ${normNoTariff}::${st.name}`,
+          `TARIFA ${normNoTariff}::${sabanaName}`,
+          `TARIFA ${normNoTariff}::${cleanTarget}`,
+          `TARIFA ${normNoTariff}::${stClean}`,
+          `TARIFA ${normNoTariff}::ES ${cleanTarget}`,
+          `${normNoTariff}::${st.name}`,
+          `${normNoTariff}::${sabanaName}`,
+          `${normNoTariff}::${cleanTarget}`,
+          `${normNoTariff}::${stClean}`,
+          `${normNoTariff}::ES ${cleanTarget}`,
+          `${cleanTariffNoSpace}::${st.name}`,
+          `${cleanTariffNoSpace}::${sabanaName}`,
+          `${cleanTariffNoSpace}::${cleanTarget}`,
+          `${cleanTariffNoSpace}::${stClean}`,
+          `${cleanTariffNoSpace}::ES ${cleanTarget}`,
+          `PREPAGO ${num}::${st.name}`,
+          `PREPAGO ${num}::${sabanaName}`,
+          `PREPAGO ${num}::${cleanTarget}`,
+          `PREPAGO ${num}::${stClean}`,
+          `PREPAGO ${num}::ES ${cleanTarget}`,
+          `TARIFA PREPAGO ${num}::${st.name}`,
+          `TARIFA PREPAGO ${num}::${sabanaName}`,
+          `TARIFA PREPAGO ${num}::${cleanTarget}`,
+          `TARIFA PREPAGO ${num}::${stClean}`,
+          `TARIFA PREPAGO ${num}::ES ${cleanTarget}`,
+          `PREPAGO${num}::${st.name}`,
+          `PREPAGO${num}::${sabanaName}`,
+          `PREPAGO${num}::${cleanTarget}`,
+          `PREPAGO${num}::${stClean}`,
+          `PREPAGO${num}::ES ${cleanTarget}`,
+          `TARIFA PREPAGO${num}::${st.name}`,
+          `TARIFA PREPAGO${num}::${sabanaName}`,
+          `TARIFA PREPAGO${num}::${cleanTarget}`,
+          `TARIFA PREPAGO${num}::${stClean}`,
+          `TARIFA PREPAGO${num}::ES ${cleanTarget}`,
+        ];
+
+        for (const dk of directKeys) {
+          if (liveCache[dk] !== undefined && typeof liveCache[dk] === 'number' && liveCache[dk] > 0) {
+            return liveCache[dk];
+          }
+        }
+
+        const rawFull = localStorage.getItem('efi_sabana_custom_special_table_full_v1');
+        if (rawFull) {
+          const fullLive = JSON.parse(rawFull);
+          for (const dk of directKeys) {
+            if (fullLive[dk]?.conIva !== undefined && typeof fullLive[dk].conIva === 'number' && fullLive[dk].conIva > 0) {
+              return fullLive[dk].conIva;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Margen efectivo considerando modificaciones de configuración
+    const mod = modifiedTariffsConfig[tariffId] ||
+                modifiedTariffsConfig[cleanTariff] ||
+                modifiedTariffsConfig[cleanTariffNoSpace] ||
+                (customTariffDef ? modifiedTariffsConfig[customTariffDef.name] : null);
+    const effectiveMarkup = mod?.markup !== undefined
+      ? mod.markup
+      : (customTariffDef?.markup !== undefined ? customTariffDef.markup : defaultMarkup);
+
+    // 2. Verificar fórmulas personalizadas en Sábana de Precios (CON IVA prioritario, luego SIN IVA * 1.21)
+    const formulaConKeys = [
+      `STD_${st.name}_T${cleanTariff}_conIva`,
+      `STD_${stClean}_T${cleanTariff}_conIva`,
+      `TAR_${cleanTariff}_${st.name}_conIva`,
+      `TAR_${cleanTariff}_${stClean}_conIva`,
+      `STD_${sabanaName}_T${cleanTariff}_conIva`,
+      `STD_${cleanTarget}_T${cleanTariff}_conIva`,
+      `TAR_${cleanTariff}_${sabanaName}_conIva`,
+      `TAR_${cleanTariff}_${cleanTarget}_conIva`,
+      `STD_${sabanaName}_T${cleanTariffNoSpace}_conIva`,
+      `STD_${cleanTarget}_T${cleanTariffNoSpace}_conIva`,
+      `TAR_${cleanTariffNoSpace}_${sabanaName}_conIva`,
+      `TAR_${cleanTariffNoSpace}_${cleanTarget}_conIva`,
+      `STD_${st.name}_T${cleanTariffNoSpace}_conIva`,
+      `TAR_${cleanTariffNoSpace}_${st.name}_conIva`,
+      `STD_${sabanaName}_T${cleanTariffNoSpace.toLowerCase()}_conIva`,
+      `TAR_${cleanTariffNoSpace.toLowerCase()}_${sabanaName}_conIva`,
+      `STD_${cleanTarget}_T${cleanTariffNoSpace.toLowerCase()}_conIva`,
+      `TAR_${cleanTariffNoSpace.toLowerCase()}_${cleanTarget}_conIva`,
+      `SPEC_${customTariffDef?.specialBlockId || 'custom'}_${sabanaName}_${cleanTariff}_conIva`,
+      `SPEC_${customTariffDef?.specialBlockId || 'custom'}_${st.name}_${cleanTariff}_conIva`,
+      `SPEC_${customTariffDef?.specialBlockId || 'custom'}_${cleanTarget}_${cleanTariff}_conIva`,
+    ];
+
+    for (const k of formulaConKeys) {
+      if (resolvedSabanaFormulas[k]?.evaluatedValue !== undefined) {
+        return resolvedSabanaFormulas[k].evaluatedValue;
+      }
+    }
+
+    const formulaSinKeys = [
+      `STD_${st.name}_T${cleanTariff}_sinIva`,
+      `STD_${stClean}_T${cleanTariff}_sinIva`,
+      `TAR_${cleanTariff}_${st.name}_sinIva`,
+      `TAR_${cleanTariff}_${stClean}_sinIva`,
+      `STD_${sabanaName}_T${cleanTariff}_sinIva`,
+      `STD_${cleanTarget}_T${cleanTariff}_sinIva`,
+      `TAR_${cleanTariff}_${sabanaName}_sinIva`,
+      `TAR_${cleanTariff}_${cleanTarget}_sinIva`,
+      `STD_${sabanaName}_T${cleanTariffNoSpace}_sinIva`,
+      `STD_${cleanTarget}_T${cleanTariffNoSpace}_sinIva`,
+      `TAR_${cleanTariffNoSpace}_${sabanaName}_sinIva`,
+      `TAR_${cleanTariffNoSpace}_${cleanTarget}_sinIva`,
+      `STD_${st.name}_T${cleanTariffNoSpace}_sinIva`,
+      `TAR_${cleanTariffNoSpace}_${st.name}_sinIva`,
+      `STD_${sabanaName}_T${cleanTariffNoSpace.toLowerCase()}_sinIva`,
+      `TAR_${cleanTariffNoSpace.toLowerCase()}_${sabanaName}_sinIva`,
+      `STD_${cleanTarget}_T${cleanTariffNoSpace.toLowerCase()}_sinIva`,
+      `TAR_${cleanTariffNoSpace.toLowerCase()}_${cleanTarget}_sinIva`,
+      `SPEC_${customTariffDef?.specialBlockId || 'custom'}_${sabanaName}_${cleanTariff}_sinIva`,
+      `SPEC_${customTariffDef?.specialBlockId || 'custom'}_${st.name}_${cleanTariff}_sinIva`,
+      `SPEC_${customTariffDef?.specialBlockId || 'custom'}_${cleanTarget}_${cleanTariff}_sinIva`,
+    ];
+
+    for (const k of formulaSinKeys) {
+      if (resolvedSabanaFormulas[k]?.evaluatedValue !== undefined) {
+        return round3(resolvedSabanaFormulas[k].evaluatedValue * 1.21);
+      }
+    }
+
+    // 3. Origen de datos personalizado configurado en tariffSourcesMapping
+    const propiasList = typeof window !== 'undefined' ? getPropiasStations() : PROPIAS_STATIONS;
+    const isPropia = propiasList.some((p) => {
+      const pName = p.name.toUpperCase().replace(/^ES\s+/, '').trim();
+      return p.name === sabanaName || p.name === st.name || pName === cleanTarget;
+    });
+
+    const sourceCandidates = isPrepago
+      ? [
+          `${cleanTariff}::${st.name}`,
+          `${cleanTariff}::${sabanaName}`,
+          `${cleanTariff}::${stClean}`,
+          `${cleanTariff}::${cleanTarget}`,
+          `PREPAGO ${num}::${st.name}`,
+          `PREPAGO ${num}::${sabanaName}`,
+          `PREPAGO ${num}::${stClean}`,
+          `PREPAGO ${num}::${cleanTarget}`,
+          customTariffDef?.name ? `${customTariffDef.name}::${sabanaName}` : null,
+          customTariffDef?.name ? `${customTariffDef.name}::${st.name}` : null,
+        ].filter(Boolean) as string[]
+      : [
+          `${cleanTariff}::${st.name}`,
+          `${cleanTariff}::${sabanaName}`,
+          `${cleanTariff}::${stClean}`,
+          `${cleanTariff}::${cleanTarget}`,
+          `${cleanTariffNoSpace}::${st.name}`,
+          `${cleanTariffNoSpace}::${sabanaName}`,
+          `${cleanTariffNoSpace}::${cleanTarget}`,
+          customTariffDef?.name ? `${customTariffDef.name}::${sabanaName}` : null,
+          customTariffDef?.name ? `${customTariffDef.name}::${st.name}` : null,
+          `${cleanTariff}::__DEFAULT__`,
+          `${cleanTariffNoSpace}::__DEFAULT__`,
+          customTariffDef?.name ? `${customTariffDef.name}::__DEFAULT__` : null,
+        ].filter(Boolean) as string[];
+
+    let customCfg: any = null;
+    for (const srcKey of sourceCandidates) {
+      if (tariffSourcesMapping[srcKey]?.sourceType && tariffSourcesMapping[srcKey].sourceType !== 'DEFAULT') {
+        customCfg = tariffSourcesMapping[srcKey];
+        break;
+      }
+    }
+
+    if (customCfg && customCfg.sourceType && customCfg.sourceType !== 'DEFAULT') {
+      const baseVal = resolveCustomSourceValue(customCfg.sourceType, sabanaName, isPropia, customCfg.manualPriceSinIva);
+      const diff = customCfg.markupDiff ?? effectiveMarkup;
+      const defaultSinIva = Number((baseVal + diff).toFixed(3));
+      return round3(defaultSinIva * 1.21);
+    }
+
+    // 4. Cálculo predeterminado idéntico a Sábana de Precios
+    const basePrice = getStationBasePrice(sabanaName);
+    const defaultSinIva = Number((basePrice + effectiveMarkup).toFixed(3));
+    return round3(defaultSinIva * 1.21);
+  };
+
   // Función definitiva que obtiene el precio CON IVA exacto de Sábana de Precios para cada estación y tarifa
   const getPvpConIva = (st: ImportStationDef, tDef: ImportTariffDef): number => {
     if (st.isZero) return 0;
@@ -1134,20 +1487,11 @@ export function buildImportacionTable(
         defaultSinIva = round3(basePrice + 0.015);
       }
     } else if (tDef.key === 'prepago10') {
-      const customP10 = resolvedSabanaFormulas[`STD_${sabanaName}_Tprepago10_conIva`] ||
-                        resolvedSabanaFormulas[`TAR_prepago10_${sabanaName}_conIva`];
-      if (customP10?.evaluatedValue !== undefined) return customP10.evaluatedValue;
-      defaultSinIva = round3(basePrice - 0.002);
+      return getSpecialCustomTariffConIva(st, 'prepago10', -0.002);
     } else if (tDef.key === 'prepago20') {
-      const customP20 = resolvedSabanaFormulas[`STD_${sabanaName}_Tprepago20_conIva`] ||
-                        resolvedSabanaFormulas[`TAR_prepago20_${sabanaName}_conIva`];
-      if (customP20?.evaluatedValue !== undefined) return customP20.evaluatedValue;
-      defaultSinIva = round3(basePrice + 0.008);
+      return getSpecialCustomTariffConIva(st, 'prepago20', 0.008);
     } else if (tDef.key === 'prepago30') {
-      const customP30 = resolvedSabanaFormulas[`STD_${sabanaName}_Tprepago30_conIva`] ||
-                        resolvedSabanaFormulas[`TAR_prepago30_${sabanaName}_conIva`];
-      if (customP30?.evaluatedValue !== undefined) return customP30.evaluatedValue;
-      defaultSinIva = round3(basePrice + 0.018);
+      return getSpecialCustomTariffConIva(st, 'prepago30', 0.018);
     } else if (tDef.key === 't75') {
       specBlockId = 'tarifa_75';
       specTariffTitle = 'Tarifa 75';
@@ -1193,18 +1537,36 @@ export function buildImportacionTable(
     const rowKey2 = `${tarifaName}::${stationId}::${prod}`;
     const rowKey3 = `${tarifaName}::${stationName.trim()}::${prod}`;
 
-    if (deletedRows.includes(rowKey1) || deletedRows.includes(rowKey2) || deletedRows.includes(rowKey3)) {
+    const cleanTariffNoTariff = tarifaName.replace(/^TARIFA\s+/, '').trim();
+    const altKey1 = `${cleanTariffNoTariff}::${stationId}`;
+    const altKey2 = `${cleanTariffNoTariff}::${stationId}::${prod}`;
+    const altKey3 = `${cleanTariffNoTariff}::${stationName.trim()}::${prod}`;
+
+    if (
+      deletedRows.includes(rowKey1) || deletedRows.includes(rowKey2) || deletedRows.includes(rowKey3) ||
+      deletedRows.includes(altKey1) || deletedRows.includes(altKey2) || deletedRows.includes(altKey3)
+    ) {
       return;
     }
 
-    const ov = overrides[rowKey2] || overrides[rowKey1] || overrides[rowKey3];
+    const ov = overrides[rowKey2] || overrides[rowKey1] || overrides[rowKey3] ||
+               overrides[altKey2] || overrides[altKey1] || overrides[altKey3];
 
     const finalCodeA = ov?.codeA ?? codeA;
     const finalProd = ov?.prod ?? prod;
     const finalDateInit = ov?.initialDate ? formatDateToEs(ov.initialDate) : defaultDateInit;
     const finalDateEnd = ov?.finalDate ? formatDateToEs(ov.finalDate) : defaultDateEnd;
-    const finalPvp = ov?.pvp !== undefined ? ov.pvp : defaultPvp;
+    let finalPvp = ov?.pvp !== undefined ? ov.pvp : defaultPvp;
     const finalPago = ov?.pago !== undefined ? ov.pago : defaultPago;
+
+    const isPrepagoTariff =
+      tarifaName.toUpperCase().includes('PREPAGO') ||
+      codeA === 89 || codeA === 91 || codeA === 92;
+
+    // Si para prepago existe un override residual o viejo con 1.802 o 1.770, descartarlo para que rija la copia exacta de Sábana de Precios
+    if (isPrepagoTariff && (finalPvp === 1.802 || finalPvp === 1.770)) {
+      finalPvp = defaultPvp;
+    }
 
     rows.push([
       finalCodeA,
@@ -1311,6 +1673,16 @@ export function buildImportacionTable(
 
       allCustom.forEach((cTariff, idx) => {
         const cleanName = cTariff.name.toUpperCase().trim();
+        const cleanNoTariff = cleanName.replace(/^TARIFA\s+/, '').trim();
+        // Omitir tarifas Prepago ya que se integran en los bloques oficiales 89, 91 y 92 con tipo PAGO: PREPAGO
+        if (
+          cleanNoTariff === 'PREPAGO 10' || cleanNoTariff === 'PREPAGO 20' || cleanNoTariff === 'PREPAGO 30' ||
+          cleanNoTariff === 'PREPAGO10' || cleanNoTariff === 'PREPAGO20' || cleanNoTariff === 'PREPAGO30' ||
+          (cleanNoTariff.startsWith('PREPAGO') && (cleanNoTariff.endsWith('10') || cleanNoTariff.endsWith('20') || cleanNoTariff.endsWith('30')))
+        ) {
+          return;
+        }
+
         const tariffName = cleanName.startsWith('TARIFA') ? cleanName : `TARIFA ${cleanName}`;
         if (deletedTariffs.includes(tariffName)) return;
 

@@ -9,7 +9,7 @@ import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
   Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert,
-  RotateCcw, Sliders, Database, Settings2, MousePointerClick, Table, Layers
+  RotateCcw, Sliders, Database, Settings2, MousePointerClick, Table, Layers, Star
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
@@ -1801,6 +1801,41 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     .filter((st) => isStationActive(st.name))
     .filter((st) => st.name.toLowerCase().includes(searchFilter.toLowerCase()));
 
+  // Lista de estaciones filtradas por texto de búsqueda para el preview y documento
+  const filteredStations = useMemo(() => {
+    return allStations.filter((st) =>
+      st.name.toLowerCase().includes(searchFilter.toLowerCase())
+    );
+  }, [allStations, searchFilter]);
+
+  // Paginación limpia para el documento PDF y vista previa:
+  // - Página 1: con Banner superior oficial y tarjetas HVO (si aplica). Caben 11 estaciones (con HVO) o 13 (sin HVO).
+  // - Páginas siguientes: cabecera compacta y caben 18 estaciones cómodamente sin desbordar jamás en A4.
+  const stationPages = useMemo(() => {
+    const firstPageCapacity = isHvoIncluded ? 11 : 13;
+    const subsequentCapacity = 18;
+    const pages: (typeof allStations)[] = [];
+
+    if (filteredStations.length === 0) {
+      return [[]];
+    }
+
+    pages.push(filteredStations.slice(0, firstPageCapacity));
+    let offset = firstPageCapacity;
+    while (offset < filteredStations.length) {
+      pages.push(filteredStations.slice(offset, offset + subsequentCapacity));
+      offset += subsequentCapacity;
+    }
+    return pages;
+  }, [filteredStations, isHvoIncluded]);
+
+  // Índice global correlativo (1..N) para la columna Nº
+  const getStationGlobalIndex = (pageIdx: number, itemIdx: number) => {
+    if (pageIdx === 0) return itemIdx + 1;
+    const firstPageCapacity = isHvoIncluded ? 11 : 13;
+    return firstPageCapacity + (pageIdx - 1) * 18 + itemIdx + 1;
+  };
+
   // Formateador de fecha en orden DIA, MES, AÑO (DD/MM/YYYY)
   const formatDateDDMMYYYY = (isoDate: string): string => {
     if (!isoDate) return '';
@@ -2026,187 +2061,234 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         </div>
       </div>
 
-      {/* DOCUMENT PREVIEW & PDF CONTAINER */}
-      <div className="printable-document bg-white text-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-300 space-y-6 print:p-0 print:border-none print:shadow-none print:m-0">
-        
-        {/* Banner Superior Oficial en la Primera Hoja */}
-        <div className="w-full overflow-hidden rounded-xl">
-          <img
-            src="/area117_header_banner.png?v=2"
-            alt="Área 117 - Contigo en la carretera"
-            className="w-full h-auto object-cover rounded-xl shadow-sm print:shadow-none print:w-full"
-          />
-        </div>
+      {/* DOCUMENT PREVIEW & PDF CONTAINER (Paginado para hojas A4 perfectas) */}
+      <div className="printable-document space-y-8 print:space-y-0">
+        {stationPages.map((pageStations, pageIndex) => {
+          const isFirstPage = pageIndex === 0;
 
-        {/* Sub-Header con Fecha de Aplicación y Nombre de Tarifa (visible en pantalla, oculto en PDF) */}
-        <div className="border-b-2 border-slate-900 pb-3 flex flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-3 print:hidden">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Tarifa:</span>
-            <h1 className="text-xl font-black text-slate-950 uppercase tracking-tight">
-              {selectedTariff}
-            </h1>
-          </div>
-          <div className="text-right ml-auto">
-            <span className="text-xs font-bold text-slate-500 uppercase block">Fecha de Aplicación:</span>
-            <span className="text-base font-black text-slate-950 font-mono">
-              {formatDateDDMMYYYY(targetDate)}
-            </span>
-          </div>
-        </div>
+          return (
+            <div
+              key={`page-${pageIndex}`}
+              className="printable-page bg-white text-slate-900 rounded-3xl p-7 shadow-2xl border border-slate-300 space-y-4 print:p-0 print:border-none print:shadow-none print:m-0 print:rounded-none"
+            >
+              {/* CABECERA: Página 1 (Banner Oficial) vs Páginas siguientes (Mini-cabecera con margen redondeado y espacio) */}
+              {isFirstPage ? (
+                <>
+                  {/* Banner Superior Oficial en la Primera Hoja */}
+                  <div className="w-full overflow-hidden rounded-xl">
+                    <img
+                      src="/area117_header_banner.png?v=2"
+                      alt="Área 117 - Contigo en la carretera"
+                      className="w-full h-auto object-cover rounded-xl shadow-sm print:shadow-none print:w-full"
+                    />
+                  </div>
 
-        {/* HVO Banner Highlights (Opcional por tarifa) */}
-        {isHvoIncluded && (
-          <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto text-[11px] print:grid-cols-2">
-            <div className="bg-amber-50/90 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-sm print:shadow-none">
-              <div className="pr-2">
-                <span className="font-black text-amber-950 block text-[10px] uppercase leading-tight">
-                  HVO ALFAJARÍN
-                </span>
-                <span className="text-slate-600 text-[9px] block">Alfa Energía</span>
-              </div>
-              <div className="text-right font-mono shrink-0">
-                <span className="text-[11px] font-bold text-amber-950 block leading-tight">
-                  SIN IVA: {hvoPrices.alfajarinSinIva.replace('.', ',')} €/L
-                </span>
-                <span className="text-[9px] text-amber-800 leading-tight">
-                  CON IVA: {hvoPrices.alfajarinConIva.replace('.', ',')} €/L
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-amber-50/90 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-sm print:shadow-none">
-              <div className="pr-2">
-                <span className="font-black text-amber-950 block text-[10px] uppercase leading-tight">
-                  HVO VALDEMORO
-                </span>
-                <span className="text-slate-600 text-[9px] block">Área 117</span>
-              </div>
-              <div className="text-right font-mono shrink-0">
-                <span className="text-[11px] font-bold text-amber-950 block leading-tight">
-                  SIN IVA: {hvoPrices.valdemoroSinIva.replace('.', ',')} €/L
-                </span>
-                <span className="text-[9px] text-amber-800 leading-tight">
-                  CON IVA: {hvoPrices.valdemoroConIva.replace('.', ',')} €/L
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Stations Table con Columna de Estaciones Activas Checkbox */}
-        <div className="overflow-x-auto border border-slate-300 rounded-xl">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold">
-                <th className="py-2.5 px-3 w-12 text-center">Nº</th>
-                <th className="py-2.5 px-3 print:hidden text-center w-28 bg-slate-800 text-emerald-300">
-                  Estación Activa
-                </th>
-                <th className="py-2.5 px-3">E.E.S.S</th>
-                <th className="py-2.5 px-3">Bandera</th>
-                <th className="py-2.5 px-3">Ubicación</th>
-                <th className="py-2.5 px-3 text-right">Sin IVA</th>
-                <th className="py-2.5 px-3 text-right">Con IVA</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-slate-900">
-              {allStations
-                .filter((st) => st.name.toLowerCase().includes(searchFilter.toLowerCase()))
-                .map((st, idx) => {
-                  const active = isStationActive(st.name);
-                  const isPropia = st.type === 'PROPIA';
-                  const prices = getStationPrice(st.name, isPropia);
-                  const meta = getStationMetadata(st.name, isPropia);
-
-                  return (
-                    <tr
-                      key={st.name}
-                      className={`transition-colors ${
-                        active ? 'hover:bg-slate-50' : 'bg-slate-100/60 opacity-40 print:hidden'
-                      }`}
-                    >
-                      <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono">
-                        {idx + 1}
-                      </td>
-
-                      {/* Columna Estación Activa con Checkbox Interactivo */}
-                      <td className="py-2 px-3 text-center print:hidden bg-slate-50/50">
-                        <label className="inline-flex items-center space-x-1.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={active}
-                            onChange={() => toggleStationActive(st.name)}
-                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
-                          />
-                          <span className={`text-[10px] font-bold ${active ? 'text-emerald-700' : 'text-slate-400'}`}>
-                            {active ? 'Activa' : 'Inactiva'}
-                          </span>
-                        </label>
-                      </td>
-
-                      <td className="py-2 px-3 font-bold text-slate-950">
-                        <div className="flex items-center space-x-2">
-                          <span>{st.name}</span>
-                          {(() => {
-                            const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
-                            const stationCfg = stationSourcesMapping[`${selectedTariff}::${st.name}`] ||
-                                              stationSourcesMapping[`${selectedTariff}::${cleanTarget}`] ||
-                                              (stationSourcesMapping[`${selectedTariff}::__DEFAULT__`]?.sourceType && stationSourcesMapping[`${selectedTariff}::__DEFAULT__`].sourceType !== 'DEFAULT'
-                                                ? stationSourcesMapping[`${selectedTariff}::__DEFAULT__`]
-                                                : null);
-                            if (stationCfg && stationCfg.sourceType && stationCfg.sourceType !== 'DEFAULT') {
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSourcesModalTariff(selectedTariff);
-                                    setSourcesModalSearch(st.name);
-                                    setShowSourcesModal(true);
-                                  }}
-                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 transition-colors print:hidden"
-                                  title={`Origen personalizado: ${stationCfg.sourceType}. Clic para modificar.`}
-                                >
-                                  <Sliders className="h-2.5 w-2.5 mr-1 text-purple-600" />
-                                  Personalizado
-                                </button>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 font-semibold text-slate-700">
-                        <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold border border-slate-300">
-                          {meta.bandera}
+                  {/* Sub-Header con Fecha de Aplicación y Tarifa */}
+                  <div className="border-b-2 border-slate-900 pb-2.5 flex flex-row items-center justify-between gap-4">
+                    <div className="flex items-center space-x-3 print:hidden">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Tarifa:</span>
+                      <h1 className="text-xl font-black text-slate-950 uppercase tracking-tight">
+                        {selectedTariff}
+                      </h1>
+                    </div>
+                    <div className="text-right ml-auto flex items-center space-x-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-500 uppercase block">Fecha de Aplicación:</span>
+                        <span className="text-base font-black text-slate-950 font-mono">
+                          {formatDateDDMMYYYY(targetDate)}
                         </span>
-                      </td>
-                      <td className="py-2 px-3 text-slate-700 text-[11px]">
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                            meta.ubicacion.includes('Red de Estaciones')
-                              ? `${st.name}, España`
-                              : `${st.name}, ${meta.ubicacion}`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 hover:underline transition-colors block text-[11px] print:text-blue-700"
-                          title={`Ver ${st.name} en Google Maps`}
-                        >
-                          {meta.ubicacion}
-                        </a>
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs">
-                        {prices.sinIva.toFixed(3).replace('.', ',')} €
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono font-black text-emerald-700 text-xs bg-emerald-50/50">
-                        {prices.conIva.toFixed(3).replace('.', ',')} €
-                      </td>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded border border-slate-300 font-mono self-end mb-0.5">
+                        Pág. 1 de {stationPages.length}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* HVO Banner Highlights (Opcional por tarifa) */}
+                  {isHvoIncluded && (
+                    <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto text-[11px] print:grid-cols-2">
+                      <div className="bg-amber-50/90 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-sm print:shadow-none">
+                        <div className="pr-2">
+                          <span className="font-black text-amber-950 block text-[10px] uppercase leading-tight">
+                            HVO ALFAJARÍN
+                          </span>
+                          <span className="text-slate-600 text-[9px] block">Alfa Energía</span>
+                        </div>
+                        <div className="text-right font-mono shrink-0">
+                          <span className="text-[11px] font-bold text-amber-950 block leading-tight whitespace-nowrap">
+                            SIN IVA: {hvoPrices.alfajarinSinIva.replace('.', ',')}&nbsp;€/L
+                          </span>
+                          <span className="text-[9px] text-amber-800 leading-tight whitespace-nowrap">
+                            CON IVA: {hvoPrices.alfajarinConIva.replace('.', ',')}&nbsp;€/L
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-amber-50/90 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-sm print:shadow-none">
+                        <div className="pr-2">
+                          <span className="font-black text-amber-950 block text-[10px] uppercase leading-tight">
+                            HVO VALDEMORO
+                          </span>
+                          <span className="text-slate-600 text-[9px] block">Área 117</span>
+                        </div>
+                        <div className="text-right font-mono shrink-0">
+                          <span className="text-[11px] font-bold text-amber-950 block leading-tight whitespace-nowrap">
+                            SIN IVA: {hvoPrices.valdemoroSinIva.replace('.', ',')}&nbsp;€/L
+                          </span>
+                          <span className="text-[9px] text-amber-800 leading-tight whitespace-nowrap">
+                            CON IVA: {hvoPrices.valdemoroConIva.replace('.', ',')}&nbsp;€/L
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Mini-Cabecera para páginas 2 en adelante con margen y espacio */
+                <div className="border-b-2 border-slate-900 pb-2 flex items-center justify-between gap-4 pt-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-black text-slate-950 uppercase tracking-tight">
+                      Área 117
+                    </span>
+                    <span className="text-slate-300 print:hidden">|</span>
+                    <span className="text-xs font-bold text-slate-600 uppercase print:hidden">
+                      Tarifa: <strong className="text-slate-900">{selectedTariff}</strong>
+                    </span>
+                  </div>
+                  <div className="text-right flex items-center space-x-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase inline mr-1.5">Fecha de Aplicación:</span>
+                      <span className="text-xs font-black text-slate-950 font-mono">
+                        {formatDateDDMMYYYY(targetDate)}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 font-mono">
+                      Pág. {pageIndex + 1} de {stationPages.length}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tabla de Estaciones de la Página Actual con Borde Redondeado y Final de Hoja */}
+              <div className="overflow-x-auto border border-slate-300 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold">
+                      <th className="py-2.5 px-2.5 w-12 min-w-[48px] text-center">Nº</th>
+                      <th className="py-2.5 px-3 print:hidden text-center w-28 min-w-[110px] bg-slate-800 text-emerald-300">
+                        Estación Activa
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[140px]">E.E.S.S</th>
+                      <th className="py-2.5 px-3 w-28 min-w-[90px]">Bandera</th>
+                      <th className="py-2.5 px-3 min-w-[180px]">Ubicación</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap w-24 min-w-[95px]">Sin IVA</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap w-24 min-w-[95px]">Con IVA</th>
                     </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-slate-900">
+                    {pageStations.map((st, itemIdx) => {
+                      const globalIdx = getStationGlobalIndex(pageIndex, itemIdx);
+                      const active = isStationActive(st.name);
+                      const isPropia = st.type === 'PROPIA';
+                      const prices = getStationPrice(st.name, isPropia);
+                      const meta = getStationMetadata(st.name, isPropia);
+
+                      return (
+                        <tr
+                          key={st.name}
+                          className={`transition-colors ${
+                            active ? 'hover:bg-slate-50' : 'bg-slate-100/60 opacity-40 print:hidden'
+                          }`}
+                        >
+                          <td className="py-2 px-2.5 text-center font-bold text-slate-500 font-mono text-xs">
+                            {globalIdx}
+                          </td>
+
+                          {/* Columna Estación Activa con Checkbox Interactivo */}
+                          <td className="py-2 px-3 text-center print:hidden bg-slate-50/50">
+                            <label className="inline-flex items-center space-x-1.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={active}
+                                onChange={() => toggleStationActive(st.name)}
+                                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                              />
+                              <span className={`text-[10px] font-bold ${active ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                {active ? 'Activa' : 'Inactiva'}
+                              </span>
+                            </label>
+                          </td>
+
+                          <td className="py-2 px-3 font-bold text-slate-950">
+                            <div className="flex items-center space-x-2">
+                              <span>{st.name}</span>
+                              {(() => {
+                                const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
+                                const stationCfg = stationSourcesMapping[`${selectedTariff}::${st.name}`] ||
+                                                  stationSourcesMapping[`${selectedTariff}::${cleanTarget}`] ||
+                                                  (stationSourcesMapping[`${selectedTariff}::__DEFAULT__`]?.sourceType && stationSourcesMapping[`${selectedTariff}::__DEFAULT__`].sourceType !== 'DEFAULT'
+                                                    ? stationSourcesMapping[`${selectedTariff}::__DEFAULT__`]
+                                                    : null);
+                                if (stationCfg && stationCfg.sourceType && stationCfg.sourceType !== 'DEFAULT') {
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSourcesModalTariff(selectedTariff);
+                                        setSourcesModalSearch(st.name);
+                                        setShowSourcesModal(true);
+                                      }}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 transition-colors print:hidden"
+                                      title={`Origen personalizado: ${stationCfg.sourceType}. Clic para modificar.`}
+                                    >
+                                      <Sliders className="h-2.5 w-2.5 mr-1 text-purple-600" />
+                                      Personalizado
+                                    </button>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 font-semibold text-slate-700">
+                            <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold border border-slate-300 inline-block">
+                              {meta.bandera}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-700 text-[11px] leading-tight">
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                meta.ubicacion.includes('Red de Estaciones')
+                                  ? `${st.name}, España`
+                                  : `${st.name}, ${meta.ubicacion}`
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline transition-colors block text-[11px] print:text-blue-700"
+                              title={`Ver ${st.name} en Google Maps`}
+                            >
+                              {meta.ubicacion}
+                            </a>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap w-24 min-w-[95px]">
+                            <span className="whitespace-nowrap inline-flex items-center justify-end font-mono">
+                              {prices.sinIva.toFixed(3).replace('.', ',')}&nbsp;€
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-black text-emerald-700 text-xs bg-emerald-50/50 whitespace-nowrap w-24 min-w-[95px]">
+                            <span className="whitespace-nowrap inline-flex items-center justify-end font-mono">
+                              {prices.conIva.toFixed(3).replace('.', ',')}&nbsp;€
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* MODAL: Añadir Nueva Tarifa */}
@@ -3264,7 +3346,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                             >
                               <td
                                 className={`py-2.5 px-3 sticky left-0 z-10 border-r border-slate-800 font-sans font-bold truncate max-w-[180px] ${
-                                  row.isBlueBg
+                                  (row as any).isBlueBg
                                     ? 'bg-blue-950/80 text-blue-200 border-l-4 border-l-blue-400 font-black'
                                     : 'bg-slate-950 text-white'
                                 }`}

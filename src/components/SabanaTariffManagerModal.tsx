@@ -35,6 +35,8 @@ interface SabanaTariffManagerModalProps {
   onCreateTariff: (tariff: SabanaTariffDef, initialSource?: SabanaSourceConfig) => void;
   onUpdateTariff: (tariffId: string, updates: Partial<SabanaTariffDef>) => void;
   onDeleteTariff: (tariffId: string) => void;
+  deletedTariffs?: SabanaTariffDef[];
+  onRestoreTariff?: (tariffId: string) => void;
   sourcesMapping: Record<string, SabanaSourceConfig>;
   onSaveSourceMapping: (mapping: Record<string, SabanaSourceConfig>) => void;
   selectedDate: string;
@@ -177,6 +179,8 @@ export function SabanaTariffManagerModal({
   onCreateTariff,
   onUpdateTariff,
   onDeleteTariff,
+  deletedTariffs = [],
+  onRestoreTariff,
   sourcesMapping,
   onSaveSourceMapping,
   selectedDate,
@@ -188,7 +192,8 @@ export function SabanaTariffManagerModal({
   getSpecialRateActualPrice,
   initialSelectedTariffId,
 }: SabanaTariffManagerModalProps) {
-  const [activeTab, setActiveTab] = useState<'manage' | 'create' | 'picker'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'create' | 'delete' | 'picker'>('manage');
+  const [deleteSearchQuery, setDeleteSearchQuery] = useState('');
   const [selectedTariffId, setSelectedTariffId] = useState<string>(
     initialSelectedTariffId || allTariffs[0]?.id || '12'
   );
@@ -443,10 +448,10 @@ export function SabanaTariffManagerModal({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-slate-800 px-6 bg-slate-950/50 shrink-0">
+        <div className="flex border-b border-slate-800 px-6 bg-slate-950/50 shrink-0 overflow-x-auto">
           <button
             onClick={() => setActiveTab('manage')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all shrink-0 ${
               activeTab === 'manage'
                 ? 'border-amber-400 text-amber-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -458,26 +463,38 @@ export function SabanaTariffManagerModal({
 
           <button
             onClick={() => setActiveTab('create')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all shrink-0 ${
               activeTab === 'create'
                 ? 'border-amber-400 text-amber-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <PlusCircle className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
             <span>2. Crear Nueva Tarifa</span>
           </button>
 
           <button
+            onClick={() => setActiveTab('delete')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all shrink-0 ${
+              activeTab === 'delete'
+                ? 'border-rose-400 text-rose-400 bg-rose-500/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Trash2 className="h-4 w-4 text-rose-400" />
+            <span>3. Eliminar Tarifa</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('picker')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all shrink-0 ${
               activeTab === 'picker'
                 ? 'border-purple-400 text-purple-300'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <MousePointerClick className="h-4 w-4" />
-            <span>3. Señalar en Ventana</span>
+            <span>4. Señalar en Ventana</span>
           </button>
         </div>
 
@@ -520,19 +537,22 @@ export function SabanaTariffManagerModal({
                   </div>
                 </div>
 
-                {activeTariff?.isCustom && (
+                {activeTariff && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (confirm(`¿Eliminar la tarifa personalizada "${activeTariff.name}"?`)) {
+                      if (confirm(`¿Estás seguro de que deseas eliminar la tarifa "${activeTariff.name}"?`)) {
                         onDeleteTariff(activeTariff.id);
-                        setSelectedTariffId(allTariffs[0]?.id || '12');
+                        const remaining = allTariffs.filter((t) => t.id !== activeTariff.id);
+                        if (remaining.length > 0) {
+                          setSelectedTariffId(remaining[0].id);
+                        }
                       }
                     }}
-                    className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 self-end sm:self-center"
-                    title="Eliminar esta tarifa personalizada"
+                    className="px-3 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 self-end sm:self-center cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                    title={`Eliminar tarifa ${activeTariff.name}`}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4 text-rose-400" />
                     <span>Eliminar Tarifa</span>
                   </button>
                 )}
@@ -800,7 +820,143 @@ export function SabanaTariffManagerModal({
             </form>
           )}
 
-          {/* TAB 3: MODO SEÑALAR EN VENTANAS (PICKER) */}
+          {/* TAB 3: ELIMINAR TARIFA */}
+          {activeTab === 'delete' && (
+            <div className="space-y-6">
+              <div className="bg-slate-950 p-4 rounded-2xl border border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Eliminación de Tarifas</h4>
+                    <p className="text-xs text-slate-400">
+                      Elimina cualquier tarifa que no desees visualizar en la Sábana de Precios. Si eliminas una tarifa estándar, podrás restaurarla en cualquier momento.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="w-full sm:w-64">
+                  <input
+                    type="text"
+                    value={deleteSearchQuery}
+                    onChange={(e) => setDeleteSearchQuery(e.target.value)}
+                    placeholder="Buscar tarifa a eliminar..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Lista de Tarifas Activas para Eliminar */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-bold px-1">
+                  <span>Tarifas Activas en Sábana ({allTariffs.length})</span>
+                  <span className="text-[11px] text-slate-500 font-normal">Pulsa "Eliminar Tarifa" para quitarla</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {allTariffs
+                    .filter((t) => {
+                      if (!deleteSearchQuery) return true;
+                      const q = deleteSearchQuery.toUpperCase().trim();
+                      return t.name.toUpperCase().includes(q) || t.id.toUpperCase().includes(q);
+                    })
+                    .map((tariff) => {
+                      const isStd = tariff.blockType === 'standard';
+                      return (
+                        <div
+                          key={tariff.id}
+                          className="bg-slate-950/80 border border-slate-800 hover:border-rose-500/40 p-4 rounded-2xl flex flex-col justify-between space-y-3 transition-all group shadow-sm hover:shadow-md"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-extrabold text-white group-hover:text-rose-200 transition-colors">
+                                  {tariff.name}
+                                </span>
+                                <span
+                                  className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase border ${
+                                    tariff.isCustom
+                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                      : isStd
+                                      ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                                      : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                                  }`}
+                                >
+                                  {tariff.isCustom ? 'Personalizada' : isStd ? 'Estándar' : 'Especial'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-1 font-mono">
+                                Margen: <strong className="text-amber-300">+{tariff.markup.toFixed(3).replace('.', ',')} €/L</strong>
+                              </div>
+                              {tariff.description && (
+                                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{tariff.description}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`¿Estás seguro de que deseas eliminar la tarifa "${tariff.name}" de la Sábana de Precios?`)) {
+                                onDeleteTariff(tariff.id);
+                                if (selectedTariffId === tariff.id) {
+                                  const rem = allTariffs.filter((t) => t.id !== tariff.id);
+                                  if (rem.length > 0) setSelectedTariffId(rem[0].id);
+                                }
+                              }
+                            }}
+                            className="w-full py-2 px-3 bg-rose-500/10 hover:bg-rose-500/25 text-rose-300 hover:text-rose-200 border border-rose-500/30 hover:border-rose-500/60 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 active:scale-95 shadow-sm cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                            <span>Eliminar Tarifa</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Sección de Tarifas Eliminadas / Papelera para Restaurar */}
+              {deletedTariffs && deletedTariffs.length > 0 && (
+                <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-slate-400">
+                    <RotateCcw className="h-4 w-4 text-emerald-400" />
+                    <span>Tarifas Eliminadas ({deletedTariffs.length}) — Puedes restaurarlas en cualquier momento</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {deletedTariffs.map((t) => (
+                      <div
+                        key={t.id}
+                        className="bg-slate-950/40 border border-slate-800/60 p-3.5 rounded-2xl flex items-center justify-between gap-3 opacity-80 hover:opacity-100 transition-opacity"
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-300 line-through">{t.name}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            Margen: +{t.markup.toFixed(3).replace('.', ',')} €/L
+                          </div>
+                        </div>
+
+                        {onRestoreTariff && (
+                          <button
+                            type="button"
+                            onClick={() => onRestoreTariff(t.id)}
+                            className="px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shrink-0 active:scale-95 cursor-pointer"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>Restaurar Tarifa</span>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: MODO SEÑALAR EN VENTANAS (PICKER) */}
           {activeTab === 'picker' && (
             <div className="space-y-4 flex flex-col min-h-0">
               {/* Barra de Configuración de Señalización */}
