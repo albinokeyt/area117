@@ -14,8 +14,10 @@ import {
 } from '@/lib/stationsService';
 import {
   FileSpreadsheet, Download, Filter, Search, Table, Sparkles, Check,
-  Calculator, RotateCcw, Layers, Sliders, Plus, Edit3
+  Calculator, RotateCcw, Layers, Sliders, Plus, PlusCircle, Edit3
 } from 'lucide-react';
+
+const plusCircle = PlusCircle;
 import * as XLSX from 'xlsx';
 import { downloadWorkbookAsXlsx } from '@/lib/excelExportService';
 import { SabanaFormulaModal } from './SabanaFormulaModal';

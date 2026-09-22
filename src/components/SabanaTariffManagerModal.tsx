@@ -2,10 +2,13 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  X, Plus, Sliders, Check, RotateCcw, Trash2, ArrowRight,
+  X, Plus, PlusCircle, Sliders, Check, RotateCcw, Trash2, ArrowRight,
   FileSpreadsheet, Fuel, Layers, Star, Table, MousePointerClick,
   AlertCircle, Sparkles, CheckCircle2, ChevronRight, Info
 } from 'lucide-react';
+
+// Fallback defensivo para evitar 'plusCircle is not defined' bajo cualquier circunstancia
+const plusCircle = PlusCircle;
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS } from '@/lib/dataSeed';
 import { getAllStations } from '@/lib/stationsService';
 
@@ -232,7 +235,7 @@ export function SabanaTariffManagerModal({
   useEffect(() => {
     if (activeTariff) {
       setEditName(activeTariff.name);
-      setEditMarkup(activeTariff.markup.toFixed(3).replace('.', ','));
+      setEditMarkup((typeof activeTariff.markup === 'number' ? activeTariff.markup : 0).toFixed(3).replace('.', ','));
       
       const defaultMapping = sourcesMapping[`${activeTariff.name}::__DEFAULT__`];
       if (defaultMapping) {
@@ -703,6 +706,26 @@ export function SabanaTariffManagerModal({
                 </button>
 
                 <div className="flex items-center space-x-3">
+                  {activeTariff && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`¿Estás seguro de que deseas eliminar la tarifa "${activeTariff.name}" de la Sábana de Precios?`)) {
+                          onDeleteTariff(activeTariff.id);
+                          const remaining = allTariffs.filter((t) => t.id !== activeTariff.id);
+                          if (remaining.length > 0) {
+                            setSelectedTariffId(remaining[0].id);
+                          }
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 hover:border-rose-500/70 text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer active:scale-95 shadow-sm"
+                      title={`Eliminar tarifa ${activeTariff.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                      <span>Eliminar Esta Tarifa</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={onClose}
