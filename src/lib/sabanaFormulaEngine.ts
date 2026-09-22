@@ -765,21 +765,28 @@ export function getSabanaTariff60ConIvaForStation(
           `TAR_60_${al}`,
         ];
         for (const ck of candidateKeys) {
-          if (parsed[ck] !== undefined && typeof parsed[ck] === 'number' && parsed[ck] > 0) {
-            return parsed[ck];
-          }
-          const up = ck.toUpperCase();
-          if (parsed[up] !== undefined && typeof parsed[up] === 'number' && parsed[up] > 0) {
-            return parsed[up];
+          const val = parsed[ck] ?? parsed[ck.toUpperCase()];
+          if (val !== undefined) {
+            if (typeof val === 'number' && val > 0) return val;
+            if (typeof val === 'object' && val?.conIva && typeof val.conIva === 'number' && val.conIva > 0) {
+              return val.conIva;
+            }
           }
         }
       }
 
       // Estructura fullCache { "60::station": { sinIva, conIva } }
       for (const al of aliasList) {
-        const fullKey = `60::${al}`;
-        if (parsed[fullKey]?.conIva && typeof parsed[fullKey].conIva === 'number' && parsed[fullKey].conIva > 0) {
-          return parsed[fullKey].conIva;
+        const fullKeys = [
+          `60::${al}`,
+          `T60::${al}`,
+          `TARIFA 60::${al}`,
+        ];
+        for (const fk of fullKeys) {
+          const obj = parsed[fk] ?? parsed[fk.toUpperCase()];
+          if (obj?.conIva && typeof obj.conIva === 'number' && obj.conIva > 0) {
+            return obj.conIva;
+          }
         }
       }
     } catch (e) {}
@@ -787,8 +794,12 @@ export function getSabanaTariff60ConIvaForStation(
   };
 
   const cachedVal =
+    (selectedDate ? checkCache(`efi_sabana_standard_table_cache_${selectedDate}`) : null) ||
+    (selectedDate ? checkCache(`efi_sabana_standard_table_full_${selectedDate}`) : null) ||
     checkCache(`efi_sabana_standard_table_cache_${activeDate}`) ||
+    checkCache(`efi_sabana_standard_table_full_${activeDate}`) ||
     checkCache(`efi_sabana_standard_table_cache_${todayStr}`) ||
+    checkCache(`efi_sabana_standard_table_full_${todayStr}`) ||
     checkCache('efi_sabana_standard_table_cache_v1') ||
     checkCache('efi_sabana_standard_table_full_v1');
 
@@ -799,7 +810,7 @@ export function getSabanaTariff60ConIvaForStation(
   // 3. Evaluar fórmulas personalizadas de Sábana
   let purchasesData: Record<string, any> = {};
   try {
-    const sDate = localStorage.getItem('efi_purchases_' + activeDate);
+    const sDate = (selectedDate && localStorage.getItem('efi_purchases_' + selectedDate)) || localStorage.getItem('efi_purchases_' + activeDate);
     const sGlob = localStorage.getItem('efi_compras_data');
     if (sDate) purchasesData = JSON.parse(sDate).data || {};
     else if (sGlob) purchasesData = JSON.parse(sGlob).data || {};
@@ -811,8 +822,12 @@ export function getSabanaTariff60ConIvaForStation(
     if (sp) specialRates = JSON.parse(sp);
   } catch (e) {}
 
-  const rawFormulas = loadSabanaFormulas(activeDate);
-  const resolvedFormulas = reevaluateAllSabanaFormulas(rawFormulas, activeDate, purchasesData, specialRates);
+  const rawFormulas = {
+    ...loadSabanaFormulas('global'),
+    ...(selectedDate ? loadSabanaFormulas(selectedDate) : {}),
+    ...loadSabanaFormulas(activeDate),
+  };
+  const resolvedFormulas = reevaluateAllSabanaFormulas(rawFormulas, selectedDate || activeDate, purchasesData, specialRates);
   const allFormulas = { ...rawFormulas, ...resolvedFormulas };
 
   // a) Buscar fórmula Con IVA específica

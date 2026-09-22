@@ -120,7 +120,7 @@ function AppContent() {
           <Comp1PurchaseManager selectedDate={selectedDate} />
         </div>
         <div className={activeTab === 'postes' ? 'block' : 'hidden'}>
-          <PostesManager />
+          <PostesManager selectedDate={selectedDate} />
         </div>
         <div className={activeTab === 'sabana' ? 'block' : 'hidden'}>
           <SabanaPreciosManager selectedDate={selectedDate} />

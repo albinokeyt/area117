@@ -940,20 +940,67 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
           const prices = getTariffPricesForStation(t.name, t.markup, st.name, isPropia);
           const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
 
-          const keys = [
-            `T${cleanTariff}::${st.name}`,
-            `T${cleanTariff}::${cleanTarget}`,
-            `T${cleanTariff}::ES ${cleanTarget}`,
-            `${cleanTariff}::${st.name}`,
-            `${cleanTariff}::${cleanTarget}`,
-            `${cleanTariff}::ES ${cleanTarget}`,
-            `TARIFA ${cleanTariff}::${st.name}`,
-            `TARIFA ${cleanTariff}::${cleanTarget}`,
-            `TAR_${cleanTariff}_${st.name}`,
-            `TAR_${cleanTariff}_${cleanTarget}`,
-            `STD_${st.name}_T${cleanTariff}`,
-            `STD_${cleanTarget}_T${cleanTariff}`,
-          ];
+          const stationAliases = new Set<string>([st.name, cleanTarget, `ES ${cleanTarget}`]);
+          if (cleanTarget === 'ARCOS JALON' || cleanTarget === 'ARCOS') {
+            stationAliases.add('ARCOS');
+            stationAliases.add('ARCOS JALON');
+            stationAliases.add('ES ARCOS JALON');
+          }
+          if (cleanTarget === 'SORIA ALCUBILLAS' || cleanTarget === 'ALCUBILLAS') {
+            stationAliases.add('ALCUBILLAS');
+            stationAliases.add('SORIA ALCUBILLAS');
+            stationAliases.add('ES SORIA ALCUBILLAS');
+          }
+          if (cleanTarget === 'TORREJON') {
+            stationAliases.add('TORREJON');
+            stationAliases.add('GANESHA TORREJON');
+            stationAliases.add('ES TORREJON');
+          }
+          if (cleanTarget === 'MADRID') {
+            stationAliases.add('MADRID');
+            stationAliases.add('GANESHA MADRID');
+            stationAliases.add('ES MADRID');
+          }
+          if (cleanTarget === 'VALDEMORO') {
+            stationAliases.add('VALDEMORO');
+            stationAliases.add('ES VALDEMORO');
+          }
+          if (cleanTarget === 'VALLECAS') {
+            stationAliases.add('VALLECAS');
+            stationAliases.add('ES VALLECAS');
+          }
+          if (cleanTarget === 'RIBA-ROJA' || cleanTarget === 'RIBA ROJA' || cleanTarget === 'ES RIBA-ROJA') {
+            stationAliases.add('RIBA-ROJA');
+            stationAliases.add('ES RIBA-ROJA');
+            stationAliases.add('RIBA ROJA');
+          }
+          if (cleanTarget === 'PISTA DE SILLA' || cleanTarget === 'PISTA SILLA' || cleanTarget === 'ES PISTA DE SILLA') {
+            stationAliases.add('PISTA DE SILLA');
+            stationAliases.add('ES PISTA DE SILLA');
+            stationAliases.add('PISTA SILLA');
+          }
+          if (cleanTarget === 'REAL DE GANDIA' || cleanTarget === 'GANDIA' || cleanTarget === 'ES REAL DE GANDIA') {
+            stationAliases.add('REAL DE GANDIA');
+            stationAliases.add('ES REAL DE GANDIA');
+            stationAliases.add('GANDIA');
+          }
+
+          const keys: string[] = [];
+          stationAliases.forEach((alias) => {
+            const aliasUpper = alias.toUpperCase();
+            keys.push(
+              `T${cleanTariff}::${alias}`,
+              `T${cleanTariff}::${aliasUpper}`,
+              `${cleanTariff}::${alias}`,
+              `${cleanTariff}::${aliasUpper}`,
+              `TARIFA ${cleanTariff}::${alias}`,
+              `TARIFA ${cleanTariff}::${aliasUpper}`,
+              `TAR_${cleanTariff}_${alias}`,
+              `TAR_${cleanTariff}_${aliasUpper}`,
+              `STD_${alias}_T${cleanTariff}`,
+              `STD_${aliasUpper}_T${cleanTariff}`
+            );
+          });
 
           keys.forEach((k) => {
             stdCache[k] = prices.conIva;
@@ -961,12 +1008,16 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
           });
 
           stdFullCache[`${cleanTariff}::${st.name}`] = { sinIva: prices.sinIva, conIva: prices.conIva };
+          stationAliases.forEach((alias) => {
+            stdFullCache[`${cleanTariff}::${alias}`] = { sinIva: prices.sinIva, conIva: prices.conIva };
+          });
         });
       });
 
       localStorage.setItem('efi_sabana_standard_table_cache_v1', JSON.stringify(stdCache));
       localStorage.setItem(`efi_sabana_standard_table_cache_${selectedDate}`, JSON.stringify(stdCache));
       localStorage.setItem('efi_sabana_standard_table_full_v1', JSON.stringify(stdFullCache));
+      localStorage.setItem(`efi_sabana_standard_table_full_${selectedDate}`, JSON.stringify(stdFullCache));
 
       window.dispatchEvent(new Event('efi_export_updated'));
       window.dispatchEvent(new Event('efi_sabana_updated'));

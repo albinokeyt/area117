@@ -63,7 +63,11 @@ const POSTES_PROPIAS_STATIONS: {
   { name: 'ES REAL DE GANDIA', defaultGoa: '1,680', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
 ];
 
-export function PostesManager() {
+interface PostesManagerProps {
+  selectedDate?: string;
+}
+
+export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   const parseNum = (val: string | number | undefined): number => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -262,22 +266,33 @@ export function PostesManager() {
   const [imageToast, setImageToast] = useState<string | null>(null);
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
-      return localStorage.getItem('efi_compras_valid_from') || new Date().toISOString().split('T')[0];
+      return selectedDate || localStorage.getItem('efi_compras_valid_from') || new Date().toISOString().split('T')[0];
     } catch (e) {
-      return new Date().toISOString().split('T')[0];
+      return selectedDate || new Date().toISOString().split('T')[0];
     }
   });
+
+  const [comprasUpdateTick, setComprasUpdateTick] = useState(0);
+
+  // Sincronizar fecha si cambia la prop selectedDate
+  useEffect(() => {
+    if (selectedDate && selectedDate !== validFromDate) {
+      setValidFromDate(selectedDate);
+      setCustomPostesFormulas(loadPostesFormulas(selectedDate));
+      setComprasUpdateTick((t) => t + 1);
+    }
+  }, [selectedDate, validFromDate]);
 
   // Estados de Modo Formular para Postes
   const [isFormulaMode, setIsFormulaMode] = useState<boolean>(false);
   const [customPostesFormulas, setCustomPostesFormulas] = useState<Record<string, CellFormula>>(() => {
-    return loadPostesFormulas(validFromDate);
+    return loadPostesFormulas(selectedDate || validFromDate);
   });
 
-  // Reevaluación en vivo de todas las fórmulas de Postes en función del contexto global
+  // Reevaluación en vivo de todas las fórmulas de Postes en función del contexto global y actualizaciones
   const resolvedPostesFormulas = useMemo(() => {
-    return reevaluateAllPostesFormulas(customPostesFormulas, validFromDate);
-  }, [customPostesFormulas, validFromDate, postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, gasoleoBRows, adblueRows, broncoRow, gasesRows]);
+    return reevaluateAllPostesFormulas(customPostesFormulas, selectedDate || validFromDate);
+  }, [customPostesFormulas, selectedDate, validFromDate, comprasUpdateTick, postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, gasoleoBRows, adblueRows, broncoRow, gasesRows]);
 
   // Sincronizar fórmulas recalculadas a localStorage si cambiaron
   useEffect(() => {
@@ -290,11 +305,12 @@ export function PostesManager() {
     }
     if (hasDiff) {
       try {
-        localStorage.setItem(`efi_postes_custom_formulas_${validFromDate}`, JSON.stringify(resolvedPostesFormulas));
+        const effDate = selectedDate || validFromDate;
+        localStorage.setItem(`efi_postes_custom_formulas_${effDate}`, JSON.stringify(resolvedPostesFormulas));
         localStorage.setItem('efi_postes_custom_formulas_global', JSON.stringify(resolvedPostesFormulas));
       } catch (e) {}
     }
-  }, [resolvedPostesFormulas, validFromDate, customPostesFormulas]);
+  }, [resolvedPostesFormulas, selectedDate, validFromDate, customPostesFormulas]);
 
   const [activeModalCell, setActiveModalCell] = useState<{
     cellKey: string;
@@ -305,12 +321,10 @@ export function PostesManager() {
     onApplyToColumn?: (formulaStr: string) => void;
   } | null>(null);
 
-  const [, setComprasUpdateTick] = useState(0);
-
   useEffect(() => {
     const handleUpdates = () => {
       try {
-        const saved = localStorage.getItem('efi_compras_valid_from');
+        const saved = selectedDate || localStorage.getItem('efi_compras_valid_from');
         if (saved) {
           setValidFromDate(saved);
           setCustomPostesFormulas(loadPostesFormulas(saved));
@@ -336,7 +350,7 @@ export function PostesManager() {
       window.removeEventListener('efi_postes_updated', handleUpdates);
       window.removeEventListener('storage', handleUpdates);
     };
-  }, [validFromDate]);
+  }, [selectedDate, validFromDate]);
 
   // Guardar fórmula en celda de Postes
   const handleSaveFormula = (cellKey: string, rawFormula: string, evaluatedValue: number) => {
@@ -547,7 +561,7 @@ export function PostesManager() {
 
   // Obtener Tarifa 60 con IVA desde Sábana de Precios / Compras para calcular Margen GOA
   const getTarifa60ConIva = (stName: string): number => {
-    return getSabanaTariff60ConIvaForStation(stName, validFromDate);
+    return getSabanaTariff60ConIvaForStation(stName, selectedDate || validFromDate);
   };
 
   // Margen GOA = Tarifa 60 con IVA - Precio Poste GOA
