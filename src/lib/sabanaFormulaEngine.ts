@@ -278,6 +278,45 @@ export function getProgramVariables(
     addVar("postes", "Postes", "AdBlue", "POSTES:" + norm + ":ADBLUE_POSTE", "AdBlue Poste (" + stName + ")", pNum, stName);
   });
 
+  // Gases y Energías Alternativas
+  const gasesStorage = postesStorage?.gases || {
+    'GLP / Autogas': { sinIva: '0.785', poste: '0.949' },
+    'GNC (Gas Natural Comprimido)': { sinIva: '0.950', poste: '1.149' },
+    'GNL (Gas Natural Licuado)': { sinIva: '0.890', poste: '1.079' },
+  };
+  Object.entries(gasesStorage).forEach(([gasName, data]: [string, any]) => {
+    let shortName = 'GLP';
+    if (gasName.includes('GNC')) shortName = 'GNC';
+    else if (gasName.includes('GNL')) shortName = 'GNL';
+    const sNum = parseNum(data.sinIva);
+    const cNum = round3(sNum * 1.21);
+    const pNum = parseNum(data.poste);
+    addVar("postes", "Postes", "Gases", `POSTES:${shortName}:SIN_IVA`, `${shortName} Sin IVA`, sNum);
+    addVar("postes", "Postes", "Gases", `POSTES:${shortName}:CON_IVA`, `${shortName} Con IVA (21%)`, cNum);
+    addVar("postes", "Postes", "Gases", `POSTES:${shortName}:POSTE`, `${shortName} Poste`, pNum);
+  });
+
+  // Bronco
+  const postesBroncoData = postesStorage?.bronco || {
+    sinIva: '1.305',
+    conIva: '1.579',
+    beneficio: '0.048',
+    compra: '1.242',
+  };
+  const bSinIva = parseNum(postesBroncoData.sinIva);
+  const bConIva = parseNum(postesBroncoData.conIva);
+  const bCompra = parseNum(postesBroncoData.compra);
+  const bBeneficio = parseNum(postesBroncoData.beneficio);
+  addVar("postes", "Postes", "Gasolina Bronco", "POSTES:BRONCO:SIN_IVA", "Gasolina Bronco Sin IVA", bSinIva);
+  addVar("postes", "Postes", "Gasolina Bronco", "POSTES:BRONCO:CON_IVA", "Gasolina Bronco Con IVA", bConIva);
+  addVar("postes", "Postes", "Gasolina Bronco", "POSTES:BRONCO:COMPRA", "Gasolina Bronco Compra", bCompra);
+  addVar("postes", "Postes", "Gasolina Bronco", "POSTES:BRONCO:BENEFICIO", "Gasolina Bronco Beneficio", bBeneficio);
+
+  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:SIN_IVA", "Gasolina Bronco Sin IVA", bSinIva);
+  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:CON_IVA", "Gasolina Bronco Con IVA", bConIva);
+  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:COMPRA", "Gasolina Bronco Compra", bCompra);
+  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:BENEFICIO", "Gasolina Bronco Beneficio", bBeneficio);
+
   // 4. TARIFAS ESPECIALES (B50:F82 en Compras)
   allStations.forEach((st) => {
     const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
@@ -436,6 +475,13 @@ export function getProgramVariables(
   // Also include any other arbitrary custom formulas in map
   Object.entries(sabanaFormulas).forEach(([k, v]) => {
     if (v && typeof v.evaluatedValue === 'number' && !map[k]) {
+      map[k] = v.evaluatedValue;
+      map[k.toUpperCase()] = v.evaluatedValue;
+    }
+  });
+
+  Object.entries(postesFormulas).forEach(([k, v]) => {
+    if (v && typeof v.evaluatedValue === 'number') {
       map[k] = v.evaluatedValue;
       map[k.toUpperCase()] = v.evaluatedValue;
     }
