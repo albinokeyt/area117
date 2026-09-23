@@ -498,7 +498,24 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       return updated;
     });
-    setModifiedKeys((prev) => new Set(prev).add(`bronco_${field}`));
+
+    setModifiedKeys((prev) => {
+      const next = new Set(prev);
+      next.add(`bronco_${field}`);
+      if (field === 'conIva') {
+        next.add('bronco_sinIva');
+        next.add('bronco_beneficio');
+      } else if (field === 'sinIva') {
+        next.add('bronco_conIva');
+        next.add('bronco_beneficio');
+      } else if (field === 'compra') {
+        next.add('bronco_beneficio');
+      } else if (field === 'beneficio') {
+        next.add('bronco_sinIva');
+        next.add('bronco_conIva');
+      }
+      return next;
+    });
     setIsSaved(false);
   };
 
@@ -1758,8 +1775,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                 </div>
 
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 px-3 py-1 rounded-full font-bold">
-                    Amarillo = Con IVA (Editable / Reactivo)
+                  <span className="flex items-center space-x-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    <span>Amarillo = Dato Modificado Hoy</span>
                   </span>
                 </div>
               </div>
@@ -1771,93 +1789,138 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                       <tr className="bg-[#fceade] text-slate-900 font-black text-xs uppercase tracking-wider border-b border-amber-300">
                         <th className="py-3.5 px-6 text-left font-black">PRODUCTO</th>
                         <th className="py-3.5 px-4 font-black">SIN IVA</th>
-                        <th className="py-3.5 px-4 font-black text-amber-950 bg-yellow-300">CON IVA</th>
+                        <th className="py-3.5 px-4 font-black">CON IVA</th>
                         <th className="py-3.5 px-4 font-black text-emerald-800">BENEFICIO</th>
                         <th className="py-3.5 px-4 font-black text-blue-900">COMPRA</th>
                         <th className="py-3.5 px-4 font-black text-rose-800">FECHA</th>
                       </tr>
                     </thead>
                     <tbody className="font-mono text-xs">
-                      <tr className="bg-slate-900/90 hover:bg-slate-900 transition-colors">
-                        {/* PRODUCTO */}
-                        <td className="py-3 px-6 text-left font-black text-white bg-[#fdf2e9] text-slate-900 border-r border-slate-700/60">
-                          <input
-                            type="text"
-                            value={gasolinaBronco.name}
-                            onChange={(e) => handleBroncoChange('name', e.target.value)}
-                            className="bg-transparent text-slate-950 font-black text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-0.5 w-full uppercase"
-                          />
-                        </td>
+                      {(() => {
+                        const isNameMod = modifiedKeys.has('bronco_name');
+                        const isSinIvaMod = modifiedKeys.has('bronco_sinIva');
+                        const isConIvaMod = modifiedKeys.has('bronco_conIva');
+                        const isBeneficioMod = modifiedKeys.has('bronco_beneficio');
+                        const isCompraMod = modifiedKeys.has('bronco_compra');
+                        const isFechaMod = modifiedKeys.has('bronco_fecha');
 
-                        {/* SIN IVA */}
-                        <td className="py-3 px-4 border-r border-slate-800">
-                          <div className="inline-flex items-center space-x-1">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={gasolinaBronco.sinIva}
-                              onChange={(e) => handleBroncoChange('sinIva', e.target.value)}
-                              className="w-24 text-center font-bold text-slate-100 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 focus:outline-none focus:border-amber-400"
-                            />
-                            <span className="text-slate-400 font-bold">€</span>
-                          </div>
-                        </td>
+                        return (
+                          <tr className="bg-slate-900/90 hover:bg-slate-900 transition-colors">
+                            {/* PRODUCTO */}
+                            <td className={`py-3 px-6 text-left font-black border-r border-slate-700/60 transition-colors ${
+                              isNameMod ? 'bg-amber-400/20' : 'bg-[#fdf2e9]'
+                            }`}>
+                              <input
+                                type="text"
+                                value={gasolinaBronco.name}
+                                onChange={(e) => handleBroncoChange('name', e.target.value)}
+                                className={`text-slate-950 font-black text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 rounded px-1.5 py-0.5 w-full uppercase ${
+                                  isNameMod ? 'bg-amber-300/80 font-black ring-1 ring-amber-400' : 'bg-transparent'
+                                }`}
+                              />
+                            </td>
 
-                        {/* CON IVA (Amarillo llamativo como en el Excel) */}
-                        <td className="py-3 px-4 bg-amber-500/10 border-r border-slate-800">
-                          <div className="inline-flex items-center space-x-1">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={gasolinaBronco.conIva}
-                              onChange={(e) => handleBroncoChange('conIva', e.target.value)}
-                              className="w-24 text-center font-black text-slate-950 bg-yellow-300 ring-2 ring-yellow-400 shadow-md rounded-lg px-2 py-1 focus:outline-none focus:ring-4 focus:ring-yellow-200 cursor-pointer"
-                              title="Precio Con IVA (al cambiarlo se recalcula Sin IVA y Beneficio automáticamente)"
-                            />
-                            <span className="text-amber-400 font-black">€</span>
-                          </div>
-                        </td>
+                            {/* SIN IVA */}
+                            <td className={`py-3 px-4 border-r border-slate-800 transition-colors ${
+                              isSinIvaMod ? 'bg-amber-400/10' : ''
+                            }`}>
+                              <div className="inline-flex items-center space-x-1">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={gasolinaBronco.sinIva}
+                                  onChange={(e) => handleBroncoChange('sinIva', e.target.value)}
+                                  className={`w-24 text-center font-bold rounded-lg px-2 py-1 transition-all focus:outline-none ${
+                                    isSinIvaMod
+                                      ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30 font-black'
+                                      : 'bg-slate-950 border border-slate-700 text-slate-100 focus:border-amber-400'
+                                  }`}
+                                />
+                                <span className={isSinIvaMod ? 'text-amber-300 font-bold' : 'text-slate-400 font-bold'}>€</span>
+                              </div>
+                            </td>
 
-                        {/* BENEFICIO */}
-                        <td className="py-3 px-4 border-r border-slate-800">
-                          <div className="inline-flex items-center space-x-1">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={gasolinaBronco.beneficio}
-                              onChange={(e) => handleBroncoChange('beneficio', e.target.value)}
-                              className="w-24 text-center font-bold text-emerald-400 bg-slate-950 border border-emerald-900/50 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-400"
-                              title="Beneficio = Sin IVA - (Compra + 0.015)"
-                            />
-                            <span className="text-emerald-400 font-bold">€</span>
-                          </div>
-                        </td>
+                            {/* CON IVA (Mismo color que el resto del cuadro, amarillo si modificado) */}
+                            <td className={`py-3 px-4 border-r border-slate-800 transition-colors ${
+                              isConIvaMod ? 'bg-amber-400/10' : ''
+                            }`}>
+                              <div className="inline-flex items-center space-x-1">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={gasolinaBronco.conIva}
+                                  onChange={(e) => handleBroncoChange('conIva', e.target.value)}
+                                  className={`w-24 text-center font-bold rounded-lg px-2 py-1 transition-all focus:outline-none ${
+                                    isConIvaMod
+                                      ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30 font-black'
+                                      : 'bg-slate-950 border border-slate-700 text-slate-100 focus:border-amber-400'
+                                  }`}
+                                  title="Precio Con IVA (al cambiarlo se recalcula Sin IVA y Beneficio automáticamente)"
+                                />
+                                <span className={isConIvaMod ? 'text-amber-300 font-bold' : 'text-slate-400 font-bold'}>€</span>
+                              </div>
+                            </td>
 
-                        {/* COMPRA */}
-                        <td className="py-3 px-4 border-r border-slate-800">
-                          <div className="inline-flex items-center space-x-1">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={gasolinaBronco.compra}
-                              onChange={(e) => handleBroncoChange('compra', e.target.value)}
-                              className="w-24 text-center font-bold text-blue-300 bg-slate-950 border border-blue-900/50 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
-                            />
-                            <span className="text-blue-300 font-bold">€</span>
-                          </div>
-                        </td>
+                            {/* BENEFICIO */}
+                            <td className={`py-3 px-4 border-r border-slate-800 transition-colors ${
+                              isBeneficioMod ? 'bg-amber-400/10' : ''
+                            }`}>
+                              <div className="inline-flex items-center space-x-1">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={gasolinaBronco.beneficio}
+                                  onChange={(e) => handleBroncoChange('beneficio', e.target.value)}
+                                  className={`w-24 text-center font-bold rounded-lg px-2 py-1 transition-all focus:outline-none ${
+                                    isBeneficioMod
+                                      ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30 font-black'
+                                      : 'bg-slate-950 border border-emerald-900/50 text-emerald-400 focus:border-emerald-400'
+                                  }`}
+                                  title="Beneficio = Sin IVA - (Compra + 0.015)"
+                                />
+                                <span className={isBeneficioMod ? 'text-amber-300 font-bold' : 'text-emerald-400 font-bold'}>€</span>
+                              </div>
+                            </td>
 
-                        {/* FECHA */}
-                        <td className="py-3 px-4">
-                          <input
-                            type="text"
-                            value={gasolinaBronco.fecha}
-                            onChange={(e) => handleBroncoChange('fecha', e.target.value)}
-                            className="w-28 text-center font-bold text-rose-500 bg-slate-950 border border-rose-950 rounded-lg px-2 py-1 focus:outline-none focus:border-rose-400"
-                            title="Fecha del cálculo"
-                          />
-                        </td>
-                      </tr>
+                            {/* COMPRA */}
+                            <td className={`py-3 px-4 border-r border-slate-800 transition-colors ${
+                              isCompraMod ? 'bg-amber-400/10' : ''
+                            }`}>
+                              <div className="inline-flex items-center space-x-1">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={gasolinaBronco.compra}
+                                  onChange={(e) => handleBroncoChange('compra', e.target.value)}
+                                  className={`w-24 text-center font-bold rounded-lg px-2 py-1 transition-all focus:outline-none ${
+                                    isCompraMod
+                                      ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30 font-black'
+                                      : 'bg-slate-950 border border-blue-900/50 text-blue-300 focus:border-blue-400'
+                                  }`}
+                                />
+                                <span className={isCompraMod ? 'text-amber-300 font-bold' : 'text-blue-300 font-bold'}>€</span>
+                              </div>
+                            </td>
+
+                            {/* FECHA */}
+                            <td className={`py-3 px-4 transition-colors ${
+                              isFechaMod ? 'bg-amber-400/10' : ''
+                            }`}>
+                              <input
+                                type="text"
+                                value={gasolinaBronco.fecha}
+                                onChange={(e) => handleBroncoChange('fecha', e.target.value)}
+                                className={`w-28 text-center font-bold rounded-lg px-2 py-1 transition-all focus:outline-none ${
+                                  isFechaMod
+                                    ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/30 font-black'
+                                    : 'bg-slate-950 border border-rose-950 text-rose-500 focus:border-rose-400'
+                                }`}
+                                title="Fecha del cálculo"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>
