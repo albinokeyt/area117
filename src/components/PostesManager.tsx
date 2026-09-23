@@ -465,12 +465,16 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     // Casos Bronco
     if (cellKey === 'POSTE_BRONCO_SIN_IVA') {
       setBroncoRow((prev) => ({ ...prev, sinIva: formatNum(evaluatedValue, 3) }));
+      setModifiedKeys((prev) => new Set(prev).add('bronco_sinIva'));
     } else if (cellKey === 'POSTE_BRONCO_CON_IVA') {
       setBroncoRow((prev) => ({ ...prev, conIva: formatNum(evaluatedValue, 3) }));
+      setModifiedKeys((prev) => new Set(prev).add('bronco_conIva'));
     } else if (cellKey === 'POSTE_BRONCO_BENEFICIO') {
       setBroncoRow((prev) => ({ ...prev, beneficio: formatNum(evaluatedValue, 3) }));
+      setModifiedKeys((prev) => new Set(prev).add('bronco_beneficio'));
     } else if (cellKey === 'POSTE_BRONCO_COMPRA') {
       setBroncoRow((prev) => ({ ...prev, compra: formatNum(evaluatedValue, 3) }));
+      setModifiedKeys((prev) => new Set(prev).add('bronco_compra'));
     }
 
     setImageToast(`Fórmula guardada para ${cellKey}`);
@@ -610,6 +614,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
         }
       });
     } else {
+      const nextMods = new Set(modifiedKeys);
       postesStations.forEach((st) => {
         let cellKey = '';
         if (columnType === 'goa') cellKey = `POSTE_${st.name}_GOA`;
@@ -644,19 +649,30 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
               ...prev,
               [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), goa: formatNum(evalRes.value, 3) },
             }));
+            nextMods.add(`poste_${st.name}_goa`);
+            nextMods.add(`poste_${st.name}_margenGoa`);
+            nextMods.add(`poste_${st.name}_goaPremium`);
           } else if (columnType === 'gasolina') {
             setPostes((prev) => ({
               ...prev,
               [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), gasolina: formatNum(evalRes.value, 3) },
             }));
+            nextMods.add(`poste_${st.name}_gasolina`);
+            nextMods.add(`poste_${st.name}_gasolinaGain`);
           } else if (columnType === 'margenGasolina') {
             setPostes((prev) => ({
               ...prev,
               [st.name]: { ...(prev[st.name] || { goa: '', gasolina: '', gasolinaGain: '' }), gasolinaGain: formatNum(evalRes.value, 3) },
             }));
+            nextMods.add(`poste_${st.name}_gasolinaGain`);
+          } else if (columnType === 'margenGoa') {
+            nextMods.add(`poste_${st.name}_margenGoa`);
+          } else if (columnType === 'goaPremium') {
+            nextMods.add(`poste_${st.name}_goaPremium`);
           }
         }
       });
+      setModifiedKeys(nextMods);
     }
 
     setCustomPostesFormulas(updatedFormulas);
@@ -756,7 +772,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     currentGenAdd = hvoGeneralAddition,
     currentAlfajarin = hvoAlfajarinSinIva,
     currentValdemoro = hvoValdemoroAddition,
-    currentModified = modifiedKeys
+    currentModified = modifiedKeys,
+    currentGasoleoB = gasoleoBRows,
+    currentAdblue = adblueRows,
+    currentGases = gasesRows,
+    currentBronco = broncoRow
   ) => {
     try {
       const dataToSave = {
@@ -765,11 +785,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
         hvoGeneralAddition: currentGenAdd,
         hvoAlfajarinSinIva: currentAlfajarin,
         hvoValdemoroAddition: currentValdemoro,
-        gasoleoBRows,
+        gasoleoBRows: currentGasoleoB,
         gasoleoBPosteGlobal,
-        adblue: adblueRows,
-        gases: gasesRows,
-        bronco: broncoRow,
+        adblue: currentAdblue,
+        gases: currentGases,
+        bronco: currentBronco,
         modified: Array.from(currentModified),
         updatedAt: new Date().toISOString(),
       };
@@ -884,6 +904,13 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
     const updatedMods = new Set(modifiedKeys);
     updatedMods.add(`poste_${stName}_${field}`);
+    if (field === 'goa') {
+      updatedMods.add(`poste_${stName}_margenGoa`);
+      updatedMods.add(`poste_${stName}_goaPremium`);
+    }
+    if (field === 'gasolina') {
+      updatedMods.add(`poste_${stName}_gasolinaGain`);
+    }
     setModifiedKeys(updatedMods);
     setIsSaved(false);
 
@@ -1632,9 +1659,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
               <p className="text-xs text-slate-400">Precios en surtidor con descargas en formato de imagen PNG</p>
             </div>
           </div>
-          <span className="text-xs text-amber-400/90 font-mono bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20 font-bold">
-            Fórmula: GOA Premium = GOA + 0.04 EUR
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-full">
+              Amarillo = Dato Modificado Hoy
+            </span>
+            <span className="text-xs text-amber-400/90 font-mono bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20 font-bold">
+              Fórmula: GOA Premium = GOA + 0.04 EUR
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -1688,9 +1720,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                 const gasNum = customGas ? customGas.evaluatedValue : parseNum(item.gasolina);
                 const gasDisplay = customGas ? formatNum(customGas.evaluatedValue, 3) : item.gasolina;
 
+                const isGoaMod = modifiedKeys.has(`poste_${st.name}_goa`);
+                const isMargenGoaMod = modifiedKeys.has(`poste_${st.name}_margenGoa`) || isGoaMod;
+                const isPremiumMod = modifiedKeys.has(`poste_${st.name}_goaPremium`) || isGoaMod;
+                const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
+                const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`) || isGasMod;
+
                 // 5. Margen Gasolina según fórmula oficial de la columna D
                 const autoMargenGas = hasGasolina ? getMargenGasolina(st.name, gasNum) : null;
-                const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`);
                 const margenGasolinaKey = `POSTE_${st.name}_MARGEN_GASOLINA`;
                 const customMargenGas = resolvedPostesFormulas[margenGasolinaKey];
                 const displayMargenGas = customMargenGas
@@ -1700,9 +1737,6 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                   : autoMargenGas !== null
                   ? formatNum(autoMargenGas, 3)
                   : '—';
-
-                const isGoaMod = modifiedKeys.has(`poste_${st.name}_goa`);
-                const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
 
                 const isMadridGroup = MADRID_GROUP.includes(st.name);
                 const isSurGroup = SUR_GROUP.includes(st.name);
@@ -1777,7 +1811,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                               customGoa
                                 ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
                                 : isGoaMod
-                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30'
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
                                 : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
                             }`}
                           />
@@ -1808,9 +1842,9 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                           onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('margenGoa', f, st.name),
                         });
                       }}
-                      className={`py-3 px-4 bg-slate-900/40 transition-all ${
+                      className={`py-3 px-4 transition-all ${
                         isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 hover:ring-1 hover:ring-amber-400/50' : ''
-                      }`}
+                      } ${isMargenGoaMod ? 'bg-amber-400/20' : 'bg-slate-900/40'}`}
                       title={
                         isFormulaMode
                           ? customMargenGoa
@@ -1832,6 +1866,8 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                             className={`font-mono font-bold text-xs ${
                               customMargenGoa
                                 ? 'text-amber-300 font-black'
+                                : isMargenGoaMod
+                                ? 'text-amber-300 font-black'
                                 : margenGoa >= 0
                                 ? 'text-emerald-400'
                                 : 'text-rose-400'
@@ -1839,6 +1875,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                           >
                             {margenGoa >= 0 ? `+${formatNum(margenGoa, 3)}` : formatNum(margenGoa, 3)} €
                           </span>
+                          {isMargenGoaMod && !customMargenGoa && (
+                            <span className="ml-1 text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded shadow">
+                              MOD
+                            </span>
+                          )}
                         </div>
                         <span className="text-[9px] text-slate-500 font-mono">
                           T60: {formatNum(t60ConIva, 3)} €
@@ -1859,9 +1900,9 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                           onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('goaPremium', f, st.name),
                         });
                       }}
-                      className={`py-3 px-4 bg-amber-500/5 font-mono font-bold text-amber-300 text-sm transition-all ${
+                      className={`py-3 px-4 font-mono font-bold text-sm transition-all ${
                         isFormulaMode ? 'cursor-pointer hover:bg-amber-500/20 hover:ring-1 hover:ring-amber-400/50' : ''
-                      }`}
+                      } ${isPremiumMod ? 'bg-amber-400/20 text-amber-200 font-black' : 'bg-amber-500/5 text-amber-300'}`}
                       title={
                         isFormulaMode
                           ? customPremium
@@ -1879,6 +1920,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                           </span>
                         )}
                         <span>{formatNum(premiumPrice, 3)} €</span>
+                        {isPremiumMod && !customPremium && (
+                          <span className="ml-1.5 text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded shadow">
+                            MOD
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -2009,7 +2055,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                                 customMargenGas
                                   ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
                                   : isGainMod
-                                  ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md'
+                                  ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
                                   : parseNum(displayMargenGas) >= 0
                                   ? 'bg-slate-950 border border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
                                   : 'bg-slate-950 border border-rose-500/40 text-rose-400 focus:border-rose-400'
@@ -2072,501 +2118,561 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
       </div>
 
       {/* 2. Sección HVO con Suma de Montos y Reporte Combinado PNG */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-3">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <Zap className="h-5 w-5" />
+      {(() => {
+        const isHvoGenBaseMod = modifiedKeys.has('hvo_gen_base');
+        const isHvoGenAddMod = modifiedKeys.has('hvo_gen_add');
+        const isHvoGenTotalMod = isHvoGenBaseMod || isHvoGenAddMod || modifiedKeys.has('hvo_gen_sin_iva');
+        const isHvoAlfaMod = modifiedKeys.has('hvo_alfajarin') || isHvoGenBaseMod || isHvoGenAddMod;
+        const isHvoValAddMod = modifiedKeys.has('hvo_valdemoro_add');
+        const isValdemoroGoaMod = modifiedKeys.has('poste_VALDEMORO_goa') || modifiedKeys.has('poste_ES VALDEMORO_goa');
+        const isHvoValTotalMod = isHvoValAddMod || isValdemoroGoaMod;
+
+        return (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-3">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">HVO (Hidrobiodiésel 100% Renovable)</h3>
+                  <p className="text-xs text-slate-400">Configuración de montos sumados al coste de compra y descargas PNG con precios Sin y Con IVA</p>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-full">
+                  Amarillo = Dato Modificado Hoy
+                </span>
+                <button
+                  onClick={downloadHvoReportPng}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+                  title="Descargar imagen PNG de HVO Alfajarín y Valdemoro con precios Sin IVA y Con IVA"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Descargar PNG Reporte HVO (Alfajarín y Valdemoro)</span>
+                </button>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-white text-base">HVO (Hidrobiodiésel 100% Renovable)</h3>
-              <p className="text-xs text-slate-400">Configuración de montos sumados al coste de compra y descargas PNG con precios Sin y Con IVA</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* HVO General */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">HVO Poste General</span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono font-bold">100% Bio</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_GENERAL_BASE',
+                        cellTitle: 'HVO General — Precio Compra Base Sin IVA (€)',
+                        defaultValue: parseNum(hvoGeneralBase),
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']?.rawFormula,
+                        columnLabel: 'HVO General Base Sin IVA',
+                      });
+                    }}
+                    className={`transition-all rounded-xl p-1 ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
+                    }`}
+                    title={isFormulaMode ? 'Haz clic para formular Precio Compra Base HVO' : undefined}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <label className="text-[11px] text-slate-400 block font-medium">Precio Compra Base Sin IVA (€):</label>
+                        {isHvoGenBaseMod && !resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE'] && (
+                          <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            HOY
+                          </span>
+                        )}
+                      </div>
+                      {resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE'] && (
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveModalCell({
+                              cellKey: 'POSTE_HVO_GENERAL_BASE',
+                              cellTitle: 'HVO General — Precio Compra Base Sin IVA (€)',
+                              defaultValue: parseNum(hvoGeneralBase),
+                              currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']?.rawFormula,
+                              columnLabel: 'HVO General Base Sin IVA',
+                            });
+                          }}
+                          className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
+                          title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE'].rawFormula}`}
+                        >
+                          fx
+                        </span>
+                      )}
+                    </div>
+                    {isFormulaMode ? (
+                      <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
+                        resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']
+                          ? 'bg-amber-400 text-slate-950 font-black'
+                          : 'bg-slate-900 border border-slate-700 text-white'
+                      }`}>
+                        <span>{formatNum(hvoGenBaseVal, 3)}</span>
+                        <span className="text-[10px] text-amber-500 font-sans">Formular</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE'] ? formatNum(hvoGenBaseVal, 3) : hvoGeneralBase}
+                        onChange={(e) => {
+                          const val = e.target.value.replace('.', ',');
+                          setHvoGeneralBase(val);
+                          const updatedMods = new Set(modifiedKeys).add('hvo_gen_base').add('hvo_gen_sin_iva').add('hvo_gen_con_iva');
+                          setModifiedKeys(updatedMods);
+                          setIsSaved(false);
+                          persistPostesData(postes, val, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
+                        }}
+                        className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none transition-all ${
+                          resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']
+                            ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                            : isHvoGenBaseMod
+                            ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                            : 'bg-slate-900 border border-slate-700 text-white focus:border-amber-400'
+                        }`}
+                      />
+                    )}
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_GENERAL_ADD',
+                        cellTitle: 'HVO General — Monto a Sumar (€)',
+                        defaultValue: parseNum(hvoGeneralAddition),
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']?.rawFormula,
+                        columnLabel: 'HVO General Monto a Sumar',
+                      });
+                    }}
+                    className={`transition-all rounded-xl p-1 ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
+                    }`}
+                    title={isFormulaMode ? 'Haz clic para formular Monto a Sumar HVO' : undefined}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <label className="text-[11px] text-amber-300 block font-medium">Monto a Sumar al HVO General (€):</label>
+                        {isHvoGenAddMod && !resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD'] && (
+                          <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            HOY
+                          </span>
+                        )}
+                      </div>
+                      {resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD'] && (
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveModalCell({
+                              cellKey: 'POSTE_HVO_GENERAL_ADD',
+                              cellTitle: 'HVO General — Monto a Sumar (€)',
+                              defaultValue: parseNum(hvoGeneralAddition),
+                              currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']?.rawFormula,
+                              columnLabel: 'HVO General Monto a Sumar',
+                            });
+                          }}
+                          className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
+                          title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD'].rawFormula}`}
+                        >
+                          fx
+                        </span>
+                      )}
+                    </div>
+                    {isFormulaMode ? (
+                      <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
+                        resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']
+                          ? 'bg-amber-400 text-slate-950 font-black'
+                          : 'bg-slate-900 border border-amber-500/40 text-amber-300'
+                      }`}>
+                        <span>{formatNum(hvoGenAddVal, 3)}</span>
+                        <span className="text-[10px] text-amber-500 font-sans">Formular</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD'] ? formatNum(hvoGenAddVal, 3) : hvoGeneralAddition}
+                        onChange={(e) => {
+                          const val = e.target.value.replace('.', ',');
+                          setHvoGeneralAddition(val);
+                          const updatedMods = new Set(modifiedKeys).add('hvo_gen_add').add('hvo_gen_sin_iva').add('hvo_gen_con_iva');
+                          setModifiedKeys(updatedMods);
+                          setIsSaved(false);
+                          persistPostesData(postes, hvoGeneralBase, val, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
+                        }}
+                        className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none transition-all ${
+                          resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']
+                            ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                            : isHvoGenAddMod
+                            ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                            : 'bg-slate-900 border border-amber-500/40 text-amber-300 focus:border-amber-400'
+                        }`}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_GENERAL_SIN_IVA',
+                        cellTitle: 'HVO General — Precio Final Sin IVA (€/L)',
+                        defaultValue: computedHvoGeneralSinIva,
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_SIN_IVA']?.rawFormula,
+                        columnLabel: 'HVO General Final Sin IVA',
+                      });
+                    }}
+                    className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
+                    } ${isHvoGenTotalMod ? 'bg-amber-400/10' : ''}`}
+                  >
+                    <span className="text-slate-400 flex items-center space-x-1">
+                      {resolvedPostesFormulas['POSTE_HVO_GENERAL_SIN_IVA'] && (
+                        <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
+                      )}
+                      <span>Precio Final Sin IVA:</span>
+                    </span>
+                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_GENERAL_SIN_IVA'] || isHvoGenTotalMod ? 'text-amber-300 font-black' : 'text-white'}`}>
+                      {formatNum(computedHvoGeneralSinIva, 3)} €/L
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_GENERAL_CON_IVA',
+                        cellTitle: 'HVO General — Precio Con IVA (21%) (€/L)',
+                        defaultValue: computedHvoGeneralConIva,
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_CON_IVA']?.rawFormula,
+                        columnLabel: 'HVO General Con IVA (21%)',
+                      });
+                    }}
+                    className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
+                    } ${isHvoGenTotalMod ? 'bg-amber-400/10' : ''}`}
+                  >
+                    <span className="text-slate-400 flex items-center space-x-1">
+                      {resolvedPostesFormulas['POSTE_HVO_GENERAL_CON_IVA'] && (
+                        <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
+                      )}
+                      <span>Precio Con IVA (21%):</span>
+                    </span>
+                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_GENERAL_CON_IVA'] || isHvoGenTotalMod ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
+                      {formatNum(computedHvoGeneralConIva, 3)} €/L
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* HVO ALFAJARIN */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">HVO ALFAJARIN</span>
+                  <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold">Específica</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_ALFAJARIN_SIN_IVA',
+                        cellTitle: 'HVO Alfajarín — Precio Sin IVA (€/L)',
+                        defaultValue: parseNum(hvoAlfajarinSinIva),
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']?.rawFormula,
+                        columnLabel: 'HVO Alfajarín Sin IVA',
+                      });
+                    }}
+                    className={`transition-all rounded-xl p-1 ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
+                    }`}
+                    title={isFormulaMode ? 'Haz clic para formular Precio Sin IVA HVO Alfajarín' : undefined}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <label className="text-[11px] text-slate-400 block font-medium">Precio Sin IVA (€/L):</label>
+                        {isHvoAlfaMod && !resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] && (
+                          <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            HOY
+                          </span>
+                        )}
+                      </div>
+                      {resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] && (
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveModalCell({
+                              cellKey: 'POSTE_HVO_ALFAJARIN_SIN_IVA',
+                              cellTitle: 'HVO Alfajarín — Precio Sin IVA (€/L)',
+                              defaultValue: parseNum(hvoAlfajarinSinIva),
+                              currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']?.rawFormula,
+                              columnLabel: 'HVO Alfajarín Sin IVA',
+                            });
+                          }}
+                          className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
+                          title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'].rawFormula}`}
+                        >
+                          fx
+                        </span>
+                      )}
+                    </div>
+                    {isFormulaMode ? (
+                      <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
+                        resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']
+                          ? 'bg-amber-400 text-slate-950 font-black'
+                          : 'bg-slate-900 border border-slate-700 text-white'
+                      }`}>
+                        <span>{formatNum(computedHvoAlfajarinSinIva, 3)}</span>
+                        <span className="text-[10px] text-amber-500 font-sans">Formular</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] ? formatNum(computedHvoAlfajarinSinIva, 3) : hvoAlfajarinSinIva}
+                        onChange={(e) => {
+                          const val = e.target.value.replace('.', ',');
+                          setHvoAlfajarinSinIva(val);
+                          const updatedMods = new Set(modifiedKeys).add('hvo_alfajarin').add('hvo_alfajarin_con_iva');
+                          setModifiedKeys(updatedMods);
+                          setIsSaved(false);
+                          persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, val, hvoValdemoroAddition, updatedMods);
+                        }}
+                        className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none transition-all ${
+                          resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']
+                            ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                            : isHvoAlfaMod
+                            ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                            : 'bg-slate-900 border border-slate-700 text-white focus:border-amber-400'
+                        }`}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-8 border-t border-slate-800/80 space-y-1 font-mono text-xs">
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_ALFAJARIN_SIN_IVA',
+                        cellTitle: 'HVO Alfajarín — Precio Final Sin IVA (€/L)',
+                        defaultValue: computedHvoAlfajarinSinIva,
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']?.rawFormula,
+                        columnLabel: 'HVO Alfajarín Final Sin IVA',
+                      });
+                    }}
+                    className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
+                    } ${isHvoAlfaMod ? 'bg-amber-400/10' : ''}`}
+                  >
+                    <span className="text-slate-400 flex items-center space-x-1">
+                      {resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] && (
+                        <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
+                      )}
+                      <span>Precio Final Sin IVA:</span>
+                    </span>
+                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] || isHvoAlfaMod ? 'text-amber-300 font-black' : 'text-white'}`}>
+                      {formatNum(computedHvoAlfajarinSinIva, 3)} €/L
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_ALFAJARIN_CON_IVA',
+                        cellTitle: 'HVO Alfajarín — Precio Con IVA (21%) (€/L)',
+                        defaultValue: computedHvoAlfajarinConIva,
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA']?.rawFormula,
+                        columnLabel: 'HVO Alfajarín Con IVA (21%)',
+                      });
+                    }}
+                    className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
+                    } ${isHvoAlfaMod ? 'bg-amber-400/10' : ''}`}
+                  >
+                    <span className="text-slate-400 flex items-center space-x-1">
+                      {resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA'] && (
+                        <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
+                      )}
+                      <span>Precio Con IVA (21%):</span>
+                    </span>
+                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA'] || isHvoAlfaMod ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
+                      {formatNum(computedHvoAlfajarinConIva, 3)} €/L
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* HVO VALDEMORO */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">HVO VALDEMORO</span>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30">
+                    GOA Valdemoro + Suma
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-mono items-center">
+                    <span className="text-slate-400">GOA Poste Valdemoro:</span>
+                    <div className="flex items-center space-x-1">
+                      <span className={`font-bold ${isValdemoroGoaMod ? 'text-amber-300 font-black' : 'text-amber-300'}`}>{formatNum(goaValdemoroPrice, 3)} €/L</span>
+                      {isValdemoroGoaMod && (
+                        <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded shadow">
+                          MOD
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_VALDEMORO_ADD',
+                        cellTitle: 'HVO Valdemoro — Monto a Sumar al GOA Valdemoro (€)',
+                        defaultValue: parseNum(hvoValdemoroAddition),
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']?.rawFormula,
+                        columnLabel: 'HVO Valdemoro Monto a Sumar',
+                      });
+                    }}
+                    className={`transition-all rounded-xl p-1 ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
+                    }`}
+                    title={isFormulaMode ? 'Haz clic para formular Monto a Sumar Valdemoro' : undefined}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <label className="text-[11px] text-emerald-300 block font-medium">Monto a Sumar al GOA Valdemoro (€):</label>
+                        {isHvoValAddMod && !resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'] && (
+                          <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            HOY
+                          </span>
+                        )}
+                      </div>
+                      {resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'] && (
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveModalCell({
+                              cellKey: 'POSTE_HVO_VALDEMORO_ADD',
+                              cellTitle: 'HVO Valdemoro — Monto a Sumar al GOA Valdemoro (€)',
+                              defaultValue: parseNum(hvoValdemoroAddition),
+                              currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']?.rawFormula,
+                              columnLabel: 'HVO Valdemoro Monto a Sumar',
+                            });
+                          }}
+                          className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
+                          title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'].rawFormula}`}
+                        >
+                          fx
+                        </span>
+                      )}
+                    </div>
+                    {isFormulaMode ? (
+                      <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
+                        resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']
+                          ? 'bg-amber-400 text-slate-950 font-black'
+                          : 'bg-slate-900 border border-emerald-500/40 text-emerald-300'
+                      }`}>
+                        <span>{formatNum(hvoValAddVal, 3)}</span>
+                        <span className="text-[10px] text-amber-500 font-sans">Formular</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'] ? formatNum(hvoValAddVal, 3) : hvoValdemoroAddition}
+                        onChange={(e) => {
+                          const val = e.target.value.replace('.', ',');
+                          setHvoValdemoroAddition(val);
+                          const updatedMods = new Set(modifiedKeys).add('hvo_valdemoro_add').add('hvo_valdemoro_con_iva');
+                          setModifiedKeys(updatedMods);
+                          setIsSaved(false);
+                          persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, val, updatedMods);
+                        }}
+                        className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none transition-all ${
+                          resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']
+                            ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                            : isHvoValAddMod
+                            ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                            : 'bg-slate-900 border border-emerald-500/40 text-emerald-300 focus:border-emerald-400'
+                        }`}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_VALDEMORO_SIN_IVA',
+                        cellTitle: 'HVO Valdemoro — Precio Final Sin IVA (€/L)',
+                        defaultValue: computedHvoValdemoroSinIva,
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA']?.rawFormula,
+                        columnLabel: 'HVO Valdemoro Final Sin IVA',
+                      });
+                    }}
+                    className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
+                    } ${isHvoValTotalMod ? 'bg-amber-400/10' : ''}`}
+                  >
+                    <span className="text-slate-400 flex items-center space-x-1">
+                      {resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA'] && (
+                        <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
+                      )}
+                      <span>Precio Final Sin IVA:</span>
+                    </span>
+                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA'] || isHvoValTotalMod ? 'text-amber-300 font-black' : 'text-white'}`}>
+                      {formatNum(computedHvoValdemoroSinIva, 3)} €/L
+                    </span>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      if (!isFormulaMode) return;
+                      setActiveModalCell({
+                        cellKey: 'POSTE_HVO_VALDEMORO_CON_IVA',
+                        cellTitle: 'HVO Valdemoro — Precio Con IVA (21%) (€/L)',
+                        defaultValue: computedHvoValdemoroConIva,
+                        currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA']?.rawFormula,
+                        columnLabel: 'HVO Valdemoro Con IVA (21%)',
+                      });
+                    }}
+                    className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
+                      isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
+                    } ${isHvoValTotalMod ? 'bg-amber-400/10' : ''}`}
+                  >
+                    <span className="text-slate-400 flex items-center space-x-1">
+                      {resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA'] && (
+                        <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
+                      )}
+                      <span>Precio Con IVA (21%):</span>
+                    </span>
+                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA'] || isHvoValTotalMod ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
+                      {formatNum(computedHvoValdemoroConIva, 3)} €/L
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <button
-            onClick={downloadHvoReportPng}
-            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
-            title="Descargar imagen PNG de HVO Alfajarín y Valdemoro con precios Sin IVA y Con IVA"
-          >
-            <ImageIcon className="h-4 w-4" />
-            <span>Descargar PNG Reporte HVO (Alfajarín y Valdemoro)</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* HVO General */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">HVO Poste General</span>
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono font-bold">100% Bio</span>
-            </div>
-
-            <div className="space-y-2">
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_GENERAL_BASE',
-                    cellTitle: 'HVO General — Precio Compra Base Sin IVA (€)',
-                    defaultValue: parseNum(hvoGeneralBase),
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']?.rawFormula,
-                    columnLabel: 'HVO General Base Sin IVA',
-                  });
-                }}
-                className={`transition-all rounded-xl p-1 ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
-                }`}
-                title={isFormulaMode ? 'Haz clic para formular Precio Compra Base HVO' : undefined}
-              >
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] text-slate-400 block font-medium">Precio Compra Base Sin IVA (€):</label>
-                  {resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE'] && (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveModalCell({
-                          cellKey: 'POSTE_HVO_GENERAL_BASE',
-                          cellTitle: 'HVO General — Precio Compra Base Sin IVA (€)',
-                          defaultValue: parseNum(hvoGeneralBase),
-                          currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']?.rawFormula,
-                          columnLabel: 'HVO General Base Sin IVA',
-                        });
-                      }}
-                      className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
-                      title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE'].rawFormula}`}
-                    >
-                      fx
-                    </span>
-                  )}
-                </div>
-                {isFormulaMode ? (
-                  <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
-                    resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']
-                      ? 'bg-amber-400 text-slate-950 font-black'
-                      : 'bg-slate-900 border border-slate-700 text-white'
-                  }`}>
-                    <span>{formatNum(hvoGenBaseVal, 3)}</span>
-                    <span className="text-[10px] text-amber-500 font-sans">Formular</span>
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE'] ? formatNum(hvoGenBaseVal, 3) : hvoGeneralBase}
-                    onChange={(e) => {
-                      const val = e.target.value.replace('.', ',');
-                      setHvoGeneralBase(val);
-                      const updatedMods = new Set(modifiedKeys).add('hvo_gen_base');
-                      setModifiedKeys(updatedMods);
-                      setIsSaved(false);
-                      persistPostesData(postes, val, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
-                    }}
-                    className={`w-full bg-slate-900 border rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none ${
-                      resolvedPostesFormulas['POSTE_HVO_GENERAL_BASE']
-                        ? 'border-amber-400 text-amber-200'
-                        : 'border-slate-700 text-white focus:border-amber-400'
-                    }`}
-                  />
-                )}
-              </div>
-
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_GENERAL_ADD',
-                    cellTitle: 'HVO General — Monto a Sumar (€)',
-                    defaultValue: parseNum(hvoGeneralAddition),
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']?.rawFormula,
-                    columnLabel: 'HVO General Monto a Sumar',
-                  });
-                }}
-                className={`transition-all rounded-xl p-1 ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
-                }`}
-                title={isFormulaMode ? 'Haz clic para formular Monto a Sumar HVO' : undefined}
-              >
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] text-amber-300 block font-medium">Monto a Sumar al HVO General (€):</label>
-                  {resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD'] && (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveModalCell({
-                          cellKey: 'POSTE_HVO_GENERAL_ADD',
-                          cellTitle: 'HVO General — Monto a Sumar (€)',
-                          defaultValue: parseNum(hvoGeneralAddition),
-                          currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']?.rawFormula,
-                          columnLabel: 'HVO General Monto a Sumar',
-                        });
-                      }}
-                      className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
-                      title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD'].rawFormula}`}
-                    >
-                      fx
-                    </span>
-                  )}
-                </div>
-                {isFormulaMode ? (
-                  <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
-                    resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']
-                      ? 'bg-amber-400 text-slate-950 font-black'
-                      : 'bg-slate-900 border border-amber-500/40 text-amber-300'
-                  }`}>
-                    <span>{formatNum(hvoGenAddVal, 3)}</span>
-                    <span className="text-[10px] text-amber-500 font-sans">Formular</span>
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD'] ? formatNum(hvoGenAddVal, 3) : hvoGeneralAddition}
-                    onChange={(e) => {
-                      const val = e.target.value.replace('.', ',');
-                      setHvoGeneralAddition(val);
-                      const updatedMods = new Set(modifiedKeys).add('hvo_gen_add');
-                      setModifiedKeys(updatedMods);
-                      setIsSaved(false);
-                      persistPostesData(postes, hvoGeneralBase, val, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
-                    }}
-                    className={`w-full bg-slate-900 border rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none ${
-                      resolvedPostesFormulas['POSTE_HVO_GENERAL_ADD']
-                        ? 'border-amber-400 text-amber-200'
-                        : 'border-amber-500/40 text-amber-300 focus:border-amber-400'
-                    }`}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_GENERAL_SIN_IVA',
-                    cellTitle: 'HVO General — Precio Final Sin IVA (€/L)',
-                    defaultValue: computedHvoGeneralSinIva,
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_SIN_IVA']?.rawFormula,
-                    columnLabel: 'HVO General Final Sin IVA',
-                  });
-                }}
-                className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                }`}
-              >
-                <span className="text-slate-400 flex items-center space-x-1">
-                  {resolvedPostesFormulas['POSTE_HVO_GENERAL_SIN_IVA'] && (
-                    <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
-                  )}
-                  <span>Precio Final Sin IVA:</span>
-                </span>
-                <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_GENERAL_SIN_IVA'] ? 'text-amber-300 font-black' : 'text-white'}`}>
-                  {formatNum(computedHvoGeneralSinIva, 3)} €/L
-                </span>
-              </div>
-
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_GENERAL_CON_IVA',
-                    cellTitle: 'HVO General — Precio Con IVA (21%) (€/L)',
-                    defaultValue: computedHvoGeneralConIva,
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_GENERAL_CON_IVA']?.rawFormula,
-                    columnLabel: 'HVO General Con IVA (21%)',
-                  });
-                }}
-                className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                }`}
-              >
-                <span className="text-slate-400 flex items-center space-x-1">
-                  {resolvedPostesFormulas['POSTE_HVO_GENERAL_CON_IVA'] && (
-                    <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
-                  )}
-                  <span>Precio Con IVA (21%):</span>
-                </span>
-                <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_GENERAL_CON_IVA'] ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
-                  {formatNum(computedHvoGeneralConIva, 3)} €/L
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* HVO ALFAJARIN */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white">HVO ALFAJARIN</span>
-              <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold">Específica</span>
-            </div>
-
-            <div className="space-y-2">
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_ALFAJARIN_SIN_IVA',
-                    cellTitle: 'HVO Alfajarín — Precio Sin IVA (€/L)',
-                    defaultValue: parseNum(hvoAlfajarinSinIva),
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']?.rawFormula,
-                    columnLabel: 'HVO Alfajarín Sin IVA',
-                  });
-                }}
-                className={`transition-all rounded-xl p-1 ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
-                }`}
-                title={isFormulaMode ? 'Haz clic para formular Precio Sin IVA HVO Alfajarín' : undefined}
-              >
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] text-slate-400 block font-medium">Precio Sin IVA (€/L):</label>
-                  {resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] && (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveModalCell({
-                          cellKey: 'POSTE_HVO_ALFAJARIN_SIN_IVA',
-                          cellTitle: 'HVO Alfajarín — Precio Sin IVA (€/L)',
-                          defaultValue: parseNum(hvoAlfajarinSinIva),
-                          currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']?.rawFormula,
-                          columnLabel: 'HVO Alfajarín Sin IVA',
-                        });
-                      }}
-                      className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
-                      title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'].rawFormula}`}
-                    >
-                      fx
-                    </span>
-                  )}
-                </div>
-                {isFormulaMode ? (
-                  <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
-                    resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']
-                      ? 'bg-amber-400 text-slate-950 font-black'
-                      : 'bg-slate-900 border border-slate-700 text-white'
-                  }`}>
-                    <span>{formatNum(computedHvoAlfajarinSinIva, 3)}</span>
-                    <span className="text-[10px] text-amber-500 font-sans">Formular</span>
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] ? formatNum(computedHvoAlfajarinSinIva, 3) : hvoAlfajarinSinIva}
-                    onChange={(e) => {
-                      const val = e.target.value.replace('.', ',');
-                      setHvoAlfajarinSinIva(val);
-                      const updatedMods = new Set(modifiedKeys).add('hvo_alfajarin');
-                      setModifiedKeys(updatedMods);
-                      setIsSaved(false);
-                      persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, val, hvoValdemoroAddition, updatedMods);
-                    }}
-                    className={`w-full bg-slate-900 border rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none ${
-                      resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']
-                        ? 'border-amber-400 text-amber-200'
-                        : 'border-slate-700 text-white focus:border-amber-400'
-                    }`}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="pt-8 border-t border-slate-800/80 space-y-1 font-mono text-xs">
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_ALFAJARIN_SIN_IVA',
-                    cellTitle: 'HVO Alfajarín — Precio Final Sin IVA (€/L)',
-                    defaultValue: computedHvoAlfajarinSinIva,
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA']?.rawFormula,
-                    columnLabel: 'HVO Alfajarín Final Sin IVA',
-                  });
-                }}
-                className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                }`}
-              >
-                <span className="text-slate-400 flex items-center space-x-1">
-                  {resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] && (
-                    <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
-                  )}
-                  <span>Precio Final Sin IVA:</span>
-                </span>
-                <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] ? 'text-amber-300 font-black' : 'text-white'}`}>
-                  {formatNum(computedHvoAlfajarinSinIva, 3)} €/L
-                </span>
-              </div>
-
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_ALFAJARIN_CON_IVA',
-                    cellTitle: 'HVO Alfajarín — Precio Con IVA (21%) (€/L)',
-                    defaultValue: computedHvoAlfajarinConIva,
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA']?.rawFormula,
-                    columnLabel: 'HVO Alfajarín Con IVA (21%)',
-                  });
-                }}
-                className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                }`}
-              >
-                <span className="text-slate-400 flex items-center space-x-1">
-                  {resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA'] && (
-                    <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
-                  )}
-                  <span>Precio Con IVA (21%):</span>
-                </span>
-                <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA'] ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
-                  {formatNum(computedHvoAlfajarinConIva, 3)} €/L
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* HVO VALDEMORO */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white">HVO VALDEMORO</span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30">
-                GOA Valdemoro + Suma
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-mono">
-                <span className="text-slate-400">GOA Poste Valdemoro:</span>
-                <span className="text-amber-300 font-bold">{formatNum(goaValdemoroPrice, 3)} €/L</span>
-              </div>
-
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_VALDEMORO_ADD',
-                    cellTitle: 'HVO Valdemoro — Monto a Sumar al GOA Valdemoro (€)',
-                    defaultValue: parseNum(hvoValdemoroAddition),
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']?.rawFormula,
-                    columnLabel: 'HVO Valdemoro Monto a Sumar',
-                  });
-                }}
-                className={`transition-all rounded-xl p-1 ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/40' : ''
-                }`}
-                title={isFormulaMode ? 'Haz clic para formular Monto a Sumar Valdemoro' : undefined}
-              >
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] text-emerald-300 block font-medium">Monto a Sumar al GOA Valdemoro (€):</label>
-                  {resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'] && (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveModalCell({
-                          cellKey: 'POSTE_HVO_VALDEMORO_ADD',
-                          cellTitle: 'HVO Valdemoro — Monto a Sumar al GOA Valdemoro (€)',
-                          defaultValue: parseNum(hvoValdemoroAddition),
-                          currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']?.rawFormula,
-                          columnLabel: 'HVO Valdemoro Monto a Sumar',
-                        });
-                      }}
-                      className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm cursor-pointer"
-                      title={`Fórmula: ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'].rawFormula}`}
-                    >
-                      fx
-                    </span>
-                  )}
-                </div>
-                {isFormulaMode ? (
-                  <div className={`w-full rounded-xl px-3 py-1.5 font-mono font-bold text-xs flex items-center justify-between ${
-                    resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']
-                      ? 'bg-amber-400 text-slate-950 font-black'
-                      : 'bg-slate-900 border border-emerald-500/40 text-emerald-300'
-                  }`}>
-                    <span>{formatNum(hvoValAddVal, 3)}</span>
-                    <span className="text-[10px] text-amber-500 font-sans">Formular</span>
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'] ? formatNum(hvoValAddVal, 3) : hvoValdemoroAddition}
-                    onChange={(e) => {
-                      const val = e.target.value.replace('.', ',');
-                      setHvoValdemoroAddition(val);
-                      const updatedMods = new Set(modifiedKeys).add('hvo_valdemoro_add');
-                      setModifiedKeys(updatedMods);
-                      setIsSaved(false);
-                      persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, val, updatedMods);
-                    }}
-                    className={`w-full bg-slate-900 border rounded-xl px-3 py-1.5 font-mono font-bold text-xs focus:outline-none ${
-                      resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD']
-                        ? 'border-amber-400 text-amber-200'
-                        : 'border-emerald-500/40 text-emerald-300 focus:border-emerald-400'
-                    }`}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-800/80 space-y-1 font-mono text-xs">
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_VALDEMORO_SIN_IVA',
-                    cellTitle: 'HVO Valdemoro — Precio Final Sin IVA (€/L)',
-                    defaultValue: computedHvoValdemoroSinIva,
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA']?.rawFormula,
-                    columnLabel: 'HVO Valdemoro Final Sin IVA',
-                  });
-                }}
-                className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                }`}
-              >
-                <span className="text-slate-400 flex items-center space-x-1">
-                  {resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA'] && (
-                    <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
-                  )}
-                  <span>Precio Final Sin IVA:</span>
-                </span>
-                <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA'] ? 'text-amber-300 font-black' : 'text-white'}`}>
-                  {formatNum(computedHvoValdemoroSinIva, 3)} €/L
-                </span>
-              </div>
-
-              <div
-                onClick={() => {
-                  if (!isFormulaMode) return;
-                  setActiveModalCell({
-                    cellKey: 'POSTE_HVO_VALDEMORO_CON_IVA',
-                    cellTitle: 'HVO Valdemoro — Precio Con IVA (21%) (€/L)',
-                    defaultValue: computedHvoValdemoroConIva,
-                    currentFormula: resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA']?.rawFormula,
-                    columnLabel: 'HVO Valdemoro Con IVA (21%)',
-                  });
-                }}
-                className={`flex justify-between items-center py-1 px-1.5 rounded-lg transition-all ${
-                  isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                }`}
-              >
-                <span className="text-slate-400 flex items-center space-x-1">
-                  {resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA'] && (
-                    <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm mr-1">fx</span>
-                  )}
-                  <span>Precio Con IVA (21%):</span>
-                </span>
-                <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA'] ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
-                  {formatNum(computedHvoValdemoroConIva, 3)} €/L
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* 3. Sección Gasóleo B con Nueva Columna Precio Poste y 2 Botones PNG Oficiales */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
@@ -2582,6 +2688,10 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-full">
+              Amarillo = Dato Modificado Hoy
+            </span>
+
             <button
               onClick={downloadGasoleoBTablaCompletaPng}
               className="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95"
@@ -2643,12 +2753,12 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                 const customPoste = resolvedPostesFormulas[`POSTE_GASB_${stName}_POSTE`];
 
                 const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(item.compra);
-                const isMod = modifiedKeys.has(`gasb_${stName}`);
+                const isMod = modifiedKeys.has(`gasb_${stName}`) || modifiedKeys.has(`gasb_compra_${stName}`);
 
                 // Fórmulas oficiales Gasóleo B:
                 // 1. Transfrired = Compra Sin IVA + 0.017
                 const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
-                const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`);
+                const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`) || isMod;
                 const transferNum = customTransfer ? customTransfer.evaluatedValue : (isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum);
                 const transferDisplay = customTransfer ? formatNum(customTransfer.evaluatedValue, 3) : (isTransferMod && item.transfer ? item.transfer : formatNum(autoTransferNum, 3));
 
@@ -2657,7 +2767,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
                 // 3. Precio Poste Gasóleo B = (Compra Sin IVA + 0.035) * 1.21
                 const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
-                const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`);
+                const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`) || isMod;
                 const posteNum = customPoste ? customPoste.evaluatedValue : (isPosteMod && item.poste ? parseNum(item.poste) : autoPosteNum);
                 const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : (isPosteMod && item.poste ? item.poste : formatNum(autoPosteNum, 3));
 
@@ -2681,7 +2791,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       }}
                       className={`py-3 px-4 transition-all ${
                         isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10' : ''
-                      }`}
+                      } ${isMod ? 'bg-amber-400/20' : ''}`}
                     >
                       <div className="relative inline-flex items-center">
                         {isFormulaMode ? (
@@ -2711,24 +2821,27 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                               const nextPoste = modifiedKeys.has(`gasb_poste_${stName}`)
                                 ? item.poste
                                 : formatNum(Number(((valNum + 0.035) * 1.21).toFixed(3)), 3);
-                              setGasoleoBRows((prev) => ({
-                                ...prev,
+                              const updated = {
+                                ...gasoleoBRows,
                                 [stName]: {
-                                  ...prev[stName],
+                                  ...gasoleoBRows[stName],
                                   compra: val,
                                   transfer: nextTransfer,
                                   poste: nextPoste,
                                 },
-                              }));
-                              setModifiedKeys((prev) => new Set(prev).add(`gasb_${stName}`));
+                              };
+                              setGasoleoBRows(updated);
+                              const updatedMods = new Set(modifiedKeys).add(`gasb_${stName}`).add(`gasb_compra_${stName}`);
+                              setModifiedKeys(updatedMods);
                               setIsSaved(false);
+                              persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, updated);
                             }}
-                            className={`w-28 rounded px-2 py-1 text-xs font-mono font-bold ${
+                            className={`w-28 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                               customCompra
                                 ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
                                 : isMod
-                                ? 'bg-amber-400/25 border border-amber-400 text-amber-200'
-                                : 'bg-slate-950 border border-slate-700 text-slate-200'
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                                : 'bg-slate-950 border border-slate-700 text-slate-200 focus:border-amber-400'
                             }`}
                           />
                         )}
@@ -2750,6 +2863,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                             fx
                           </span>
                         )}
+                        {isMod && !customCompra && (
+                          <span className="ml-1.5 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            HOY
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -2768,7 +2886,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       }}
                       className={`py-3 px-4 transition-all ${
                         isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10' : ''
-                      }`}
+                      } ${isTransferMod ? 'bg-amber-400/20' : ''}`}
                     >
                       <div className="relative inline-flex items-center">
                         {isFormulaMode ? (
@@ -2791,17 +2909,22 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                             value={transferDisplay}
                             onChange={(e) => {
                               const val = e.target.value.replace('.', ',');
-                              setGasoleoBRows((prev) => ({
-                                ...prev,
-                                [stName]: { ...prev[stName], transfer: val },
-                              }));
-                              setModifiedKeys((prev) => new Set(prev).add(`gasb_transfer_${stName}`));
+                              const updated = {
+                                ...gasoleoBRows,
+                                [stName]: { ...gasoleoBRows[stName], transfer: val },
+                              };
+                              setGasoleoBRows(updated);
+                              const updatedMods = new Set(modifiedKeys).add(`gasb_transfer_${stName}`);
+                              setModifiedKeys(updatedMods);
                               setIsSaved(false);
+                              persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, updated);
                             }}
-                            className={`w-28 rounded px-2 py-1 text-xs font-mono text-blue-300 font-bold focus:border-blue-400 focus:outline-none ${
+                            className={`w-28 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                               customTransfer
                                 ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
-                                : 'bg-slate-950 border border-slate-700'
+                                : isTransferMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                                : 'bg-slate-950 border border-slate-700 text-blue-300 focus:border-blue-400'
                             }`}
                           />
                         )}
@@ -2823,6 +2946,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                             fx
                           </span>
                         )}
+                        {isTransferMod && !customTransfer && (
+                          <span className="ml-1.5 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            HOY
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -2841,13 +2969,18 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       }}
                       className={`py-3 px-4 font-mono font-bold text-sm transition-all ${
                         isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30 rounded-lg' : ''
-                      } ${customTransCon ? 'text-amber-300 font-black' : 'text-emerald-400'}`}
+                      } ${customTransCon || isTransferMod ? 'text-amber-300 font-black bg-amber-400/10' : 'text-emerald-400'}`}
                     >
                       <div className="flex items-center space-x-1.5">
                         {customTransCon && (
                           <span className="text-[9px] font-mono font-black text-slate-950 bg-amber-400 px-1 rounded shadow-sm">fx</span>
                         )}
                         <span>{formatNum(transfriredConIva, 3)} €</span>
+                        {isTransferMod && !customTransCon && (
+                          <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.5 rounded shadow">
+                            MOD
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -2866,7 +2999,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       }}
                       className={`py-3 px-4 bg-slate-900/50 transition-all ${
                         isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10' : ''
-                      }`}
+                      } ${isPosteMod ? 'bg-amber-400/20' : ''}`}
                     >
                       <div className="relative inline-flex items-center">
                         {isFormulaMode ? (
@@ -2889,17 +3022,22 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                             value={posteDisplay}
                             onChange={(e) => {
                               const val = e.target.value.replace('.', ',');
-                              setGasoleoBRows((prev) => ({
-                                ...prev,
-                                [stName]: { ...prev[stName], poste: val },
-                              }));
-                              setModifiedKeys((prev) => new Set(prev).add(`gasb_poste_${stName}`));
+                              const updated = {
+                                ...gasoleoBRows,
+                                [stName]: { ...gasoleoBRows[stName], poste: val },
+                              };
+                              setGasoleoBRows(updated);
+                              const updatedMods = new Set(modifiedKeys).add(`gasb_poste_${stName}`);
+                              setModifiedKeys(updatedMods);
                               setIsSaved(false);
+                              persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, updated);
                             }}
-                            className={`w-28 rounded px-2 py-1 text-xs font-mono font-black focus:border-amber-400 focus:outline-none ${
+                            className={`w-28 rounded px-2 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
                               customPoste
-                                ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                                : 'bg-slate-950 border border-amber-500/40 text-amber-300'
+                                ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                                : isPosteMod
+                                ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                                : 'bg-slate-950 border border-amber-500/40 text-amber-300 focus:border-amber-400'
                             }`}
                           />
                         )}
@@ -2921,6 +3059,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                             fx
                           </span>
                         )}
+                        {isPosteMod && !customPoste && (
+                          <span className="ml-1.5 text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded shadow">
+                            HOY
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -2933,7 +3076,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
       {/* 4. Sección AdBlue */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
               <Droplet className="h-5 w-5" />
@@ -2943,7 +3086,13 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
               <p className="text-xs text-slate-400">Precios de adquisición, cálculo con IVA y precios en surtidor/poste</p>
             </div>
           </div>
-          <span className="text-xs text-slate-400 font-mono">10 Estaciones Clave</span>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-400 text-slate-950 shadow-sm animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-slate-950"></span>
+              Amarillo = Dato Modificado Hoy
+            </span>
+            <span className="text-xs text-slate-400 font-mono">10 Estaciones Clave</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -2956,14 +3105,15 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
             const conIva = customConIva ? customConIva.evaluatedValue : Number((compraNum * 1.21).toFixed(4));
             const compraDisplay = customCompra ? formatNum(customCompra.evaluatedValue, 3) : data.compra;
             const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : data.poste;
-            const isMod = modifiedKeys.has(`adblue_${stName}`);
+            const isCompraMod = modifiedKeys.has(`adblue_${stName}`) || modifiedKeys.has(`adblue_compra_${stName}`);
+            const isPosteMod = modifiedKeys.has(`adblue_poste_${stName}`);
 
             return (
               <div key={stName} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-white text-xs truncate">{stName}</span>
-                  {isMod && (
-                    <span className="text-[9px] bg-amber-400 text-slate-950 font-bold px-1.5 py-0.5 rounded">
+                  {(isCompraMod || isPosteMod) && (
+                    <span className="text-[9px] bg-amber-400 text-slate-950 font-bold px-1.5 py-0.5 rounded shadow">
                       HOY
                     </span>
                   )}
@@ -2982,10 +3132,17 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       onApplyToColumn: (f) => handleApplyFormulaToPostesColumn('adblueCompra', f, stName),
                     });
                   }}
-                  className={isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 p-1 rounded-lg' : ''}
+                  className={isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 p-1 rounded-lg ring-1 ring-amber-400/30' : ''}
                 >
                   <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[10px] text-slate-400">Compra Sin IVA (€):</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">Compra Sin IVA (€):</span>
+                      {isCompraMod && !customCompra && (
+                        <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                          HOY
+                        </span>
+                      )}
+                    </div>
                     {customCompra && (
                       <span
                         onClick={(e) => {
@@ -3024,19 +3181,22 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       value={compraDisplay}
                       onChange={(e) => {
                         const val = e.target.value.replace('.', ',');
-                        setAdblueRows((prev) => ({
-                          ...prev,
-                          [stName]: { ...prev[stName], compra: val },
-                        }));
-                        setModifiedKeys((prev) => new Set(prev).add(`adblue_${stName}`));
+                        const updatedAdblue = {
+                          ...adblueRows,
+                          [stName]: { ...adblueRows[stName], compra: val },
+                        };
+                        setAdblueRows(updatedAdblue);
+                        const updatedMods = new Set(modifiedKeys).add(`adblue_${stName}`).add(`adblue_compra_${stName}`);
+                        setModifiedKeys(updatedMods);
                         setIsSaved(false);
+                        persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, updatedAdblue);
                       }}
-                      className={`w-full rounded px-2 py-1 text-xs font-mono font-bold ${
+                      className={`w-full rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                         customCompra
-                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                          : isMod
-                          ? 'bg-amber-400/25 border border-amber-400 text-amber-200'
-                          : 'bg-slate-900 border border-slate-700 text-slate-200'
+                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                          : isCompraMod
+                          ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                          : 'bg-slate-900 border border-slate-700 text-slate-200 focus:border-amber-400'
                       }`}
                     />
                   )}
@@ -3057,9 +3217,9 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                   }}
                   className={`flex justify-between items-center text-[11px] font-mono p-1 rounded-lg transition-all ${
                     isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                  }`}
+                  } ${isCompraMod ? 'bg-amber-400/10' : ''}`}
                 >
-                  <span className="text-slate-500">Con IVA 21%:</span>
+                  <span className="text-slate-400">Con IVA 21%:</span>
                   <div className="flex items-center space-x-1">
                     {customConIva && (
                       <span
@@ -3080,9 +3240,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                         fx
                       </span>
                     )}
-                    <span className={customConIva ? 'text-amber-300 font-black' : 'text-emerald-400 font-bold'}>
+                    <span className={customConIva || isCompraMod ? 'text-amber-300 font-black' : 'text-emerald-400 font-bold'}>
                       {formatNum(conIva, 3)} €
                     </span>
+                    {isCompraMod && !customConIva && (
+                      <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                        MOD
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -3100,11 +3265,18 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                     });
                   }}
                   className={`pt-2 border-t border-slate-800 ${
-                    isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 p-1 rounded-lg' : ''
+                    isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 p-1 rounded-lg ring-1 ring-amber-400/30' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[10px] text-slate-400">Poste / Venta (€):</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">Poste / Venta (€):</span>
+                      {isPosteMod && !customPoste && (
+                        <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                          HOY
+                        </span>
+                      )}
+                    </div>
                     {customPoste && (
                       <span
                         onClick={(e) => {
@@ -3143,17 +3315,22 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       value={posteDisplay}
                       onChange={(e) => {
                         const val = e.target.value.replace('.', ',');
-                        setAdblueRows((prev) => ({
-                          ...prev,
-                          [stName]: { ...prev[stName], poste: val },
-                        }));
-                        setModifiedKeys((prev) => new Set(prev).add(`adblue_${stName}`));
+                        const updatedAdblue = {
+                          ...adblueRows,
+                          [stName]: { ...adblueRows[stName], poste: val },
+                        };
+                        setAdblueRows(updatedAdblue);
+                        const updatedMods = new Set(modifiedKeys).add(`adblue_poste_${stName}`);
+                        setModifiedKeys(updatedMods);
                         setIsSaved(false);
+                        persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, updatedAdblue);
                       }}
-                      className={`w-full rounded px-2 py-1 text-xs font-mono font-bold ${
+                      className={`w-full rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                         customPoste
-                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                          : 'bg-slate-900 border border-slate-700 text-cyan-300'
+                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                          : isPosteMod
+                          ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                          : 'bg-slate-900 border border-slate-700 text-cyan-300 focus:border-amber-400'
                       }`}
                     />
                   )}
@@ -3166,7 +3343,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
       {/* 5. Sección Gases */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
               <Fuel className="h-5 w-5" />
@@ -3176,9 +3353,15 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
               <p className="text-xs text-slate-400">Precios sin IVA y cálculo con IVA para combustibles a gas</p>
             </div>
           </div>
-          <span className="text-xs text-teal-400 font-mono font-bold bg-teal-500/10 px-3 py-1 rounded-full border border-teal-500/20">
-            Módulo Gases
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-400 text-slate-950 shadow-sm animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-slate-950"></span>
+              Amarillo = Dato Modificado Hoy
+            </span>
+            <span className="text-xs text-teal-400 font-mono font-bold bg-teal-500/10 px-3 py-1 rounded-full border border-teal-500/20">
+              Módulo Gases
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -3195,14 +3378,15 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
             const conIva = customConIva ? customConIva.evaluatedValue : Number((sinIvaNum * 1.21).toFixed(4));
             const sinIvaDisplay = customSinIva ? formatNum(customSinIva.evaluatedValue, 3) : data.sinIva;
             const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : data.poste;
-            const isMod = modifiedKeys.has(`gas_${gasName}`);
+            const isSinIvaMod = modifiedKeys.has(`gas_${gasName}`) || modifiedKeys.has(`gas_sinIva_${gasName}`) || modifiedKeys.has(`gas_${shortName}`);
+            const isPosteMod = modifiedKeys.has(`gas_poste_${gasName}`) || modifiedKeys.has(`gas_poste_${shortName}`);
 
             return (
               <div key={gasName} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-white">{gasName}</span>
-                  {isMod && (
-                    <span className="text-[10px] bg-amber-400 text-slate-950 font-bold px-2 py-0.5 rounded">
+                  {(isSinIvaMod || isPosteMod) && (
+                    <span className="text-[10px] bg-amber-400 text-slate-950 font-bold px-2 py-0.5 rounded shadow">
                       HOY
                     </span>
                   )}
@@ -3223,7 +3407,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                   className={`space-y-1 ${isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 p-1.5 rounded-xl ring-1 ring-amber-400/30' : ''}`}
                 >
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-slate-400 block">Precio Adquisición Sin IVA (€):</label>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs text-slate-400 block">Precio Adquisición Sin IVA (€):</label>
+                      {isSinIvaMod && !customSinIva && (
+                        <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                          HOY
+                        </span>
+                      )}
+                    </div>
                     {customSinIva && (
                       <span
                         onClick={(e) => {
@@ -3261,19 +3452,22 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       value={sinIvaDisplay}
                       onChange={(e) => {
                         const val = e.target.value.replace('.', ',');
-                        setGasesRows((prev) => ({
-                          ...prev,
-                          [gasName]: { ...prev[gasName], sinIva: val },
-                        }));
-                        setModifiedKeys((prev) => new Set(prev).add(`gas_${gasName}`));
+                        const updatedGases = {
+                          ...gasesRows,
+                          [gasName]: { ...gasesRows[gasName], sinIva: val },
+                        };
+                        setGasesRows(updatedGases);
+                        const updatedMods = new Set(modifiedKeys).add(`gas_${gasName}`).add(`gas_sinIva_${gasName}`);
+                        setModifiedKeys(updatedMods);
                         setIsSaved(false);
+                        persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, adblueRows, updatedGases);
                       }}
-                      className={`w-full rounded-xl px-3 py-2 font-mono font-bold text-sm focus:outline-none ${
+                      className={`w-full rounded-xl px-3 py-2 font-mono font-bold text-sm focus:outline-none transition-all ${
                         customSinIva
-                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                          : isMod
-                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                          : 'bg-slate-900 border border-slate-700 text-white'
+                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                          : isSinIvaMod
+                          ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                          : 'bg-slate-900 border border-slate-700 text-white focus:border-amber-400'
                       }`}
                     />
                   )}
@@ -3293,7 +3487,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                   }}
                   className={`pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono p-1 rounded-xl transition-all ${
                     isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 ring-1 ring-amber-400/30' : ''
-                  }`}
+                  } ${isSinIvaMod ? 'bg-amber-400/10' : ''}`}
                 >
                   <span className="text-slate-400">Precio Con IVA (21%):</span>
                   <div className="flex items-center space-x-1.5">
@@ -3315,9 +3509,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                         fx
                       </span>
                     )}
-                    <span className={customConIva ? 'text-amber-300 font-black text-sm' : 'font-bold text-emerald-400 text-sm'}>
+                    <span className={customConIva || isSinIvaMod ? 'text-amber-300 font-black text-sm' : 'font-bold text-emerald-400 text-sm'}>
                       {formatNum(conIva, 3)} €
                     </span>
+                    {isSinIvaMod && !customConIva && (
+                      <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                        MOD
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -3336,7 +3535,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                   className={`space-y-1 pt-1 ${isFormulaMode ? 'cursor-pointer hover:bg-amber-500/10 p-1.5 rounded-xl ring-1 ring-amber-400/30' : ''}`}
                 >
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-slate-400 block">Precio Poste / Surtidor (€):</label>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs text-slate-400 block">Precio Poste / Surtidor (€):</label>
+                      {isPosteMod && !customPoste && (
+                        <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                          HOY
+                        </span>
+                      )}
+                    </div>
                     {customPoste && (
                       <span
                         onClick={(e) => {
@@ -3374,17 +3580,22 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                       value={posteDisplay}
                       onChange={(e) => {
                         const val = e.target.value.replace('.', ',');
-                        setGasesRows((prev) => ({
-                          ...prev,
-                          [gasName]: { ...prev[gasName], poste: val },
-                        }));
-                        setModifiedKeys((prev) => new Set(prev).add(`gas_${gasName}`));
+                        const updatedGases = {
+                          ...gasesRows,
+                          [gasName]: { ...gasesRows[gasName], poste: val },
+                        };
+                        setGasesRows(updatedGases);
+                        const updatedMods = new Set(modifiedKeys).add(`gas_poste_${gasName}`);
+                        setModifiedKeys(updatedMods);
                         setIsSaved(false);
+                        persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, adblueRows, updatedGases);
                       }}
-                      className={`w-full rounded-xl px-3 py-2 font-mono font-bold text-sm ${
+                      className={`w-full rounded-xl px-3 py-2 font-mono font-bold text-sm transition-all focus:outline-none ${
                         customPoste
-                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                          : 'bg-slate-900 border border-slate-700 text-teal-300'
+                          ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                          : isPosteMod
+                          ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                          : 'bg-slate-900 border border-slate-700 text-teal-300 focus:border-amber-400'
                       }`}
                     />
                   )}
@@ -3407,6 +3618,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
         const conIvaDisplay = customBroncoConIva ? formatNum(customBroncoConIva.evaluatedValue, 3) : broncoRow.conIva;
         const beneficioDisplay = customBroncoBeneficio ? formatNum(customBroncoBeneficio.evaluatedValue, 3) : broncoRow.beneficio;
 
+        const isCompraMod = modifiedKeys.has('bronco_compra') || modifiedKeys.has('cuadro_bronco_compra');
+        const isSinIvaMod = modifiedKeys.has('bronco_sinIva') || modifiedKeys.has('cuadro_bronco_sinIva');
+        const isConIvaMod = modifiedKeys.has('bronco_conIva') || modifiedKeys.has('cuadro_bronco_conIva');
+        const isBeneficioMod = modifiedKeys.has('bronco_beneficio') || modifiedKeys.has('cuadro_bronco_beneficio');
+
         return (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
@@ -3419,14 +3635,20 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                   <p className="text-xs text-slate-400">Precios de adquisición, venta con/sin IVA y margen de beneficio</p>
                 </div>
               </div>
-              <button
-                onClick={downloadGasolinaBroncoPng}
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-amber-500/20 transition-all active:scale-95 self-start sm:self-auto"
-                title="Descargar imagen PNG de Gasolina Bronco"
-              >
-                <Download className="h-4 w-4" />
-                <span>Descargar PNG Gasolina Bronco</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-400 text-slate-950 shadow-sm animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-slate-950"></span>
+                  Amarillo = Dato Modificado Hoy
+                </span>
+                <button
+                  onClick={downloadGasolinaBroncoPng}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-amber-500/20 transition-all active:scale-95 self-start sm:self-auto"
+                  title="Descargar imagen PNG de Gasolina Bronco"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Descargar PNG Gasolina Bronco</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3447,7 +3669,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Compra Sin IVA (€):</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">Compra Sin IVA (€):</span>
+                    {isCompraMod && !customBroncoCompra && (
+                      <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                        HOY
+                      </span>
+                    )}
+                  </div>
                   {customBroncoCompra && (
                     <span
                       onClick={(e) => {
@@ -3485,13 +3714,26 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                     value={compraDisplay}
                     onChange={(e) => {
                       const val = e.target.value.replace('.', ',');
-                      setBroncoRow((prev) => ({ ...prev, compra: val }));
+                      const cNum = parseNum(val);
+                      const sNum = parseNum(broncoRow.sinIva);
+                      const newBen = Number((sNum - cNum).toFixed(3));
+                      const updatedBronco = {
+                        ...broncoRow,
+                        compra: val,
+                        beneficio: formatNum(newBen, 3),
+                      };
+                      setBroncoRow(updatedBronco);
+                      const updatedMods = new Set(modifiedKeys).add('bronco_compra').add('bronco_beneficio');
+                      setModifiedKeys(updatedMods);
                       setIsSaved(false);
+                      persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, adblueRows, gasesRows, updatedBronco);
                     }}
-                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold ${
+                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold transition-all focus:outline-none ${
                       customBroncoCompra
-                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                        : 'bg-slate-900 border border-slate-700 text-slate-200'
+                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                        : isCompraMod
+                        ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                        : 'bg-slate-900 border border-slate-700 text-slate-200 focus:border-amber-400'
                     }`}
                   />
                 )}
@@ -3514,7 +3756,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Venta Sin IVA (€):</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">Venta Sin IVA (€):</span>
+                    {isSinIvaMod && !customBroncoSinIva && (
+                      <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                        HOY
+                      </span>
+                    )}
+                  </div>
                   {customBroncoSinIva && (
                     <span
                       onClick={(e) => {
@@ -3552,13 +3801,28 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                     value={sinIvaDisplay}
                     onChange={(e) => {
                       const val = e.target.value.replace('.', ',');
-                      setBroncoRow((prev) => ({ ...prev, sinIva: val }));
+                      const sNum = parseNum(val);
+                      const cNum = parseNum(broncoRow.compra);
+                      const newConIva = Number((sNum * 1.21).toFixed(3));
+                      const newBen = Number((sNum - cNum).toFixed(3));
+                      const updatedBronco = {
+                        ...broncoRow,
+                        sinIva: val,
+                        conIva: formatNum(newConIva, 3),
+                        beneficio: formatNum(newBen, 3),
+                      };
+                      setBroncoRow(updatedBronco);
+                      const updatedMods = new Set(modifiedKeys).add('bronco_sinIva').add('bronco_conIva').add('bronco_beneficio');
+                      setModifiedKeys(updatedMods);
                       setIsSaved(false);
+                      persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, adblueRows, gasesRows, updatedBronco);
                     }}
-                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold ${
+                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold transition-all focus:outline-none ${
                       customBroncoSinIva
-                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                        : 'bg-slate-900 border border-slate-700 text-slate-200'
+                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                        : isSinIvaMod
+                        ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                        : 'bg-slate-900 border border-slate-700 text-slate-200 focus:border-amber-400'
                     }`}
                   />
                 )}
@@ -3581,7 +3845,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Con IVA (21%):</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">Con IVA (21%):</span>
+                    {isConIvaMod && !customBroncoConIva && (
+                      <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                        HOY
+                      </span>
+                    )}
+                  </div>
                   {customBroncoConIva && (
                     <span
                       onClick={(e) => {
@@ -3619,13 +3890,28 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                     value={conIvaDisplay}
                     onChange={(e) => {
                       const val = e.target.value.replace('.', ',');
-                      setBroncoRow((prev) => ({ ...prev, conIva: val }));
+                      const conNum = parseNum(val);
+                      const cNum = parseNum(broncoRow.compra);
+                      const newSinIva = Number((conNum / 1.21).toFixed(3));
+                      const newBen = Number((newSinIva - cNum).toFixed(3));
+                      const updatedBronco = {
+                        ...broncoRow,
+                        conIva: val,
+                        sinIva: formatNum(newSinIva, 3),
+                        beneficio: formatNum(newBen, 3),
+                      };
+                      setBroncoRow(updatedBronco);
+                      const updatedMods = new Set(modifiedKeys).add('bronco_conIva').add('bronco_sinIva').add('bronco_beneficio');
+                      setModifiedKeys(updatedMods);
                       setIsSaved(false);
+                      persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, adblueRows, gasesRows, updatedBronco);
                     }}
-                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold ${
+                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold transition-all focus:outline-none ${
                       customBroncoConIva
-                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                        : 'bg-slate-900 border border-slate-700 text-emerald-400'
+                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                        : isConIvaMod
+                        ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                        : 'bg-slate-900 border border-slate-700 text-emerald-400 focus:border-amber-400'
                     }`}
                   />
                 )}
@@ -3648,7 +3934,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Beneficio / Margen (€):</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">Beneficio / Margen (€):</span>
+                    {isBeneficioMod && !customBroncoBeneficio && (
+                      <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded shadow">
+                        HOY
+                      </span>
+                    )}
+                  </div>
                   {customBroncoBeneficio && (
                     <span
                       onClick={(e) => {
@@ -3686,13 +3979,28 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                     value={beneficioDisplay}
                     onChange={(e) => {
                       const val = e.target.value.replace('.', ',');
-                      setBroncoRow((prev) => ({ ...prev, beneficio: val }));
+                      const bNum = parseNum(val);
+                      const cNum = parseNum(broncoRow.compra);
+                      const newSinIva = Number((cNum + bNum).toFixed(3));
+                      const newConIva = Number((newSinIva * 1.21).toFixed(3));
+                      const updatedBronco = {
+                        ...broncoRow,
+                        beneficio: val,
+                        sinIva: formatNum(newSinIva, 3),
+                        conIva: formatNum(newConIva, 3),
+                      };
+                      setBroncoRow(updatedBronco);
+                      const updatedMods = new Set(modifiedKeys).add('bronco_beneficio').add('bronco_sinIva').add('bronco_conIva');
+                      setModifiedKeys(updatedMods);
                       setIsSaved(false);
+                      persistPostesData(postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods, gasoleoBRows, adblueRows, gasesRows, updatedBronco);
                     }}
-                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold ${
+                    className={`w-full rounded px-2.5 py-1.5 text-xs font-mono font-bold transition-all focus:outline-none ${
                       customBroncoBeneficio
-                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200'
-                        : 'bg-slate-900 border border-slate-700 text-amber-400'
+                        ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
+                        : isBeneficioMod
+                        ? 'bg-amber-400/30 border-2 border-amber-400 text-amber-200 shadow-md ring-2 ring-amber-400/30 font-black'
+                        : 'bg-slate-900 border border-slate-700 text-amber-400 focus:border-amber-400'
                     }`}
                   />
                 )}
