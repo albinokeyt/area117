@@ -65,7 +65,7 @@ body {
   .printable-page {
     background: #ffffff !important;
     color: #000000 !important;
-    padding: 0 0 4mm 0 !important;
+    padding: 0 !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
@@ -102,5 +102,11 @@ body {
 
   tfoot {
     display: table-footer-group;
+  }
+
+  .whitespace-nowrap,
+  [style*="white-space: nowrap"],
+  [style*="whiteSpace: nowrap"] {
+    white-space: nowrap !important;
   }
 }
