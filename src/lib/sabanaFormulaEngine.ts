@@ -715,23 +715,35 @@ export function clearAllSabanaFormulas(selectedDate: string): void {
  * 4. Cálculo estándar: (Precio Base Compras + Margen T60 [0.0800]) * 1.21.
  * Maneja equivalencias de nombres de estaciones (ej. ARCOS <-> ARCOS JALON, GANESHA MADRID <-> MADRID, etc.).
  */
+let isEvaluatingT60 = false;
+
 export function getSabanaTariff60ConIvaForStation(
   stName: string,
   selectedDate?: string
 ): number {
   if (typeof window === 'undefined') return 0;
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  let activeDate = selectedDate || '';
-  try {
-    if (!activeDate) {
-      activeDate = localStorage.getItem('efi_compras_valid_from') || todayStr;
-    }
-  } catch (e) {
-    activeDate = todayStr;
+  if (isEvaluatingT60) {
+    // Protección contra recursión infinita: cálculo directo inmediato basado en costes
+    const allCosts = typeof window !== 'undefined' ? getStationExcelCosts() : STATION_EXCEL_COSTS;
+    const cost = allCosts[stName] || { defaultCurr: 1.2, porte: 0.005, pase: 0.01, fin: 0.01 };
+    const base = Number((cost.defaultCurr + cost.porte + cost.pase + cost.fin).toFixed(3));
+    return Number(((base + 0.08) * 1.21).toFixed(3));
   }
 
-  // 1. Generar lista exhaustiva de nombres/alias para la estación
+  isEvaluatingT60 = true;
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    let activeDate = selectedDate || '';
+    try {
+      if (!activeDate) {
+        activeDate = localStorage.getItem('efi_compras_valid_from') || todayStr;
+      }
+    } catch (e) {
+      activeDate = todayStr;
+    }
+
+    // 1. Generar lista exhaustiva de nombres/alias para la estación
   const upper = stName.toUpperCase().trim();
   const clean = upper.replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
   const aliases = new Set<string>([upper, clean, `ES ${clean}`, `GANESHA ${clean}`]);
@@ -862,19 +874,11 @@ export function getSabanaTariff60ConIvaForStation(
     else if (sGlob) purchasesData = JSON.parse(sGlob).data || {};
   } catch (e) {}
 
-  let specialRates: any[] = [];
-  try {
-    const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
-    if (sp) specialRates = JSON.parse(sp);
-  } catch (e) {}
-
-  const rawFormulas = {
+  const allFormulas = {
     ...loadSabanaFormulas('global'),
     ...(selectedDate ? loadSabanaFormulas(selectedDate) : {}),
     ...loadSabanaFormulas(activeDate),
   };
-  const resolvedFormulas = reevaluateAllSabanaFormulas(rawFormulas, selectedDate || activeDate, purchasesData, specialRates);
-  const allFormulas = { ...rawFormulas, ...resolvedFormulas };
 
   // a) Buscar fórmula Con IVA específica
   for (const al of aliasList) {
@@ -1016,6 +1020,9 @@ export function getSabanaTariff60ConIvaForStation(
 
   const sinIva = Number((basePrice + effectiveMarkup).toFixed(3));
   return Number((sinIva * 1.21).toFixed(3));
+} finally {
+  isEvaluatingT60 = false;
+}
 }
 
 // -------------------------------------------------------------
