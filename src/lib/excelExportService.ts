@@ -804,10 +804,15 @@ export function buildImportacionTable(
   // Obtener Precio Referencia de Tarifas Especiales de Compras
   const getSpecialRateRefPrice = (stName: string): number => {
     if (specialRates && specialRates.length > 0) {
-      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+      const stCleanId = stName.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
       const row = specialRates.find((r) => {
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
+        if (!r || !r.name) return false;
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
+        if (rId && stCleanId && (rId === stCleanId || rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
+        return false;
       });
       if (row) {
         if (row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
@@ -831,10 +836,15 @@ export function buildImportacionTable(
   // Obtener Precio Actual / Especial de Tarifas Especiales de Compras
   const getSpecialRateActualPrice = (stName: string): number => {
     if (specialRates && specialRates.length > 0) {
-      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+      const stCleanId = stName.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
       const row = specialRates.find((r) => {
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
+        if (!r || !r.name) return false;
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
+        if (rId && stCleanId && (rId === stCleanId || rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
+        return false;
       });
       if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
         const p = parseFloat(row.actualPrice.toString().replace(',', '.'));

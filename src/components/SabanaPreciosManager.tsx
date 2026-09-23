@@ -663,10 +663,15 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   // Obtener Precio Actual / Especial de Tarifas Especiales de Compras
   const getSpecialRateActualPrice = (stName: string): number => {
     if (specialRates && specialRates.length > 0) {
-      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+      const stCleanId = stName.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
       const row = specialRates.find((r) => {
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
+        if (!r || !r.name) return false;
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
+        if (rId && stCleanId && (rId === stCleanId || rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
+        return false;
       });
       if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
         const p = parseFloat(row.actualPrice.toString().replace(',', '.'));
@@ -680,10 +685,15 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   // Por requerimiento directo: Las celdas anaranjadas toman por defecto la columna PRECIO REFERENCIA de Compras
   const getSpecialRateRefPrice = (stName: string): number => {
     if (specialRates && specialRates.length > 0) {
-      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
+      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+      const stCleanId = stName.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
       const row = specialRates.find((r) => {
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
+        if (!r || !r.name) return false;
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
+        if (rId && stCleanId && (rId === stCleanId || rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
+        return false;
       });
       if (row) {
         // 1. Si el usuario modificó manualmente el Precio de Referencia en Compras
@@ -792,25 +802,43 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     const cleanTariff = tariffName.toUpperCase().trim();
 
     // 1. Verificar si hay fórmula personalizada activa para esta celda
+    const cleanTariffNoSpace = cleanTariff.replace(/\s+/g, '');
+    const numMatch = cleanTariff.match(/\d+/);
+    const num = numMatch ? numMatch[0] : '';
+
     const customSinIvaKey1 = `STD_${stName}_T${cleanTariff}_sinIva`;
     const customSinIvaKey2 = `STD_${cleanTarget}_T${cleanTariff}_sinIva`;
     const customSinIvaKey3 = `TAR_${cleanTariff}_${stName}_sinIva`;
     const customSinIvaKey4 = `TAR_${cleanTariff}_${cleanTarget}_sinIva`;
+    const customSinIvaKey5 = num ? `STD_${stName}_Tspec_prepago_${num}_sinIva` : '';
+    const customSinIvaKey6 = num ? `STD_${cleanTarget}_Tspec_prepago_${num}_sinIva` : '';
+    const customSinIvaKey7 = `STD_${stName}_T${cleanTariffNoSpace}_sinIva`;
+
     const customFormulaSinIva =
       resolvedFormulas[customSinIvaKey1] ||
       resolvedFormulas[customSinIvaKey2] ||
       resolvedFormulas[customSinIvaKey3] ||
-      resolvedFormulas[customSinIvaKey4];
+      resolvedFormulas[customSinIvaKey4] ||
+      (customSinIvaKey5 ? resolvedFormulas[customSinIvaKey5] : undefined) ||
+      (customSinIvaKey6 ? resolvedFormulas[customSinIvaKey6] : undefined) ||
+      resolvedFormulas[customSinIvaKey7];
 
     const customConIvaKey1 = `STD_${stName}_T${cleanTariff}_conIva`;
     const customConIvaKey2 = `STD_${cleanTarget}_T${cleanTariff}_conIva`;
     const customConIvaKey3 = `TAR_${cleanTariff}_${stName}_conIva`;
     const customConIvaKey4 = `TAR_${cleanTariff}_${cleanTarget}_conIva`;
+    const customConIvaKey5 = num ? `STD_${stName}_Tspec_prepago_${num}_conIva` : '';
+    const customConIvaKey6 = num ? `STD_${cleanTarget}_Tspec_prepago_${num}_conIva` : '';
+    const customConIvaKey7 = `STD_${stName}_T${cleanTariffNoSpace}_conIva`;
+
     const customFormulaConIva =
       resolvedFormulas[customConIvaKey1] ||
       resolvedFormulas[customConIvaKey2] ||
       resolvedFormulas[customConIvaKey3] ||
-      resolvedFormulas[customConIvaKey4];
+      resolvedFormulas[customConIvaKey4] ||
+      (customConIvaKey5 ? resolvedFormulas[customConIvaKey5] : undefined) ||
+      (customConIvaKey6 ? resolvedFormulas[customConIvaKey6] : undefined) ||
+      resolvedFormulas[customConIvaKey7];
 
     // 2. Origen de datos personalizado configurado
     const stationConfigKey1 = `${cleanTariff}::${stName}`;
@@ -835,8 +863,19 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       isCustomSource = true;
       sourceLabel = customCfg.sourceLabel;
     } else {
-      const basePrice = getStationBasePrice(stName, isPropia);
-      defaultSinIva = Number((basePrice + markup).toFixed(3));
+      const isPrepago10 = cleanTariff === 'PREPAGO 10' || cleanTariff === 'TARIFA PREPAGO 10' || cleanTariff === 'PREPAGO10';
+      const isPrepago20 = cleanTariff === 'PREPAGO 20' || cleanTariff === 'TARIFA PREPAGO 20' || cleanTariff === 'PREPAGO20';
+      const isPrepago30 = cleanTariff === 'PREPAGO 30' || cleanTariff === 'TARIFA PREPAGO 30' || cleanTariff === 'PREPAGO30';
+
+      if (isPrepago10 || isPrepago20 || isPrepago30) {
+        const refPrice = getSpecialRateRefPrice(stName);
+        if (isPrepago10) defaultSinIva = Number((refPrice - 0.010).toFixed(3));
+        else if (isPrepago20) defaultSinIva = Number(refPrice.toFixed(3));
+        else defaultSinIva = Number((refPrice + 0.010).toFixed(3));
+      } else {
+        const basePrice = getStationBasePrice(stName, isPropia);
+        defaultSinIva = Number((basePrice + markup).toFixed(3));
+      }
     }
 
     const sinIva = customFormulaSinIva ? customFormulaSinIva.evaluatedValue : defaultSinIva;
@@ -1720,34 +1759,44 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     const updatedFormulas = { ...customFormulas };
 
     const sourceNorm = sourceStationName ? sourceStationName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase() : '';
+    const sourceCleanNorm = sourceStationName ? sourceStationName.toUpperCase().replace(/^ES\s+/, '').replace(/[^a-zA-Z0-9]/g, '_') : '';
+
+    const matchingTariff = customSpecialTariffs.find((t) => t.id === tariffId || t.name === tariffId);
+    const tariffNameKey = matchingTariff ? matchingTariff.name.toUpperCase().trim() : tariffId;
 
     allStations.forEach((st) => {
-      const cellKey = `STD_${st.name}_T${tariffId}_${field}`;
+      const cellKey1 = `STD_${st.name}_T${tariffId}_${field}`;
+      const cellKey2 = `STD_${st.name}_T${tariffNameKey}_${field}`;
       const targetNorm = st.name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const targetCleanNorm = st.name.toUpperCase().replace(/^ES\s+/, '').replace(/[^a-zA-Z0-9]/g, '_');
 
       let adaptedFormula = rawFormula;
-      if (sourceNorm && sourceStationName && targetNorm !== sourceNorm) {
-        adaptedFormula = adaptedFormula.split(sourceNorm).join(targetNorm);
+      if (sourceStationName) {
+        if (sourceNorm && targetNorm !== sourceNorm) {
+          adaptedFormula = adaptedFormula.split(sourceNorm).join(targetNorm);
+        }
+        if (sourceCleanNorm && targetCleanNorm !== sourceCleanNorm) {
+          adaptedFormula = adaptedFormula.split(sourceCleanNorm).join(targetCleanNorm);
+        }
         adaptedFormula = adaptedFormula.split(sourceStationName).join(st.name);
       }
 
       const evalRes = evaluateFormula(adaptedFormula, map, { stationName: st.name });
       if (evalRes.success) {
-        saveSabanaFormula(selectedDate, cellKey, {
-          rawFormula: adaptedFormula,
-          evaluatedValue: evalRes.value,
-          updatedAt: new Date().toISOString(),
-        });
-        updatedFormulas[cellKey] = {
+        const formulaObj = {
           rawFormula: adaptedFormula,
           evaluatedValue: evalRes.value,
           updatedAt: new Date().toISOString(),
         };
+        saveSabanaFormula(selectedDate, cellKey1, formulaObj);
+        saveSabanaFormula(selectedDate, cellKey2, formulaObj);
+        updatedFormulas[cellKey1] = formulaObj;
+        updatedFormulas[cellKey2] = formulaObj;
       }
     });
 
     setCustomFormulas(updatedFormulas);
-    setDownloadToast(`Fórmula aplicada a toda la columna Tarifa ${tariffId} (${isConIva ? 'Con IVA' : 'Sin IVA'})`);
+    setDownloadToast(`Fórmula aplicada a toda la columna Tarifa ${tariffNameKey} (${isConIva ? 'Con IVA' : 'Sin IVA'})`);
     setTimeout(() => setDownloadToast(null), 3500);
   };
 
@@ -3185,11 +3234,25 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
                                 <td
                                   onClick={() => {
                                     if (!isFormulaMode) return;
+                                    const norm = st.name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+                                    const cleanTariffUpper = t.name.toUpperCase().trim();
+                                    const isP10 = cleanTariffUpper === 'PREPAGO 10' || cleanTariffUpper === 'TARIFA PREPAGO 10';
+                                    const isP20 = cleanTariffUpper === 'PREPAGO 20' || cleanTariffUpper === 'TARIFA PREPAGO 20';
+                                    const isP30 = cleanTariffUpper === 'PREPAGO 30' || cleanTariffUpper === 'TARIFA PREPAGO 30';
+
+                                    const defaultFormula = isP10
+                                      ? `=[ESPECIAL:${norm}:REF] - 0.01`
+                                      : isP20
+                                      ? `=[ESPECIAL:${norm}:REF]`
+                                      : isP30
+                                      ? `=[ESPECIAL:${norm}:REF] + 0.01`
+                                      : undefined;
+
                                     setActiveModalCell({
                                       cellKey: prices.sinIvaKey,
                                       cellTitle: `${st.name} — ${t.name} (Sin IVA)`,
                                       defaultValue: prices.defaultSinIva,
-                                      currentFormula: prices.customFormulaSinIva?.rawFormula,
+                                      currentFormula: prices.customFormulaSinIva?.rawFormula || defaultFormula,
                                       columnLabel: `${t.name} Sin IVA`,
                                       onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(t.id, false, f, st.name),
                                     });

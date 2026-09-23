@@ -341,10 +341,17 @@ export function getProgramVariables(
     let refVal = round3(pVentaGoa + 0.008);
     let baseVal = totalCostGoa;
 
+    const normSt = st.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const stCleanId = st.name.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
+
     if (Array.isArray(specialRates)) {
       const matchSpecial = specialRates.find((r) => {
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm);
+        if (!r || !r.name) return false;
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (rNorm === normSt || rNorm.includes(normSt) || normSt.includes(rNorm)) return true;
+        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
+        if (rId && stCleanId && (rId === stCleanId || rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
+        return false;
       });
       if (matchSpecial) {
         if (matchSpecial.actualPrice && parseNum(matchSpecial.actualPrice) > 0) {
@@ -352,7 +359,7 @@ export function getProgramVariables(
         }
         if (matchSpecial.refPrice && parseNum(matchSpecial.refPrice) > 0) {
           refVal = parseNum(matchSpecial.refPrice);
-        } else if (matchSpecial.isCustomActual && matchSpecial.actualPrice) {
+        } else if (actualVal > 0) {
           refVal = round3(actualVal + 0.008);
         }
         if (matchSpecial.basePrice && parseNum(matchSpecial.basePrice) > 0) {
@@ -364,6 +371,13 @@ export function getProgramVariables(
     addVar("especial", "Tarifas Especiales", "Tarifas Especiales B50:F82", "ESPECIAL:" + norm + ":ACTUAL", "Precio Actual / Especial (" + st.name + ")", actualVal, st.name);
     addVar("especial", "Tarifas Especiales", "Tarifas Especiales B50:F82", "ESPECIAL:" + norm + ":REF", "Precio Referencia (" + st.name + ")", refVal, st.name);
     addVar("especial", "Tarifas Especiales", "Tarifas Especiales B50:F82", "ESPECIAL:" + norm + ":BASE", "Precio Base / Coste (" + st.name + ")", baseVal, st.name);
+
+    const cleanNorm = cleanTarget.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+    if (cleanNorm && cleanNorm !== norm) {
+      map["ESPECIAL:" + cleanNorm + ":ACTUAL"] = actualVal;
+      map["ESPECIAL:" + cleanNorm + ":REF"] = refVal;
+      map["ESPECIAL:" + cleanNorm + ":BASE"] = baseVal;
+    }
   });
 
   // 5. SABANA DE PRECIOS
@@ -516,19 +530,33 @@ export function evaluateFormula(
   const localMap: Record<string, number> = { ...variablesMap };
   if (stationContext?.stationName) {
     const norm = stationContext.stationName.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+    const cleanNorm = stationContext.stationName.toUpperCase().replace(/^ES\s+/, '').replace(/[^a-zA-Z0-9]/g, "_");
     for (const [k, v] of Object.entries(variablesMap)) {
       if (k.startsWith(`COMPRAS:${norm}:`)) {
         const shortK = k.replace(`COMPRAS:${norm}:`, '');
         localMap[shortK] = v;
+      } else if (cleanNorm && k.startsWith(`COMPRAS:${cleanNorm}:`)) {
+        const shortK = k.replace(`COMPRAS:${cleanNorm}:`, '');
+        localMap[shortK] = v;
       } else if (k.startsWith(`SABANA:${norm}:`)) {
         const shortK = k.replace(`SABANA:${norm}:`, '');
+        localMap[shortK] = v;
+      } else if (cleanNorm && k.startsWith(`SABANA:${cleanNorm}:`)) {
+        const shortK = k.replace(`SABANA:${cleanNorm}:`, '');
         localMap[shortK] = v;
       } else if (k.startsWith(`ESPECIAL:${norm}:`)) {
         const shortK = k.replace(`ESPECIAL:${norm}:`, '');
         localMap[shortK] = v;
         localMap[`ESPECIAL_${shortK}`] = v;
+      } else if (cleanNorm && k.startsWith(`ESPECIAL:${cleanNorm}:`)) {
+        const shortK = k.replace(`ESPECIAL:${cleanNorm}:`, '');
+        localMap[shortK] = v;
+        localMap[`ESPECIAL_${shortK}`] = v;
       } else if (k.startsWith(`POSTES:${norm}:`)) {
         const shortK = k.replace(`POSTES:${norm}:`, '');
+        localMap[shortK] = v;
+      } else if (cleanNorm && k.startsWith(`POSTES:${cleanNorm}:`)) {
+        const shortK = k.replace(`POSTES:${cleanNorm}:`, '');
         localMap[shortK] = v;
       }
     }
