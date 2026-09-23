@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { LoginForm } from '@/components/LoginForm';
@@ -15,7 +15,8 @@ import { InstructionsManager } from '@/components/InstructionsManager';
 import {
   initClientAutoSync,
   checkServerVersion,
-  pullStateFromServer
+  pullStateFromServer,
+  isUserRecentlyActive
 } from '@/lib/serverSyncService';
 
 function AppContent() {
@@ -24,11 +25,12 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedDate, setSelectedDate] = useState('2026-08-18');
   const [syncNotification, setSyncNotification] = useState<string | null>(null);
+  const isSyncingRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
 
-    // Iniciar interceptor de auto-sincronización en segundo plano
+    // Iniciar interceptor de auto-sincronización en segundo plano con debounce optimizado
     initClientAutoSync(() => currentUser?.name || 'Usuario');
 
     try {
@@ -59,10 +61,15 @@ function AppContent() {
     };
     initialSync();
 
-    // 2. Comprobación periódica optimizada cada 6s cuando la pestaña está visible
-    const interval = setInterval(async () => {
+    // 2. Comprobación periódica no invasiva: cada 25s o al volver a la pestaña (focus)
+    const checkServerUpdates = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      if (isSyncingRef.current) return;
+      // Si el usuario estuvo interactuando o tecleando en los últimos 10s, no interrumpir con sincronizaciones
+      if (isUserRecentlyActive(10)) return;
+
       try {
+        isSyncingRef.current = true;
         const status = await checkServerVersion();
         if (status.needsUpdate) {
           console.log(`[AutoSync] Nueva versión #${status.serverVersion} detectada. Descargando datos...`);
@@ -76,8 +83,13 @@ function AppContent() {
         }
       } catch (err) {
         // Fallo silencioso ante micro-cortes
+      } finally {
+        isSyncingRef.current = false;
       }
-    }, 6000);
+    };
+
+    const interval = setInterval(checkServerUpdates, 25000);
+    window.addEventListener('focus', checkServerUpdates);
 
     // 3. Escuchar cambios de fecha global
     const handleDateChange = () => {
@@ -88,6 +100,7 @@ function AppContent() {
 
     return () => {
       clearInterval(interval);
+      window.removeEventListener('focus', checkServerUpdates);
       window.removeEventListener('efi_valid_date_changed', handleDateChange);
     };
   }, [currentUser]);
@@ -114,30 +127,16 @@ function AppContent() {
         setSelectedDate={setSelectedDate}
       />
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 space-y-8">
-        <div className={activeTab === 'dashboard' ? 'block' : 'hidden'}>
-          <ExecutiveDashboard onNavigateTab={setActiveTab} />
-        </div>
-        <div className={activeTab === 'comp1' ? 'block' : 'hidden'}>
-          <Comp1PurchaseManager selectedDate={selectedDate} />
-        </div>
-        <div className={activeTab === 'postes' ? 'block' : 'hidden'}>
-          <PostesManager selectedDate={selectedDate} />
-        </div>
-        <div className={activeTab === 'sabana' ? 'block' : 'hidden'}>
-          <SabanaPreciosManager selectedDate={selectedDate} />
-        </div>
-        <div className={activeTab === 'pdf' ? 'block' : 'hidden'}>
-          <PdfGeneratorManager selectedDate={selectedDate} />
-        </div>
-        <div className={activeTab === 'comp2' ? 'block' : 'hidden'}>
-          <Comp2EfiExporter selectedDate={selectedDate} />
-        </div>
-        <div className={activeTab === 'users' ? 'block' : 'hidden'}>
-          <UserManager />
-        </div>
-        <div className={activeTab === 'instructions' ? 'block' : 'hidden'}>
-          <InstructionsManager />
-        </div>
+        {/* Renderizado condicional exclusivo: SOLO monta la pestaña activa.
+            Evita que los módulos en segundo plano ejecuten recálculos masivos de fórmulas en cada pulsación de tecla */}
+        {activeTab === 'dashboard' && <ExecutiveDashboard onNavigateTab={setActiveTab} />}
+        {activeTab === 'comp1' && <Comp1PurchaseManager selectedDate={selectedDate} />}
+        {activeTab === 'postes' && <PostesManager selectedDate={selectedDate} />}
+        {activeTab === 'sabana' && <SabanaPreciosManager selectedDate={selectedDate} />}
+        {activeTab === 'pdf' && <PdfGeneratorManager selectedDate={selectedDate} />}
+        {activeTab === 'comp2' && <Comp2EfiExporter selectedDate={selectedDate} />}
+        {activeTab === 'users' && <UserManager />}
+        {activeTab === 'instructions' && <InstructionsManager />}
       </main>
       <footer className="border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 print:hidden">
         <div className="max-w-[1600px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">

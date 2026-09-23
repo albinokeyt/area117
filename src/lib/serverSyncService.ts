@@ -79,12 +79,25 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
   return count;
 }
 
+let lastUserActivityTimestamp = Date.now();
+
+export function recordUserActivity() {
+  lastUserActivityTimestamp = Date.now();
+}
+
+export function isUserRecentlyActive(seconds: number = 10): boolean {
+  return (Date.now() - lastUserActivityTimestamp) < (seconds * 1000);
+}
+
 // Inicia el sincronizador automático de cambios locales hacia el servidor
 export function initClientAutoSync(getUserName?: () => string) {
   if (typeof window === 'undefined' || isSyncInitialized) return;
   isSyncInitialized = true;
 
   try {
+    window.addEventListener('keydown', recordUserActivity, { passive: true });
+    window.addEventListener('pointerdown', recordUserActivity, { passive: true });
+
     const originalSetItem = localStorage.setItem.bind(localStorage);
     localStorage.setItem = function (key: string, value: string) {
       originalSetItem(key, value);
@@ -103,6 +116,7 @@ export function initClientAutoSync(getUserName?: () => string) {
           return;
         }
 
+        recordUserActivity();
         pendingKeysToSync.add(key);
         if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
 
@@ -113,7 +127,7 @@ export function initClientAutoSync(getUserName?: () => string) {
             const userName = getUserName ? getUserName() : 'Usuario';
             pushIncrementalStateToServer(keys, userName);
           }
-        }, 1200); // 1.2s debounce
+        }, 2500); // 2.5s debounce para evitar peticiones repetitivas mientras el usuario escribe
       }
     };
   } catch (e) {

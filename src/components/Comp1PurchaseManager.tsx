@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   PROPIAS_STATIONS,
   COLABORADORA_STATIONS,
@@ -528,6 +528,26 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     } catch (e) {}
   };
 
+  const purchasesDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedPersistPurchases = useCallback((dataToSave: Record<string, PurchaseRowValues>, modsToSave: Set<string>) => {
+    if (purchasesDebounceTimerRef.current) clearTimeout(purchasesDebounceTimerRef.current);
+    purchasesDebounceTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
+          data: dataToSave,
+          modified: Array.from(modsToSave),
+          updatedAt: new Date().toISOString(),
+        }));
+        localStorage.setItem('efi_compras_data', JSON.stringify({
+          data: dataToSave,
+          modified: Array.from(modsToSave),
+          updatedAt: new Date().toISOString(),
+        }));
+        window.dispatchEvent(new Event('efi_compras_updated'));
+      } catch (e) {}
+    }, 200);
+  }, [selectedDate]);
+
   const handleInputChange = (
     stationName: string,
     prodCode: string,
@@ -569,20 +589,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }
 
       const nextPurchases = { ...prev, [key]: updated };
-
-      try {
-        localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
-          data: nextPurchases,
-          modified: Array.from(new Set(modifiedKeys).add(fieldKey)),
-          updatedAt: new Date().toISOString(),
-        }));
-        localStorage.setItem('efi_compras_data', JSON.stringify({
-          data: nextPurchases,
-          modified: Array.from(new Set(modifiedKeys).add(fieldKey)),
-          updatedAt: new Date().toISOString(),
-        }));
-        window.dispatchEvent(new Event('efi_compras_updated'));
-      } catch (e) {}
+      const nextMods = new Set(modifiedKeys).add(fieldKey);
+      debouncedPersistPurchases(nextPurchases, nextMods);
 
       return nextPurchases;
     });

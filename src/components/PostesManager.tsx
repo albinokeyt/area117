@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import { getPostesStations } from '@/lib/stationsService';
 import {
@@ -765,8 +765,10 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   const computedHvoValdemoroConIva = resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA']?.evaluatedValue ?? Number((goaValdemoroPrice + hvoValAddVal).toFixed(4));
   const computedHvoValdemoroSinIva = resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA']?.evaluatedValue ?? Number((computedHvoValdemoroConIva / 1.21).toFixed(4));
 
+  const postesDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Helper centralizado para persistir Postes y HVO y emitir eventos reactivos al instante
-  const persistPostesData = (
+  const executePersistPostesData = (
     currentPostes = postes,
     currentGenBase = hvoGeneralBase,
     currentGenAdd = hvoGeneralAddition,
@@ -800,6 +802,61 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
       console.error(e);
     }
   };
+
+  const persistPostesData = (
+    currentPostes = postes,
+    currentGenBase = hvoGeneralBase,
+    currentGenAdd = hvoGeneralAddition,
+    currentAlfajarin = hvoAlfajarinSinIva,
+    currentValdemoro = hvoValdemoroAddition,
+    currentModified = modifiedKeys,
+    currentGasoleoB = gasoleoBRows,
+    currentAdblue = adblueRows,
+    currentGases = gasesRows,
+    currentBronco = broncoRow,
+    immediate = false
+  ) => {
+    if (postesDebounceTimerRef.current) {
+      clearTimeout(postesDebounceTimerRef.current);
+    }
+    if (immediate) {
+      executePersistPostesData(
+        currentPostes,
+        currentGenBase,
+        currentGenAdd,
+        currentAlfajarin,
+        currentValdemoro,
+        currentModified,
+        currentGasoleoB,
+        currentAdblue,
+        currentGases,
+        currentBronco
+      );
+      return;
+    }
+    postesDebounceTimerRef.current = setTimeout(() => {
+      executePersistPostesData(
+        currentPostes,
+        currentGenBase,
+        currentGenAdd,
+        currentAlfajarin,
+        currentValdemoro,
+        currentModified,
+        currentGasoleoB,
+        currentAdblue,
+        currentGases,
+        currentBronco
+      );
+    }, 250);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (postesDebounceTimerRef.current) {
+        clearTimeout(postesDebounceTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -918,7 +975,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   };
 
   const handleSave = () => {
-    persistPostesData();
+    executePersistPostesData();
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3500);
   };
