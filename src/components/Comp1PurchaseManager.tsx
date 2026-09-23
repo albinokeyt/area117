@@ -16,7 +16,6 @@ import {
   getAdblueStationsConfig,
 } from '@/lib/stationsService';
 import { StationManagerModal } from './StationManagerModal';
-import * as XLSX from 'xlsx';
 import { generateAndDownloadCierreWorkbook, downloadWorkbookAsXlsx, GasolinaBroncoRow } from '@/lib/excelExportService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
