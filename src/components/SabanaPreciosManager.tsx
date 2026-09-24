@@ -668,9 +668,16 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const row = specialRates.find((r) => {
         if (!r || !r.name) return false;
         const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        if (rNorm === cleanTarget) return true;
         const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
-        if (rId && stCleanId && (rId === stCleanId || rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
+        if (rId && stCleanId && rId === stCleanId) return true;
+        return false;
+      }) || specialRates.find((r) => {
+        if (!r || !r.name) return false;
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
+        if (rId && stCleanId && (rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
         return false;
       });
       if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
@@ -690,9 +697,16 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const row = specialRates.find((r) => {
         if (!r || !r.name) return false;
         const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (rNorm === cleanTarget || rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        if (rNorm === cleanTarget) return true;
         const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
-        if (rId && stCleanId && (rId === stCleanId || rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
+        if (rId && stCleanId && rId === stCleanId) return true;
+        return false;
+      }) || specialRates.find((r) => {
+        if (!r || !r.name) return false;
+        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
+        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
+        if (rId && stCleanId && (rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
         return false;
       });
       if (row) {

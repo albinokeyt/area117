@@ -752,6 +752,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       try {
         localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(next));
         localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(next));
+        window.dispatchEvent(new Event('efi_compras_updated'));
+        window.dispatchEvent(new Event('storage'));
       } catch (e) {}
 
       return next;

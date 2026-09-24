@@ -85,8 +85,8 @@ body {
   }
 
   table {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
     width: 100% !important;
   }
 
@@ -97,7 +97,7 @@ body {
   }
 
   thead {
-    display: table-header-group;
+    display: table-header-group !important;
   }
 
   tfoot {
