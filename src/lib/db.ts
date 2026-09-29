@@ -102,10 +102,12 @@ async function ensureTables() {
       );
     `);
 
-    // Verificar si existen usuarios por defecto
+    // 1. Migración automática de usuarios existentes (o valores por defecto)
     const userRes = await p.query('SELECT COUNT(*) FROM efi_server_users');
     if (parseInt(userRes.rows[0].count, 10) === 0) {
-      for (const u of DEFAULT_USERS) {
+      const existingUsers = readUsersFromFile();
+      const usersToInsert = existingUsers && existingUsers.length > 0 ? existingUsers : DEFAULT_USERS;
+      for (const u of usersToInsert) {
         await p.query(
           `INSERT INTO efi_server_users (id, name, email, role, password, created_at)
            VALUES ($1, $2, $3, $4, $5, $6)
@@ -113,10 +115,35 @@ async function ensureTables() {
           [u.id, u.name, u.email, u.role, u.password || '', u.createdAt]
         );
       }
+      console.log(`[PostgreSQL] Migrados ${usersToInsert.length} usuarios a PostgreSQL.`);
+    }
+
+    // 2. Migración automática de datos del estado anterior (server_state.json -> PostgreSQL)
+    const stateRes = await p.query("SELECT COUNT(*) FROM efi_server_state WHERE id = 1 AND data != '{}'::jsonb");
+    if (parseInt(stateRes.rows[0].count, 10) === 0) {
+      const existingState = readStateFromFile();
+      if (existingState && existingState.data && Object.keys(existingState.data).length > 0) {
+        await p.query(
+          `INSERT INTO efi_server_state (id, version, updated_at, updated_by, data)
+           VALUES (1, $1, $2, $3, $4)
+           ON CONFLICT (id) DO UPDATE SET
+             version = EXCLUDED.version,
+             updated_at = EXCLUDED.updated_at,
+             updated_by = EXCLUDED.updated_by,
+             data = EXCLUDED.data`,
+          [
+            existingState.version || 1,
+            existingState.updatedAt || new Date().toISOString(),
+            existingState.updatedBy || 'Migración Automática',
+            JSON.stringify(existingState.data),
+          ]
+        );
+        console.log(`[PostgreSQL] Migración automática completada con éxito: ${Object.keys(existingState.data).length} registros migrados desde server_state.json a PostgreSQL.`);
+      }
     }
 
     isDbInitialized = true;
-    console.log('[PostgreSQL] Tablas efi_server_state y efi_server_users verificadas/creadas con éxito.');
+    console.log('[PostgreSQL] Tablas efi_server_state y efi_server_users verificadas y sincronizadas.');
   } catch (err) {
     console.error('[PostgreSQL] Error al inicializar tablas:', err);
   }
