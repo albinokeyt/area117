@@ -866,8 +866,27 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           closedAt: timestamp,
         }));
 
+        // Limpiar marcas amarillas de modificación en Postes manteniendo intactos todos los datos ingresados
+        try {
+          const rawPostes = localStorage.getItem('efi_postes_data_v2');
+          if (rawPostes) {
+            const parsedPostes = JSON.parse(rawPostes);
+            parsedPostes.modified = [];
+            localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsedPostes));
+          }
+          const rawPostesDate = localStorage.getItem(`efi_postes_data_${selectedDate}`);
+          if (rawPostesDate) {
+            const parsedPostesDate = JSON.parse(rawPostesDate);
+            parsedPostesDate.modified = [];
+            localStorage.setItem(`efi_postes_data_${selectedDate}`, JSON.stringify(parsedPostesDate));
+          }
+        } catch (e) {
+          console.error('Error al limpiar modified en efi_postes_data_v2:', e);
+        }
+
         // Notificar reactivamente a todas las ventanas
         window.dispatchEvent(new Event('efi_compras_updated'));
+        window.dispatchEvent(new Event('efi_postes_updated'));
         window.dispatchEvent(new Event('efi_valid_date_changed'));
         window.dispatchEvent(new Event('efi_cierre_dia'));
         window.dispatchEvent(new Event('storage'));

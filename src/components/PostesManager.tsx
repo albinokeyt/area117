@@ -334,6 +334,17 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
       } catch (e) {
         setCustomPostesFormulas(loadPostesFormulas(validFromDate));
       }
+      try {
+        const savedPostes = localStorage.getItem('efi_postes_data_v2');
+        if (savedPostes) {
+          const parsed = JSON.parse(savedPostes);
+          if (Array.isArray(parsed.modified)) {
+            setModifiedKeys(new Set(parsed.modified));
+          } else {
+            setModifiedKeys(new Set());
+          }
+        }
+      } catch (e) {}
       setComprasUpdateTick((t) => t + 1);
     };
     window.addEventListener('efi_valid_date_changed', handleUpdates);
@@ -341,6 +352,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     window.addEventListener('efi_sabana_updated', handleUpdates);
     window.addEventListener('efi_export_updated', handleUpdates);
     window.addEventListener('efi_postes_updated', handleUpdates);
+    window.addEventListener('efi_cierre_dia', handleUpdates);
     window.addEventListener('storage', handleUpdates);
     return () => {
       window.removeEventListener('efi_valid_date_changed', handleUpdates);
@@ -348,6 +360,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
       window.removeEventListener('efi_sabana_updated', handleUpdates);
       window.removeEventListener('efi_export_updated', handleUpdates);
       window.removeEventListener('efi_postes_updated', handleUpdates);
+      window.removeEventListener('efi_cierre_dia', handleUpdates);
       window.removeEventListener('storage', handleUpdates);
     };
   }, [selectedDate, validFromDate]);
@@ -920,7 +933,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
             compra: (parsed.bronco.compra || '').replace('.', ','),
           });
         }
-        if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
+        if (Array.isArray(parsed.modified)) {
+          setModifiedKeys(new Set(parsed.modified));
+        } else {
+          setModifiedKeys(new Set());
+        }
       } else {
         persistPostesData();
       }
@@ -929,6 +946,9 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     }
 
     const handleCierreDia = () => {
+      if (postesDebounceTimerRef.current) {
+        clearTimeout(postesDebounceTimerRef.current);
+      }
       setModifiedKeys(new Set());
       try {
         const saved = localStorage.getItem('efi_postes_data_v2');
