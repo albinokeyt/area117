@@ -1,87 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const USERS_FILE = path.join(DATA_DIR, 'server_users.json');
-
-export interface ServerUser {
-  id: string;
-  name: string;
-  email: string;
-  role: 'ADMIN' | 'COMPANERO_1' | 'COMPANERO_2_3' | 'VISITOR';
-  password?: string;
-  createdAt: string;
-}
-
-const DEFAULT_USERS: ServerUser[] = [
-  {
-    id: '1',
-    name: 'Administrador Principal',
-    email: 'admin@efidataoil.com',
-    role: 'ADMIN',
-    password: 'admin123',
-    createdAt: '2026-08-08',
-  },
-  {
-    id: '2',
-    name: 'Compañero 1 (Compras)',
-    email: 'compras@efidataoil.com',
-    role: 'COMPANERO_1',
-    password: 'compras123',
-    createdAt: '2026-08-08',
-  },
-  {
-    id: '3',
-    name: 'Compañeros 2 y 3 (EFI)',
-    email: 'efi@efidataoil.com',
-    role: 'COMPANERO_2_3',
-    password: 'efi123',
-    createdAt: '2026-08-08',
-  },
-];
-
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
-function readUsers(): ServerUser[] {
-  try {
-    ensureDataDir();
-    if (fs.existsSync(USERS_FILE)) {
-      const content = fs.readFileSync(USERS_FILE, 'utf-8');
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('[API /api/users] Error al leer usuarios:', e);
-  }
-  // Inicializar con usuarios por defecto si no existe
-  writeUsers(DEFAULT_USERS);
-  return DEFAULT_USERS;
-}
-
-function writeUsers(users: ServerUser[]): boolean {
-  try {
-    ensureDataDir();
-    const tempFile = `${USERS_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(users, null, 2), 'utf-8');
-    fs.renameSync(tempFile, USERS_FILE);
-    return true;
-  } catch (e) {
-    console.error('[API /api/users] Error al escribir usuarios:', e);
-    return false;
-  }
-}
+import { getServerUsers, upsertServerUser, deleteServerUser, isPostgresConfigured, ServerUser } from '@/lib/db';
 
 export async function GET() {
-  const users = readUsers();
-  // Devolver usuarios
-  return NextResponse.json({ success: true, users });
+  const users = await getServerUsers();
+  return NextResponse.json({
+    success: true,
+    users,
+    isPostgres: isPostgresConfigured(),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -96,23 +22,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const currentUsers = readUsers();
-    let updatedUsers: ServerUser[];
+    const currentUsers = await getServerUsers();
 
     if (id) {
       // Modificar existente
-      updatedUsers = currentUsers.map((u) => {
-        if (u.id === id) {
-          return {
-            ...u,
-            name,
-            email,
-            role: role || u.role,
-            ...(password ? { password } : {}),
-          };
-        }
-        return u;
-      });
+      const existing = currentUsers.find((u) => u.id === id);
+      const userToSave: ServerUser = {
+        id,
+        name,
+        email,
+        role: role || (existing ? existing.role : 'VISITOR'),
+        password: password || (existing ? existing.password : '123456'),
+        createdAt: existing ? existing.createdAt : new Date().toISOString().split('T')[0],
+      };
+
+      await upsertServerUser(userToSave);
     } else {
       // Crear nuevo usuario
       const exists = currentUsers.some((u) => u.email.toLowerCase() === email.toLowerCase());
@@ -131,14 +55,16 @@ export async function POST(req: NextRequest) {
         password: password || '123456',
         createdAt: new Date().toISOString().split('T')[0],
       };
-      updatedUsers = [...currentUsers, newUser];
+
+      await upsertServerUser(newUser);
     }
 
-    writeUsers(updatedUsers);
+    const updatedUsers = await getServerUsers();
 
     return NextResponse.json({
       success: true,
       users: updatedUsers,
+      isPostgres: isPostgresConfigured(),
       message: 'Usuario guardado exitosamente en el servidor.',
     });
   } catch (error: any) {
@@ -161,7 +87,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const currentUsers = readUsers();
+    const currentUsers = await getServerUsers();
     if (currentUsers.length <= 1) {
       return NextResponse.json(
         { success: false, error: 'No puedes eliminar el único usuario del sistema' },
@@ -169,12 +95,13 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const updated = currentUsers.filter((u) => u.id !== id);
-    writeUsers(updated);
+    await deleteServerUser(id);
+    const updated = await getServerUsers();
 
     return NextResponse.json({
       success: true,
       users: updated,
+      isPostgres: isPostgresConfigured(),
       message: 'Usuario eliminado exitosamente del servidor.',
     });
   } catch (error: any) {

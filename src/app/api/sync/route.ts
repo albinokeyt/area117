@@ -1,70 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-// Directorio de persistencia en servidor
-const DATA_DIR = path.join(process.cwd(), 'data');
-const STATE_FILE = path.join(DATA_DIR, 'server_state.json');
-
-interface ServerStatePayload {
-  version: number;
-  updatedAt: string;
-  updatedBy?: string;
-  data: Record<string, any>;
-}
-
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
-function readServerState(): ServerStatePayload {
-  try {
-    ensureDataDir();
-    if (fs.existsSync(STATE_FILE)) {
-      const content = fs.readFileSync(STATE_FILE, 'utf-8');
-      const parsed = JSON.parse(content);
-      if (parsed && typeof parsed === 'object') {
-        return {
-          version: typeof parsed.version === 'number' ? parsed.version : 1,
-          updatedAt: parsed.updatedAt || new Date().toISOString(),
-          updatedBy: parsed.updatedBy || 'Sistema',
-          data: parsed.data || {},
-        };
-      }
-    }
-  } catch (err) {
-    console.error('[API /api/sync] Error al leer server_state.json:', err);
-  }
-  return {
-    version: 0,
-    updatedAt: new Date().toISOString(),
-    updatedBy: 'Inicial',
-    data: {},
-  };
-}
-
-function writeServerState(payload: ServerStatePayload): boolean {
-  try {
-    ensureDataDir();
-    // Escritura atómica mediante archivo temporal para evitar corrupción
-    const tempFile = `${STATE_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2), 'utf-8');
-    fs.renameSync(tempFile, STATE_FILE);
-    return true;
-  } catch (err) {
-    console.error('[API /api/sync] Error al escribir server_state.json:', err);
-    return false;
-  }
-}
+import { getServerState, saveServerState, isPostgresConfigured, ServerStatePayload } from '@/lib/db';
 
 // GET /api/sync - Obtener versión o estado completo
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const versionOnly = searchParams.get('versionOnly') === 'true';
-    const currentState = readServerState();
+    const currentState = await getServerState();
 
     if (versionOnly) {
       return NextResponse.json({
@@ -72,7 +14,8 @@ export async function GET(req: NextRequest) {
         version: currentState.version,
         updatedAt: currentState.updatedAt,
         updatedBy: currentState.updatedBy,
-        hasData: Object.keys(currentState.data).length > 0,
+        hasData: Object.keys(currentState.data || {}).length > 0,
+        isPostgres: isPostgresConfigured(),
       });
     }
 
@@ -82,6 +25,7 @@ export async function GET(req: NextRequest) {
       updatedAt: currentState.updatedAt,
       updatedBy: currentState.updatedBy,
       data: currentState.data,
+      isPostgres: isPostgresConfigured(),
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -116,7 +60,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const currentState = readServerState();
+    const currentState = await getServerState();
     let nextData: Record<string, any> = {};
 
     if (mode === 'incremental' && currentState.data) {
@@ -140,10 +84,10 @@ export async function POST(req: NextRequest) {
       data: nextData,
     };
 
-    const ok = writeServerState(newPayload);
+    const ok = await saveServerState(newPayload);
     if (!ok) {
       return NextResponse.json(
-        { success: false, error: 'Fallo al escribir en el disco del servidor.' },
+        { success: false, error: 'Fallo al escribir en la base de datos o disco del servidor.' },
         { status: 500 }
       );
     }
@@ -154,7 +98,10 @@ export async function POST(req: NextRequest) {
       updatedAt: now,
       updatedBy: updatedBy || 'Usuario',
       keysCount: Object.keys(nextData).length,
-      message: 'Todos los datos han sido guardados y sincronizados en el servidor central con éxito.',
+      isPostgres: isPostgresConfigured(),
+      message: isPostgresConfigured()
+        ? 'Todos los datos han sido guardados y sincronizados en PostgreSQL con éxito.'
+        : 'Todos los datos han sido guardados y sincronizados en el servidor central con éxito.',
     });
   } catch (error: any) {
     return NextResponse.json(
