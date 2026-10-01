@@ -14,6 +14,11 @@ body {
 }
 
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* Ocultar TODO elemento que no pertenezca al documento oficial */
   header, footer, nav, aside, .no-print, .print\:hidden,
   .bg-slate-900, .bg-slate-950, .shadow-xl, .shadow-2xl, .backdrop-blur-sm,

@@ -9,7 +9,8 @@ import {
   Printer, Download, FileText, Search, Calendar, Check,
   Sparkles, Building2, Store, Fuel, Zap, Eye, ArrowDownToLine,
   Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert,
-  RotateCcw, Sliders, Database, Settings2, MousePointerClick, Table, Layers, Star
+  RotateCcw, Sliders, Database, Settings2, MousePointerClick, Table, Layers, Star,
+  Tag, Tags
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
@@ -1067,6 +1068,177 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     window.addEventListener('efi_stations_updated', handleStationsUpdated);
     return () => window.removeEventListener('efi_stations_updated', handleStationsUpdated);
   }, []);
+
+  // Gestión de etiquetas de estaciones (rectángulos anaranjados y filas en amarillo claro)
+  const [stationLabels, setStationLabels] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem('efi_pdf_station_labels_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          const normalized: Record<string, string[]> = {};
+          Object.entries(parsed).forEach(([k, v]) => {
+            if (Array.isArray(v)) {
+              normalized[k] = v.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+            } else if (typeof v === 'string' && v.trim().length > 0) {
+              normalized[k] = [v.trim()];
+            }
+          });
+          return normalized;
+        }
+      }
+    } catch (e) {}
+    return {};
+  });
+
+  const [showLabelsModal, setShowLabelsModal] = useState(false);
+  const [newLabelText, setNewLabelText] = useState('');
+  const [selectedStationForLabel, setSelectedStationForLabel] = useState('');
+
+  // Sincronizar etiquetas reactivamente ante eventos y cambios entre pestañas
+  useEffect(() => {
+    const handleLabelsUpdate = () => {
+      try {
+        const saved = localStorage.getItem('efi_pdf_station_labels_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed === 'object' && parsed !== null) {
+            const normalized: Record<string, string[]> = {};
+            Object.entries(parsed).forEach(([k, v]) => {
+              if (Array.isArray(v)) {
+                normalized[k] = v.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+              } else if (typeof v === 'string' && v.trim().length > 0) {
+                normalized[k] = [v.trim()];
+              }
+            });
+            setStationLabels(normalized);
+            return;
+          }
+        }
+        setStationLabels({});
+      } catch (e) {}
+    };
+    window.addEventListener('efi_station_labels_updated', handleLabelsUpdate);
+    window.addEventListener('storage', handleLabelsUpdate);
+    return () => {
+      window.removeEventListener('efi_station_labels_updated', handleLabelsUpdate);
+      window.removeEventListener('storage', handleLabelsUpdate);
+    };
+  }, []);
+
+  const getStationLabels = (stName: string): string[] => {
+    if (!stName) return [];
+    const direct = stationLabels[stName];
+    if (Array.isArray(direct) && direct.length > 0) return direct;
+
+    const clean = stName.toUpperCase().replace(/^ES\s+/, '').trim();
+    const byClean = stationLabels[clean];
+    if (Array.isArray(byClean) && byClean.length > 0) return byClean;
+
+    for (const [k, v] of Object.entries(stationLabels)) {
+      if (k.toUpperCase().replace(/^ES\s+/, '').trim() === clean) {
+        if (Array.isArray(v) && v.length > 0) return v;
+      }
+    }
+    return [];
+  };
+
+  const hasAnyLabels = useMemo(() => {
+    return Object.values(stationLabels).some((arr) => Array.isArray(arr) && arr.length > 0);
+  }, [stationLabels]);
+
+  const assignedLabelsList = useMemo(() => {
+    const list: { station: string; label: string }[] = [];
+    Object.entries(stationLabels).forEach(([stName, labels]) => {
+      if (Array.isArray(labels)) {
+        labels.forEach((lbl) => {
+          if (lbl && lbl.trim()) {
+            list.push({ station: stName, label: lbl.trim() });
+          }
+        });
+      }
+    });
+    return list;
+  }, [stationLabels]);
+
+  const existingLabelNames = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(stationLabels).forEach((labels) => {
+      if (Array.isArray(labels)) {
+        labels.forEach((lbl) => {
+          if (lbl && lbl.trim()) set.add(lbl.trim());
+        });
+      }
+    });
+    return Array.from(set);
+  }, [stationLabels]);
+
+  const handleAssignLabel = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedLabel = newLabelText.trim().toUpperCase();
+    if (!trimmedLabel || !selectedStationForLabel) return;
+
+    const current = stationLabels[selectedStationForLabel] || [];
+    if (current.includes(trimmedLabel)) {
+      setDownloadNotice(`La estación ${selectedStationForLabel} ya tiene la etiqueta ${trimmedLabel}`);
+      setTimeout(() => setDownloadNotice(null), 3000);
+      return;
+    }
+
+    const updated: Record<string, string[]> = {
+      ...stationLabels,
+      [selectedStationForLabel]: [...current, trimmedLabel],
+    };
+
+    setStationLabels(updated);
+    try {
+      localStorage.setItem('efi_pdf_station_labels_v1', JSON.stringify(updated));
+      window.dispatchEvent(new Event('efi_station_labels_updated'));
+      window.dispatchEvent(new Event('storage'));
+    } catch (err) {
+      console.error(err);
+    }
+
+    setDownloadNotice(`Etiqueta "${trimmedLabel}" asignada a ${selectedStationForLabel}`);
+    setTimeout(() => setDownloadNotice(null), 3500);
+    setNewLabelText('');
+  };
+
+  const handleRemoveLabelAssignment = (station: string, labelToRemove: string) => {
+    const current = stationLabels[station] || [];
+    const filtered = current.filter((l) => l !== labelToRemove);
+    const updated = { ...stationLabels };
+    if (filtered.length > 0) {
+      updated[station] = filtered;
+    } else {
+      delete updated[station];
+    }
+
+    setStationLabels(updated);
+    try {
+      localStorage.setItem('efi_pdf_station_labels_v1', JSON.stringify(updated));
+      window.dispatchEvent(new Event('efi_station_labels_updated'));
+      window.dispatchEvent(new Event('storage'));
+    } catch (err) {
+      console.error(err);
+    }
+
+    setDownloadNotice(`Etiqueta "${labelToRemove}" eliminada de ${station}`);
+    setTimeout(() => setDownloadNotice(null), 3000);
+  };
+
+  const handleClearAllLabels = () => {
+    if (window.confirm('¿Seguro que deseas eliminar todas las etiquetas asignadas a las estaciones?')) {
+      setStationLabels({});
+      try {
+        localStorage.removeItem('efi_pdf_station_labels_v1');
+        window.dispatchEvent(new Event('efi_station_labels_updated'));
+        window.dispatchEvent(new Event('storage'));
+      } catch (err) {}
+      setDownloadNotice('Todas las etiquetas han sido eliminadas');
+      setTimeout(() => setDownloadNotice(null), 3000);
+    }
+  };
     // Mapa para Incluir/Quitar información de HVO por Tarifa (TariffName -> boolean)
   const [includeHvoMap, setIncludeHvoMap] = useState<Record<string, boolean>>(() => {
     try {
@@ -1951,6 +2123,20 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
             </button>
 
             <button
+              onClick={() => setShowLabelsModal(true)}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-xl text-xs font-bold border border-orange-500/40 shadow-md transition-all active:scale-95"
+              title="Crear y asignar etiquetas (ej. RUTA A2) a estaciones para resaltarlas en los PDFs"
+            >
+              <Tag className="h-4 w-4 text-orange-400" />
+              <span>Etiquetas de Estaciones</span>
+              {hasAnyLabels && (
+                <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black">
+                  {assignedLabelsList.length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={handlePrintPdf}
               className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95"
             >
@@ -2179,6 +2365,11 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 <th className="py-2.5 px-3 min-w-[140px]">E.E.S.S</th>
                 <th className="py-2.5 px-3 w-28 min-w-[90px]">Bandera</th>
                 <th className="py-2.5 px-3 min-w-[180px]">Ubicación</th>
+                {hasAnyLabels && (
+                  <th className="py-2.5 px-3 text-center w-28 min-w-[95px] whitespace-nowrap">
+                    Etiqueta
+                  </th>
+                )}
                 <th className="py-2.5 px-3 text-right whitespace-nowrap w-24 min-w-[95px]" style={{ whiteSpace: 'nowrap' }}>Sin IVA</th>
                 <th className="py-2.5 px-3 text-right whitespace-nowrap w-24 min-w-[95px]" style={{ whiteSpace: 'nowrap' }}>Con IVA</th>
               </tr>
@@ -2190,13 +2381,29 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                 const prices = getStationPrice(st.name, isPropia);
                 const meta = getStationMetadata(st.name, isPropia);
                 const printConsecutiveIdx = activeStationsIndexMap.get(st.name) || idx + 1;
+                const labelsForStation = getStationLabels(st.name);
+                const hasLabel = labelsForStation.length > 0;
+                const isLabelActive = active && hasLabel;
 
                 return (
                   <tr
                     key={st.name}
                     className={`transition-colors ${
-                      active ? 'hover:bg-slate-50' : 'bg-slate-100/60 opacity-40 print:hidden'
+                      !active
+                        ? 'bg-slate-100/60 opacity-40 print:hidden'
+                        : isLabelActive
+                        ? 'bg-yellow-100 hover:bg-yellow-200/80 font-medium'
+                        : 'hover:bg-slate-50'
                     }`}
+                    style={
+                      isLabelActive
+                        ? {
+                            backgroundColor: '#FEF9C3',
+                            WebkitPrintColorAdjust: 'exact',
+                            printColorAdjust: 'exact',
+                          }
+                        : undefined
+                    }
                   >
                     <td className="py-2 px-3 text-center font-bold text-slate-500 font-mono text-xs">
                       <span className="print:hidden">{idx + 1}</span>
@@ -2204,7 +2411,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                     </td>
 
                     {/* Columna Estación Activa con Checkbox Interactivo */}
-                    <td className="py-2 px-3 text-center print:hidden bg-slate-50/50">
+                    <td className={`py-2 px-3 text-center print:hidden ${isLabelActive ? 'bg-yellow-100/60' : 'bg-slate-50/50'}`}>
                       <label className="inline-flex items-center space-x-1.5 cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -2221,6 +2428,17 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                     <td className="py-2 px-3 font-bold text-slate-950">
                       <div className="flex items-center space-x-2">
                         <span>{st.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStationForLabel(st.name);
+                            setShowLabelsModal(true);
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-orange-500 hover:bg-orange-50 transition-colors print:hidden"
+                          title={`Asignar o editar etiquetas para ${st.name}`}
+                        >
+                          <Tag className="h-3 w-3" />
+                        </button>
                         {(() => {
                           const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
                           const stationCfg =
@@ -2271,6 +2489,29 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                         {meta.ubicacion}
                       </a>
                     </td>
+                    {hasAnyLabels && (
+                      <td className="py-2 px-3 text-center whitespace-nowrap">
+                        {labelsForStation.length > 0 ? (
+                          <div className="flex flex-wrap items-center justify-center gap-1">
+                            {labelsForStation.map((lbl, lIdx) => (
+                              <span
+                                key={lIdx}
+                                className="inline-block px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white bg-orange-500 border border-orange-600 rounded shadow-sm uppercase print:bg-orange-500 print:text-white print:border-orange-600"
+                                style={{
+                                  backgroundColor: '#F97316',
+                                  color: '#FFFFFF',
+                                  borderColor: '#EA580C',
+                                  WebkitPrintColorAdjust: 'exact',
+                                  printColorAdjust: 'exact',
+                                }}
+                              >
+                                {lbl}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </td>
+                    )}
                     <td
                       className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-xs whitespace-nowrap"
                       style={{ whiteSpace: 'nowrap' }}
@@ -2278,7 +2519,9 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                       {`${prices.sinIva.toFixed(3).replace('.', ',')}\u00A0€`}
                     </td>
                     <td
-                      className="py-2 px-3 text-right font-mono font-black text-emerald-700 text-xs bg-emerald-50/50 whitespace-nowrap"
+                      className={`py-2 px-3 text-right font-mono font-black text-xs whitespace-nowrap ${
+                        isLabelActive ? 'text-emerald-800 bg-yellow-200/50' : 'text-emerald-700 bg-emerald-50/50'
+                      }`}
                       style={{ whiteSpace: 'nowrap' }}
                     >
                       {`${prices.conIva.toFixed(3).replace('.', ',')}\u00A0€`}
@@ -2290,6 +2533,167 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
           </table>
         </div>
       </div>
+
+      {/* MODAL: Gestión de Etiquetas de Estaciones */}
+      {showLabelsModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-orange-400 font-bold text-sm">
+                <Tag className="h-5 w-5 text-orange-500" />
+                <span>Gestión de Etiquetas de Estaciones</span>
+              </div>
+              <button
+                onClick={() => setShowLabelsModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Crea etiquetas (ej: <strong className="text-orange-400">RUTA A2</strong>, <strong className="text-orange-400">RUTA SUR</strong>) y asígnalas a una estación.
+              En cada PDF donde la estación esté activa, la fila se coloreará de <strong className="text-amber-300">amarillo claro</strong> y se colocará la pequeña etiqueta en un <strong className="text-orange-400">rectángulo anaranjado</strong> entre la dirección y el precio sin IVA.
+            </p>
+
+            {/* Formulario de creación y asignación */}
+            <form onSubmit={handleAssignLabel} className="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1 font-bold">
+                    Nombre de la Etiqueta:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: RUTA A2"
+                    value={newLabelText}
+                    onChange={(e) => setNewLabelText(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white uppercase font-bold focus:border-orange-400 focus:outline-none placeholder-slate-600"
+                    required
+                  />
+                  {/* Chips con etiquetas existentes para reutilizar rápido */}
+                  {existingLabelNames.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="text-[10px] text-slate-500 font-semibold mr-1">Existentes:</span>
+                      {existingLabelNames.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setNewLabelText(name)}
+                          className="text-[10px] bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 px-1.5 py-0.5 rounded border border-orange-500/30 font-bold transition-colors"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1 font-bold">
+                    Estación a Asignar:
+                  </label>
+                  <select
+                    value={selectedStationForLabel}
+                    onChange={(e) => setSelectedStationForLabel(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-bold focus:border-orange-400 focus:outline-none"
+                    required
+                  >
+                    <option value="">-- Seleccionar Estación --</option>
+                    {allStations.map((st) => {
+                      const existing = getStationLabels(st.name);
+                      return (
+                        <option key={st.name} value={st.name}>
+                          {st.name} {existing.length > 0 ? `(${existing.join(', ')})` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-[11px] text-slate-500">
+                  {newLabelText.trim() && (
+                    <span className="inline-flex items-center space-x-1.5">
+                      <span>Vista previa:</span>
+                      <span className="inline-block px-2 py-0.5 text-[9px] font-black uppercase text-white bg-orange-500 border border-orange-600 rounded">
+                        {newLabelText.trim().toUpperCase()}
+                      </span>
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-95 flex items-center space-x-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Asignar Etiqueta</span>
+                </button>
+              </div>
+            </form>
+
+            {/* Listado de asignaciones actuales */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-60">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Etiquetas Asignadas ({assignedLabelsList.length}):
+                </h4>
+                {assignedLabelsList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllLabels}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 hover:underline flex items-center space-x-1"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Eliminar todas</span>
+                  </button>
+                )}
+              </div>
+
+              {assignedLabelsList.length === 0 ? (
+                <div className="p-4 rounded-xl border border-dashed border-slate-800 text-center text-xs text-slate-500">
+                  No hay etiquetas asignadas aún. Escribe un nombre (ej. RUTA A2) y selecciona una estación arriba para comenzar.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {assignedLabelsList.map(({ station, label }) => (
+                    <div
+                      key={`${station}::${label}`}
+                      className="flex items-center justify-between p-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs hover:border-slate-700 transition-colors"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <span className="inline-block px-2.5 py-0.5 text-[10px] font-black uppercase text-white bg-orange-500 border border-orange-600 rounded shadow-sm">
+                          {label}
+                        </span>
+                        <span className="text-slate-200 font-bold">{station}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLabelAssignment(station, label)}
+                        className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                        title={`Eliminar etiqueta ${label} de ${station}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowLabelsModal(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Añadir Nueva Tarifa */}
       {showAddTariffModal && (
