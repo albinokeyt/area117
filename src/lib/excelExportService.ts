@@ -724,6 +724,16 @@ export function buildImportacionTable(
         } catch (e) {}
       }
 
+      const cBlockRaw = localStorage.getItem('efi_sabana_custom_block_tariffs_v1');
+      if (cBlockRaw) {
+        try {
+          const parsed = JSON.parse(cBlockRaw);
+          if (Array.isArray(parsed)) {
+            customSpecialTariffs = [...customSpecialTariffs, ...parsed];
+          }
+        } catch (e) {}
+      }
+
       const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
       if (modRaw) {
         try {
@@ -1677,9 +1687,11 @@ export function buildImportacionTable(
 
       const cStd: any[] = cStdRaw ? JSON.parse(cStdRaw) : [];
       const cSpec: any[] = cSpecRaw ? JSON.parse(cSpecRaw) : [];
+      const cBlockRaw = localStorage.getItem('efi_sabana_custom_block_tariffs_v1');
+      const cBlock: any[] = cBlockRaw ? JSON.parse(cBlockRaw) : [];
       const modConfig: Record<string, any> = modRaw ? JSON.parse(modRaw) : {};
       const sourceMap: Record<string, any> = smRaw ? JSON.parse(smRaw) : {};
-      const allCustom = [...cStd, ...cSpec];
+      const allCustom = [...cStd, ...cSpec, ...cBlock];
 
       allCustom.forEach((cTariff, idx) => {
         const cleanName = cTariff.name.toUpperCase().trim();

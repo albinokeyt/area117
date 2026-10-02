@@ -252,6 +252,14 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     ];
   });
 
+  const [customBlockTariffs, setCustomBlockTariffs] = useState<SabanaTariffDef[]>(() => {
+    try {
+      const saved = localStorage.getItem('efi_sabana_custom_block_tariffs_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+
   const [tariffSourcesMapping, setTariffSourcesMapping] = useState<Record<string, SabanaSourceConfig>>(() => {
     try {
       const saved = localStorage.getItem('efi_sabana_tariff_source_mapping_v1');
@@ -321,6 +329,29 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     return [...filteredBase, ...filteredCustom];
   }, [modifiedTariffsConfig, customStandardTariffs, deletedTariffIds]);
 
+  // Agrupación de recuadros independientes creados por el usuario
+  const customBlockGroups = useMemo(() => {
+    const groupsMap = new Map<string, { id: string; name: string; tariffs: SabanaTariffDef[] }>();
+    customBlockTariffs
+      .filter((t) => !deletedTariffIds.includes(t.id))
+      .forEach((t) => {
+        const blockId = t.specialBlockId || `block_${t.id}`;
+        const blockName = t.customBlockName || t.name;
+        if (!groupsMap.has(blockId)) {
+          groupsMap.set(blockId, { id: blockId, name: blockName, tariffs: [] });
+        }
+        const group = groupsMap.get(blockId)!;
+        const mod = modifiedTariffsConfig[t.id] || modifiedTariffsConfig[t.name];
+        group.tariffs.push({
+          ...t,
+          name: mod?.name || t.name,
+          colTitle: mod?.colTitle || `${mod?.name || t.name} SIN IVA`,
+          markup: mod?.markup !== undefined ? mod.markup : t.markup,
+        });
+      });
+    return Array.from(groupsMap.values());
+  }, [customBlockTariffs, deletedTariffIds, modifiedTariffsConfig]);
+
   // Lista consolidada de todas las tarifas para el modal de gestión (filtrando eliminadas)
   const allTariffsForManager = useMemo(() => {
     const specials: SabanaTariffDef[] = [];
@@ -350,9 +381,19 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       };
     });
 
-    const combined = [...effectiveStandardTariffs, ...specials, ...userSpecials];
+    const userCustomBlocks: SabanaTariffDef[] = customBlockTariffs.map((t) => {
+      const mod = modifiedTariffsConfig[t.id] || modifiedTariffsConfig[t.name];
+      return {
+        ...t,
+        name: mod?.name || t.name,
+        colTitle: `${mod?.name || t.name} SIN IVA`,
+        markup: mod?.markup !== undefined ? mod.markup : t.markup,
+      };
+    });
+
+    const combined = [...effectiveStandardTariffs, ...specials, ...userSpecials, ...userCustomBlocks];
     return combined.filter((t) => !deletedTariffIds.includes(t.id));
-  }, [effectiveStandardTariffs, modifiedTariffsConfig, customSpecialTariffs, deletedTariffIds]);
+  }, [effectiveStandardTariffs, modifiedTariffsConfig, customSpecialTariffs, customBlockTariffs, deletedTariffIds]);
 
   // Lista de tarifas eliminadas para permitir su restauración
   const deletedTariffsForManager = useMemo(() => {
@@ -377,12 +418,13 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       ...customStandardTariffs,
       ...specials,
       ...customSpecialTariffs,
+      ...customBlockTariffs,
     ];
 
     const map = new Map<string, SabanaTariffDef>();
     allDefs.forEach((t) => map.set(t.id, t));
     return deletedTariffIds.map((id) => map.get(id)).filter(Boolean) as SabanaTariffDef[];
-  }, [deletedTariffIds, customStandardTariffs, customSpecialTariffs]);
+  }, [deletedTariffIds, customStandardTariffs, customSpecialTariffs, customBlockTariffs]);
 
   const handleCreateTariff = (tariff: SabanaTariffDef, initialSource?: SabanaSourceConfig) => {
     if (tariff.blockType === 'standard') {
@@ -390,6 +432,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       setCustomStandardTariffs(nextList);
       try {
         localStorage.setItem('efi_sabana_custom_standard_tariffs_v1', JSON.stringify(nextList));
+      } catch (e) {}
+    } else if (tariff.blockType === 'custom_block') {
+      const nextList = [...customBlockTariffs, tariff];
+      setCustomBlockTariffs(nextList);
+      try {
+        localStorage.setItem('efi_sabana_custom_block_tariffs_v1', JSON.stringify(nextList));
       } catch (e) {}
     } else {
       const nextList = [...customSpecialTariffs, tariff];
@@ -438,6 +486,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     setCustomStandardTariffs(nextStd);
     const nextSpec = customSpecialTariffs.filter((t) => t.id !== tariffId);
     setCustomSpecialTariffs(nextSpec);
+    const nextBlock = customBlockTariffs.filter((t) => t.id !== tariffId);
+    setCustomBlockTariffs(nextBlock);
 
     const nextDeleted = Array.from(new Set([...deletedTariffIds, tariffId]));
     setDeletedTariffIds(nextDeleted);
@@ -445,6 +495,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     try {
       localStorage.setItem('efi_sabana_custom_standard_tariffs_v1', JSON.stringify(nextStd));
       localStorage.setItem('efi_sabana_custom_special_tariffs_v1', JSON.stringify(nextSpec));
+      localStorage.setItem('efi_sabana_custom_block_tariffs_v1', JSON.stringify(nextBlock));
       localStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
     } catch (e) {}
 
@@ -917,7 +968,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const cache: Record<string, number> = {};
       const fullCache: Record<string, { sinIva: number; conIva: number }> = {};
 
-      customSpecialTariffs.forEach((t) => {
+      [...customSpecialTariffs, ...customBlockTariffs].forEach((t) => {
         const cleanTariff = t.name.toUpperCase().trim();
         const cleanTariffNoSpace = cleanTariff.replace(/\s+/g, '');
         const normNoTariff = cleanTariff.replace(/^TARIFA\s+/, '').trim();
@@ -1079,6 +1130,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     } catch (e) {}
   }, [
     customSpecialTariffs,
+    customBlockTariffs,
     effectiveStandardTariffs,
     allStations,
     resolvedFormulas,
@@ -1775,7 +1827,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     const sourceNorm = sourceStationName ? sourceStationName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase() : '';
     const sourceCleanNorm = sourceStationName ? sourceStationName.toUpperCase().replace(/^ES\s+/, '').replace(/[^a-zA-Z0-9]/g, '_') : '';
 
-    const matchingTariff = customSpecialTariffs.find((t) => t.id === tariffId || t.name === tariffId);
+    const matchingTariff = [...customSpecialTariffs, ...customBlockTariffs].find((t) => t.id === tariffId || t.name === tariffId);
     const tariffNameKey = matchingTariff ? matchingTariff.name.toUpperCase().trim() : tariffId;
 
     allStations.forEach((st) => {
@@ -2092,6 +2144,13 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       XLSX.utils.book_append_sheet(wb, wsCustom, 'ESPECIALES_PERSONALIZADAS');
     }
 
+    // Si existen recuadros aparte independientes, agregar sus hojas
+    customBlockGroups.forEach((group) => {
+      const wsCustomBlock = buildCustomBlockSheet(group);
+      const safeSheetName = group.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 31).toUpperCase();
+      XLSX.utils.book_append_sheet(wb, wsCustomBlock, safeSheetName || 'RECUADRO');
+    });
+
     const filename = `SABANA_COMPLETA_AREA117_${selectedDate}_VALIDO_${validDate}.xlsx`;
     downloadWorkbookAsXlsx(wb, filename);
     setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
@@ -2161,6 +2220,75 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     const ws = buildCustomSpecialTariffsSheet();
     XLSX.utils.book_append_sheet(wb, ws, 'ESPECIALES_PERSONALIZADAS');
     const filename = `TARIFAS_ESPECIALES_PERSONALIZADAS_${selectedDate}_VALIDO_${validDate}.xlsx`;
+    downloadWorkbookAsXlsx(wb, filename);
+    setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
+    setTimeout(() => setDownloadToast(null), 3500);
+  };
+
+  // Genera la hoja para un recuadro aparte independiente
+  const buildCustomBlockSheet = (group: { id: string; name: string; tariffs: SabanaTariffDef[] }) => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+
+    const rows: any[][] = [
+      [`SÁBANA DE PRECIOS - ${group.name.toUpperCase()} - AREA 117`],
+      ['FECHA EMISIÓN:', selectedDate, 'PRECIOS VÁLIDOS A PARTIR DE:', validDate],
+      [],
+    ];
+
+    const cols: string[] = ['EESS DE SERVICIO'];
+    group.tariffs.forEach((t) => {
+      cols.push(`${t.name.toUpperCase()} SIN IVA`, `${t.name.toUpperCase()} CON IVA`);
+    });
+    rows.push(cols);
+
+    // Propias
+    propiasStations.forEach((st) => {
+      const rowData: any[] = [st.name];
+      group.tariffs.forEach((t) => {
+        const prices = getTariffPricesForStation(t.name, t.markup, st.name, true);
+        rowData.push(prices.sinIva, prices.conIva);
+      });
+      rows.push(rowData);
+    });
+
+    // Separador Colaboradoras
+    rows.push(['COLABORADORAS', ...group.tariffs.flatMap(() => [0, 0])]);
+
+    // Colaboradoras
+    colaboradoraStations.forEach((st) => {
+      const rowData: any[] = [st.name];
+      group.tariffs.forEach((t) => {
+        const prices = getTariffPricesForStation(t.name, t.markup, st.name, false);
+        rowData.push(prices.sinIva, prices.conIva);
+      });
+      rows.push(rowData);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = cols.map((_, i) => ({ wch: i === 0 ? 30 : 16 }));
+    return ws;
+  };
+
+  // Descarga individual de un Recuadro Aparte en formato LIBRO DE EXCEL (*.XLSX)
+  const handleExportCustomBlockXlsx = (group: { id: string; name: string; tariffs: SabanaTariffDef[] }) => {
+    const validDate = (() => {
+      try {
+        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    const wb = XLSX.utils.book_new();
+    const ws = buildCustomBlockSheet(group);
+    const safeSheetName = group.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 31).toUpperCase();
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName || 'RECUADRO');
+    const filename = `${safeSheetName}_${selectedDate}_VALIDO_${validDate}.xlsx`;
     downloadWorkbookAsXlsx(wb, filename);
     setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
     setTimeout(() => setDownloadToast(null), 3500);
@@ -3324,6 +3452,197 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
               </div>
             </div>
           )}
+
+          {/* Bloques de Recuadros Independientes Aparte Creados por el Usuario */}
+          {customBlockGroups.map((group) => (
+            <div key={group.id} className="bg-slate-900/80 border border-emerald-500/30 rounded-2xl p-5 shadow-2xl overflow-hidden backdrop-blur-md">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <Table className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-extrabold text-white text-base tracking-tight">{group.name}</h4>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                        {group.tariffs.length} {group.tariffs.length === 1 ? 'Tarifa' : 'Tarifas'}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-800 text-slate-300 border-slate-700">
+                        Recuadro Aparte
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Recuadro de tarifas independiente en la Sábana de Precios.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleExportCustomBlockXlsx(group)}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 shadow transition-all active:scale-95 shrink-0"
+                    title={`Descargar ${group.name} en formato Libro de Excel (*.xlsx)`}
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Descargar Excel</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (group.tariffs.length > 0) {
+                        setTariffManagerInitialId(group.tariffs[0].id);
+                      }
+                      setShowTariffManagerModal(true);
+                    }}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow transition-all active:scale-95 shrink-0"
+                  >
+                    <Sliders className="h-3.5 w-3.5" />
+                    <span>Gestionar Tarifas</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Table for this Custom Block */}
+              <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[600px] shadow-inner mt-4">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="sticky top-0 z-30 bg-slate-900 border-b border-slate-800 shadow-md">
+                    <tr>
+                      <th
+                        rowSpan={2}
+                        className="py-3 px-4 text-left font-black text-slate-300 uppercase tracking-wider sticky left-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[240px]"
+                      >
+                        Estación de Servicio
+                      </th>
+                      {group.tariffs.map((t) => (
+                        <th
+                          key={t.id}
+                          colSpan={2}
+                          className="py-2.5 px-3 text-center font-extrabold border-r border-slate-800 text-emerald-300 bg-emerald-950/20"
+                        >
+                          <div className="flex items-center justify-center space-x-1.5">
+                            <span>{t.name}</span>
+                            <button
+                              onClick={() => {
+                                setTariffManagerInitialId(t.id);
+                                setShowTariffManagerModal(true);
+                              }}
+                              className="p-1 text-slate-400 hover:text-emerald-300 rounded hover:bg-emerald-900/40"
+                              title={`Configurar tarifa ${t.name}`}
+                            >
+                              <Sliders className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                    <tr className="border-t border-slate-800/80">
+                      {group.tariffs.map((t) => (
+                        <React.Fragment key={`${t.id}_sub`}>
+                          <th className="py-1.5 px-2 text-center text-[10px] font-bold text-slate-400 bg-slate-900/90 border-r border-slate-800/60 min-w-[90px]">
+                            SIN IVA
+                          </th>
+                          <th className="py-1.5 px-2 text-center text-[10px] font-bold text-slate-400 bg-slate-900/90 border-r border-slate-800 min-w-[90px]">
+                            CON IVA
+                          </th>
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50 bg-slate-950/40 font-mono">
+                    {filteredStations.map((st) => {
+                      const isPropia = st.type === 'PROPIA';
+                      const isPurple = isPurpleHighlightedStation(st.name);
+                      const stationCellClass = isPurple
+                        ? 'bg-purple-950/60 text-purple-200 border-l-4 border-l-purple-500 font-extrabold ring-1 ring-purple-500/30'
+                        : isPropia
+                        ? 'bg-blue-950/40 text-blue-200 border-l-4 border-l-blue-500 font-bold'
+                        : 'bg-purple-950/40 text-purple-200 border-l-4 border-l-purple-500 font-bold';
+
+                      const badgeClass = isPurple
+                        ? 'bg-purple-500/30 text-purple-200 border-purple-400/40 font-black'
+                        : isPropia
+                        ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                        : 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+
+                      return (
+                        <tr key={st.name} className="hover:bg-slate-800/40 transition-colors">
+                          <td className={`py-2 px-4 sticky left-0 z-20 border-r border-slate-800 ${stationCellClass}`}>
+                            <div className="flex items-center justify-between space-x-2 font-sans">
+                              <span className="font-extrabold tracking-tight">{st.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${badgeClass}`}>
+                                {isPurple ? (isPropia ? 'PROPIA ★' : 'COLAB ★') : isPropia ? 'PROPIA' : 'COLAB'}
+                              </span>
+                            </div>
+                          </td>
+                          {group.tariffs.map((t) => {
+                            const prices = getTariffPricesForStation(t.name, t.markup, st.name, isPropia);
+                            return (
+                              <React.Fragment key={`${st.name}_${t.id}`}>
+                                <td
+                                  onClick={() => {
+                                    if (!isFormulaMode) return;
+                                    setActiveModalCell({
+                                      cellKey: prices.sinIvaKey,
+                                      cellTitle: `${st.name} — ${t.name} (Sin IVA)`,
+                                      defaultValue: prices.defaultSinIva,
+                                      currentFormula: prices.customFormulaSinIva?.rawFormula,
+                                      columnLabel: `${t.name} Sin IVA`,
+                                      onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(t.id, false, f, st.name),
+                                    });
+                                  }}
+                                  className={`py-2 px-2 text-right font-mono border-r border-slate-800/50 ${
+                                    isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 ring-1 ring-amber-400/40' : ''
+                                  } ${
+                                    prices.customFormulaSinIva
+                                      ? 'bg-amber-500/20 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : prices.isCustomSource
+                                      ? 'bg-emerald-950/40 text-emerald-200 font-bold ring-1 ring-emerald-500/30'
+                                      : 'text-slate-300 bg-slate-900/10'
+                                  }`}
+                                  title={prices.sourceLabel ? `Origen: ${prices.sourceLabel}` : undefined}
+                                >
+                                  <div className="flex items-center justify-end space-x-1">
+                                    {prices.isCustomSource && !prices.customFormulaSinIva && (
+                                      <span className="text-[8px] font-black text-emerald-300 bg-emerald-900/60 px-1 rounded" title={prices.sourceLabel}>
+                                        orig
+                                      </span>
+                                    )}
+                                    <span>{prices.sinIva.toFixed(3).replace('.', ',')}</span>
+                                  </div>
+                                </td>
+                                <td
+                                  onClick={() => {
+                                    if (!isFormulaMode) return;
+                                    setActiveModalCell({
+                                      cellKey: prices.conIvaKey,
+                                      cellTitle: `${st.name} — ${t.name} (Con IVA)`,
+                                      defaultValue: prices.defaultConIva,
+                                      currentFormula: prices.customFormulaConIva?.rawFormula,
+                                      columnLabel: `${t.name} Con IVA`,
+                                      onApplyToColumn: (f) => handleApplyFormulaToStandardColumn(t.id, true, f, st.name),
+                                    });
+                                  }}
+                                  className={`py-2 px-2 text-right font-mono border-r border-slate-800 ${
+                                    isFormulaMode ? 'cursor-pointer hover:bg-amber-400/20 ring-1 ring-amber-400/40' : ''
+                                  } ${
+                                    prices.customFormulaConIva
+                                      ? 'bg-amber-500/20 text-amber-200 font-black ring-1 ring-amber-400'
+                                      : 'text-slate-200 bg-slate-900/30 font-bold'
+                                  }`}
+                                >
+                                  {prices.conIva.toFixed(3).replace('.', ',')}
+                                </td>
+                              </React.Fragment>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

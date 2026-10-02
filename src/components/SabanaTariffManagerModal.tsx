@@ -17,8 +17,9 @@ export interface SabanaTariffDef {
   name: string;
   colTitle?: string;
   markup: number;
-  blockType: 'standard' | 'special';
+  blockType: 'standard' | 'special' | 'custom_block';
   specialBlockId?: string;
+  customBlockName?: string;
   isCustom?: boolean;
   description?: string;
 }
@@ -203,10 +204,22 @@ export function SabanaTariffManagerModal({
 
   // Formulario para Crear Nueva Tarifa
   const [newTariffName, setNewTariffName] = useState('');
-  const [newTariffBlockType, setNewTariffBlockType] = useState<'standard' | 'special'>('standard');
+  const [newTariffBlockType, setNewTariffBlockType] = useState<string>('standard');
+  const [newCustomBlockName, setNewCustomBlockName] = useState('');
   const [newTariffMarkup, setNewTariffMarkup] = useState('0,050');
   const [newTariffSource, setNewTariffSource] = useState('COMPRAS_VENTA_SUGERIDO');
   const [newTariffDescription, setNewTariffDescription] = useState('');
+
+  // Lista de recuadros personalizados existentes para poder reutilizarlos o crear uno nuevo
+  const existingCustomBlocks = useMemo(() => {
+    const blocksMap = new Map<string, string>();
+    allTariffs.forEach((t) => {
+      if (t.blockType === 'custom_block' && t.specialBlockId) {
+        blocksMap.set(t.specialBlockId, t.customBlockName || t.specialBlockId);
+      }
+    });
+    return Array.from(blocksMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [allTariffs]);
 
   // Formulario para Modificar Tarifa Seleccionada
   const activeTariff = useMemo(() => {
@@ -265,13 +278,38 @@ export function SabanaTariffManagerModal({
     const parsedMarkup = parseFloat(newTariffMarkup.replace(',', '.')) || 0.0500;
     const newId = formattedName.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
+    let blockType: 'standard' | 'special' | 'custom_block' = 'standard';
+    let specialBlockId: string | undefined = undefined;
+    let customBlockName: string | undefined = undefined;
+
+    if (newTariffBlockType === 'standard') {
+      blockType = 'standard';
+    } else if (newTariffBlockType === 'special') {
+      blockType = 'special';
+      specialBlockId = 'custom_specials';
+      customBlockName = 'Tarifas Especiales Personalizadas';
+    } else if (newTariffBlockType === 'new_custom_block') {
+      blockType = 'custom_block';
+      const bName = newCustomBlockName.trim() || `Recuadro ${formattedName}`;
+      const bId = 'recuadro_' + bName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      specialBlockId = bId;
+      customBlockName = bName;
+    } else if (newTariffBlockType.startsWith('custom_block::')) {
+      blockType = 'custom_block';
+      const bId = newTariffBlockType.replace('custom_block::', '');
+      const existing = existingCustomBlocks.find((b) => b.id === bId);
+      specialBlockId = bId;
+      customBlockName = existing?.name || bId;
+    }
+
     const created: SabanaTariffDef = {
       id: newId,
       name: formattedName,
       colTitle: `${formattedName} SIN IVA`,
       markup: parsedMarkup,
-      blockType: newTariffBlockType,
-      specialBlockId: newTariffBlockType === 'special' ? 'custom_specials' : undefined,
+      blockType,
+      specialBlockId,
+      customBlockName,
       isCustom: true,
       description: newTariffDescription.trim() || `Tarifa ${formattedName}`,
     };
@@ -287,6 +325,7 @@ export function SabanaTariffManagerModal({
     setSelectedTariffId(created.id);
     setActiveTab('manage');
     setNewTariffName('');
+    setNewCustomBlockName('');
     setNewTariffDescription('');
   };
 
@@ -536,6 +575,17 @@ export function SabanaTariffManagerModal({
                             </option>
                           ))}
                       </optgroup>
+                      {allTariffs.some((t) => t.blockType === 'custom_block') && (
+                        <optgroup label="── RECUADROS APARTE / PERSONALIZADOS ──">
+                          {allTariffs
+                            .filter((t) => t.blockType === 'custom_block')
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                [{t.customBlockName || 'Recuadro Aparte'}] {t.name} (Margen: +{t.markup.toFixed(3).replace('.', ',')}) ★
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -776,11 +826,17 @@ export function SabanaTariffManagerModal({
                   <label className="text-xs font-bold text-slate-300">Ubicación en la Sábana:</label>
                   <select
                     value={newTariffBlockType}
-                    onChange={(e) => setNewTariffBlockType(e.target.value as any)}
+                    onChange={(e) => setNewTariffBlockType(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-bold focus:outline-none"
                   >
                     <option value="standard">Recuadro Superior (Tarifas Estándar)</option>
                     <option value="special">Recuadro Inferior (Tarifas Especiales)</option>
+                    <option value="new_custom_block">★ + Crear en un Nuevo Recuadro Aparte</option>
+                    {existingCustomBlocks.map((b) => (
+                      <option key={b.id} value={`custom_block::${b.id}`}>
+                        Recuadro Existente: {b.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -797,6 +853,27 @@ export function SabanaTariffManagerModal({
                   />
                 </div>
               </div>
+
+              {newTariffBlockType === 'new_custom_block' && (
+                <div className="space-y-1 bg-indigo-500/10 border border-indigo-500/30 p-4 rounded-2xl animate-in fade-in duration-200">
+                  <div className="flex items-center space-x-1.5 text-indigo-300 font-bold text-xs mb-1">
+                    <Table className="h-4 w-4 text-indigo-400" />
+                    <span>Configuración del Nuevo Recuadro Aparte:</span>
+                  </div>
+                  <label className="text-xs font-bold text-slate-300">Nombre del Nuevo Recuadro:</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCustomBlockName}
+                    onChange={(e) => setNewCustomBlockName(e.target.value)}
+                    placeholder="Ej: Tarifas Flotas, Clientes VIP, Mayoristas..."
+                    className="w-full bg-slate-950 border border-indigo-500/50 rounded-xl px-4 py-2.5 text-xs text-white font-bold focus:outline-none focus:border-indigo-400 placeholder-slate-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Se creará un nuevo recuadro independiente aparte del resto en la Sábana de Precios con sus respectivos cálculos, descarga en Excel y vinculación en tiempo real.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300">Origen de Datos Inicial:</label>
@@ -899,14 +976,22 @@ export function SabanaTariffManagerModal({
                                 </span>
                                 <span
                                   className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase border ${
-                                    tariff.isCustom
+                                    tariff.blockType === 'custom_block'
+                                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                      : tariff.isCustom
                                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                                       : isStd
                                       ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                                       : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                                   }`}
                                 >
-                                  {tariff.isCustom ? 'Personalizada' : isStd ? 'Estándar' : 'Especial'}
+                                  {tariff.blockType === 'custom_block'
+                                    ? tariff.customBlockName || 'Recuadro Aparte'
+                                    : tariff.isCustom
+                                    ? 'Personalizada'
+                                    : isStd
+                                    ? 'Estándar'
+                                    : 'Especial'}
                                 </span>
                               </div>
                               <div className="text-[11px] text-slate-400 mt-1 font-mono">

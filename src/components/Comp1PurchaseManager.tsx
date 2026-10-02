@@ -17,6 +17,7 @@ import {
 } from '@/lib/stationsService';
 import { StationManagerModal } from './StationManagerModal';
 import { generateAndDownloadCierreWorkbook, downloadWorkbookAsXlsx, GasolinaBroncoRow } from '@/lib/excelExportService';
+import * as XLSX from 'xlsx';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
