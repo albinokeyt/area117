@@ -327,6 +327,7 @@ export function SabanaTariffManagerModal({
     setNewTariffName('');
     setNewCustomBlockName('');
     setNewTariffDescription('');
+    onClose();
   };
 
   // Guardar modificaciones de la tarifa seleccionada
@@ -863,7 +864,6 @@ export function SabanaTariffManagerModal({
                   <label className="text-xs font-bold text-slate-300">Nombre del Nuevo Recuadro:</label>
                   <input
                     type="text"
-                    required
                     value={newCustomBlockName}
                     onChange={(e) => setNewCustomBlockName(e.target.value)}
                     placeholder="Ej: Tarifas Flotas, Clientes VIP, Mayoristas..."
