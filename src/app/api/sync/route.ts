@@ -70,12 +70,25 @@ export async function POST(req: NextRequest) {
 
     return await enqueueWrite(async () => {
       const currentState = await getServerState();
+      let currentData: Record<string, any> = {};
+      if (currentState && currentState.data) {
+        if (typeof currentState.data === 'string') {
+          try {
+            currentData = JSON.parse(currentState.data);
+          } catch {
+            currentData = {};
+          }
+        } else if (typeof currentState.data === 'object' && !Array.isArray(currentState.data)) {
+          currentData = currentState.data;
+        }
+      }
+
       let nextData: Record<string, any> = {};
 
-      if (mode === 'incremental' && currentState.data) {
+      if (mode === 'incremental') {
         // Fusionar solo las claves enviadas manteniendo el resto
         nextData = {
-          ...currentState.data,
+          ...currentData,
           ...data,
         };
       } else {

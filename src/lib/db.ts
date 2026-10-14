@@ -235,48 +235,61 @@ export async function getServerState(): Promise<ServerStatePayload> {
       const res = await p.query('SELECT version, updated_at, updated_by, data FROM efi_server_state WHERE id = 1');
       if (res.rows.length > 0) {
         const row = res.rows[0];
-        return {
-          version: row.version,
-          updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
-          updatedBy: row.updated_by,
-          data: row.data || {},
-        };
+        let dataObj: Record<string, any> = {};
+        if (typeof row.data === 'string') {
+          try {
+            dataObj = JSON.parse(row.data);
+          } catch {
+            dataObj = {};
+          }
+        } else if (row.data && typeof row.data === 'object' && !Array.isArray(row.data)) {
+          dataObj = row.data;
+        }
+
+        // Si PostgreSQL tiene datos, devolverlos
+        if (Object.keys(dataObj).length > 0) {
+          return {
+            version: typeof row.version === 'number' ? row.version : 1,
+            updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+            updatedBy: row.updated_by || 'Sistema',
+            data: dataObj,
+          };
+        }
       }
-      return {
-        version: 0,
-        updatedAt: new Date().toISOString(),
-        updatedBy: 'Inicial',
-        data: {},
-      };
     } catch (err) {
-      console.error('[PostgreSQL] Error al leer estado del servidor:', err);
+      console.error('[PostgreSQL] Error al leer estado de PostgreSQL, usando respaldo en archivo:', err);
     }
   }
   return readStateFromFile();
 }
 
 export async function saveServerState(payload: ServerStatePayload): Promise<boolean> {
+  // 1. Guardar SIEMPRE en archivo JSON local de respaldo inmediato (Dual Storage)
+  const fileSaved = writeStateToFile(payload);
+
+  // 2. Guardar en PostgreSQL
   const p = getPool();
   if (p) {
     try {
       await ensureTables();
+      const jsonStr = typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data);
       await p.query(
         `INSERT INTO efi_server_state (id, version, updated_at, updated_by, data)
-         VALUES (1, $1, $2, $3, $4)
+         VALUES (1, $1, $2, $3, $4::jsonb)
          ON CONFLICT (id) DO UPDATE SET
            version = EXCLUDED.version,
            updated_at = EXCLUDED.updated_at,
            updated_by = EXCLUDED.updated_by,
            data = EXCLUDED.data`,
-        [payload.version, payload.updatedAt, payload.updatedBy || 'Usuario', JSON.stringify(payload.data)]
+        [payload.version, payload.updatedAt, payload.updatedBy || 'Usuario', jsonStr]
       );
       return true;
     } catch (err) {
-      console.error('[PostgreSQL] Error al guardar estado en PostgreSQL:', err);
-      return false;
+      console.error('[PostgreSQL] Error al guardar estado en PostgreSQL, fallback a archivo aplicado:', err);
+      return fileSaved;
     }
   }
-  return writeStateToFile(payload);
+  return fileSaved;
 }
 
 export async function getServerUsers(): Promise<ServerUser[]> {

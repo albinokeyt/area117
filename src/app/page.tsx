@@ -141,16 +141,32 @@ function AppContent() {
         setSelectedDate={setSelectedDate}
       />
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Renderizado condicional exclusivo: SOLO monta la pestaña activa.
-            Evita que los módulos en segundo plano ejecuten recálculos masivos de fórmulas en cada pulsación de tecla */}
-        {activeTab === 'dashboard' && <ExecutiveDashboard onNavigateTab={setActiveTab} />}
-        {activeTab === 'comp1' && <Comp1PurchaseManager selectedDate={selectedDate} />}
-        {activeTab === 'postes' && <PostesManager selectedDate={selectedDate} />}
-        {activeTab === 'sabana' && <SabanaPreciosManager selectedDate={selectedDate} />}
-        {activeTab === 'pdf' && <PdfGeneratorManager selectedDate={selectedDate} />}
-        {activeTab === 'comp2' && <Comp2EfiExporter selectedDate={selectedDate} />}
-        {activeTab === 'users' && <UserManager />}
-        {activeTab === 'instructions' && <InstructionsManager />}
+        {/* Pestañas persistentes en DOM: NUNCA se desmontan al cambiar de pestaña.
+            Garantiza que al pasar a Postes y regresar a Compras todos los valores, marcas amarillas y cálculos permanezcan 100% intactos */}
+        <div className={activeTab === 'dashboard' ? 'block' : 'hidden'}>
+          <ExecutiveDashboard onNavigateTab={setActiveTab} />
+        </div>
+        <div className={activeTab === 'comp1' ? 'block' : 'hidden'}>
+          <Comp1PurchaseManager selectedDate={selectedDate} />
+        </div>
+        <div className={activeTab === 'postes' ? 'block' : 'hidden'}>
+          <PostesManager selectedDate={selectedDate} />
+        </div>
+        <div className={activeTab === 'sabana' ? 'block' : 'hidden'}>
+          <SabanaPreciosManager selectedDate={selectedDate} />
+        </div>
+        <div className={activeTab === 'pdf' ? 'block' : 'hidden'}>
+          <PdfGeneratorManager selectedDate={selectedDate} />
+        </div>
+        <div className={activeTab === 'comp2' ? 'block' : 'hidden'}>
+          <Comp2EfiExporter selectedDate={selectedDate} />
+        </div>
+        <div className={activeTab === 'users' ? 'block' : 'hidden'}>
+          <UserManager />
+        </div>
+        <div className={activeTab === 'instructions' ? 'block' : 'hidden'}>
+          <InstructionsManager />
+        </div>
       </main>
       <footer className="border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 print:hidden">
         <div className="max-w-[1600px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
