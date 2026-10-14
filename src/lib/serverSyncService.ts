@@ -45,16 +45,86 @@ let isApplyingFromServer = false;
 let isSyncInitialized = false;
 let pendingKeysToSync = new Set<string>();
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let inFlightPushes: Promise<void>[] = [];
+let syncUserNameGetter: (() => string) | undefined;
+
+function scheduleSync(delayMs: number = 2500) {
+  if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(() => {
+    syncDebounceTimer = null;
+    const keys = Array.from(pendingKeysToSync);
+    pendingKeysToSync.clear();
+    if (keys.length > 0) {
+      const userName = syncUserNameGetter ? syncUserNameGetter() : 'Usuario';
+      trackPush(pushIncrementalStateToServer(keys, userName));
+    }
+  }, delayMs);
+}
+
+function trackPush(p: Promise<void>) {
+  inFlightPushes.push(p);
+  p.finally(() => {
+    inFlightPushes = inFlightPushes.filter((x) => x !== p);
+  });
+}
+
+// Envía de inmediato los cambios pendientes y espera a que terminen los envíos en curso
+export async function flushPendingSync(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (syncDebounceTimer) {
+    clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = null;
+  }
+  const keys = Array.from(pendingKeysToSync);
+  pendingKeysToSync.clear();
+  if (keys.length > 0) {
+    const userName = syncUserNameGetter ? syncUserNameGetter() : 'Usuario';
+    trackPush(pushIncrementalStateToServer(keys, userName));
+  }
+  await Promise.all(inFlightPushes.slice());
+}
+
+// Hay cambios locales aún sin confirmar en el servidor
+export function hasUnsyncedChanges(): boolean {
+  return pendingKeysToSync.size > 0 || inFlightPushes.length > 0;
+}
+
+// Guarda la versión del servidor sin retroceder nunca (las respuestas pueden llegar desordenadas)
+function setLocalServerVersion(version: number, updatedAt?: string) {
+  const current = parseInt(localStorage.getItem('efi_last_server_version') || '0', 10);
+  if (version >= current) {
+    localStorage.setItem('efi_last_server_version', version.toString());
+    if (updatedAt) localStorage.setItem('efi_last_server_sync_time', updatedAt);
+  }
+}
 
 // Aplica el estado recibido del servidor en el localStorage del cliente
 export function applyServerStateToLocal(serverData: Record<string, any>): number {
   if (typeof window === 'undefined' || !serverData) return 0;
   let count = 0;
+  const keysKeptLocal: string[] = [];
 
   isApplyingFromServer = true;
   try {
     Object.entries(serverData).forEach(([key, val]) => {
       try {
+        // No pisar datos locales pendientes de subir (cambios recién guardados por el usuario)
+        if (pendingKeysToSync.has(key)) return;
+
+        // Última escritura gana: si el dato local es más reciente que el del servidor, conservarlo
+        if (val && typeof val === 'object' && typeof val.updatedAt === 'string') {
+          const localRaw = localStorage.getItem(key);
+          if (localRaw) {
+            try {
+              const localVal = JSON.parse(localRaw);
+              if (localVal && typeof localVal.updatedAt === 'string' && localVal.updatedAt > val.updatedAt) {
+                keysKeptLocal.push(key);
+                return;
+              }
+            } catch {}
+          }
+        }
+
         const strVal = typeof val === 'string' ? val : JSON.stringify(val);
         localStorage.setItem(key, strVal);
         count++;
@@ -76,6 +146,12 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
     isApplyingFromServer = false;
   }
 
+  // Los datos locales más recientes que el servidor deben subirse, no perderse
+  if (keysKeptLocal.length > 0) {
+    keysKeptLocal.forEach((k) => pendingKeysToSync.add(k));
+    scheduleSync(500);
+  }
+
   return count;
 }
 
@@ -91,6 +167,7 @@ export function isUserRecentlyActive(seconds: number = 10): boolean {
 
 // Inicia el sincronizador automático de cambios locales hacia el servidor
 export function initClientAutoSync(getUserName?: () => string) {
+  if (getUserName) syncUserNameGetter = getUserName;
   if (typeof window === 'undefined' || isSyncInitialized) return;
   isSyncInitialized = true;
 
@@ -118,16 +195,7 @@ export function initClientAutoSync(getUserName?: () => string) {
 
         recordUserActivity();
         pendingKeysToSync.add(key);
-        if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
-
-        syncDebounceTimer = setTimeout(() => {
-          const keys = Array.from(pendingKeysToSync);
-          pendingKeysToSync.clear();
-          if (keys.length > 0) {
-            const userName = getUserName ? getUserName() : 'Usuario';
-            pushIncrementalStateToServer(keys, userName);
-          }
-        }, 2500); // 2.5s debounce para evitar peticiones repetitivas mientras el usuario escribe
+        scheduleSync(2500); // 2.5s debounce para evitar peticiones repetitivas mientras el usuario escribe
       }
     };
   } catch (e) {
@@ -143,6 +211,7 @@ export async function pushAllStateToServer(password?: string, userName?: string)
   error?: string;
 }> {
   try {
+    await flushPendingSync();
     const data = collectAllLocalState();
     const totalKeys = Object.keys(data).length;
 
@@ -167,8 +236,7 @@ export async function pushAllStateToServer(password?: string, userName?: string)
     }
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('efi_last_server_version', json.version.toString());
-      localStorage.setItem('efi_last_server_sync_time', json.updatedAt);
+      setLocalServerVersion(json.version, json.updatedAt);
       window.dispatchEvent(new CustomEvent('efi_server_sync_event', { detail: { type: 'push', version: json.version } }));
     }
 
@@ -213,11 +281,15 @@ export async function pushIncrementalStateToServer(keys: string[], userName?: st
 
     const json = await res.json();
     if (json.success && json.version) {
-      localStorage.setItem('efi_last_server_version', json.version.toString());
-      localStorage.setItem('efi_last_server_sync_time', json.updatedAt);
+      setLocalServerVersion(json.version, json.updatedAt);
+    } else {
+      throw new Error(json.error || 'Respuesta de sincronización no válida');
     }
   } catch (e) {
-    console.warn('[SyncService] Fallo envío incremental en segundo plano:', e);
+    console.warn('[SyncService] Fallo envío incremental, se reintentará:', e);
+    // No perder los cambios: volver a ponerlos en cola y reintentar
+    keys.forEach((k) => pendingKeysToSync.add(k));
+    scheduleSync(5000);
   }
 }
 
@@ -229,9 +301,13 @@ export async function pullStateFromServer(): Promise<{
   error?: string;
 }> {
   try {
+    // Antes de descargar, asegurar que los cambios locales ya están en el servidor
+    await flushPendingSync();
+
     const res = await fetch('/api/sync', {
       method: 'GET',
       headers: { 'Cache-Control': 'no-cache' },
+      cache: 'no-store',
     });
 
     if (!res.ok) {
@@ -246,8 +322,7 @@ export async function pullStateFromServer(): Promise<{
     const applied = applyServerStateToLocal(json.data);
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('efi_last_server_version', (json.version || 1).toString());
-      localStorage.setItem('efi_last_server_sync_time', json.updatedAt || new Date().toISOString());
+      setLocalServerVersion(json.version || 1, json.updatedAt || new Date().toISOString());
       window.dispatchEvent(new CustomEvent('efi_server_sync_event', { detail: { type: 'pull', version: json.version } }));
     }
 

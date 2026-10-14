@@ -18,6 +18,7 @@ import {
 import { StationManagerModal } from './StationManagerModal';
 import { generateAndDownloadCierreWorkbook, downloadWorkbookAsXlsx, GasolinaBroncoRow } from '@/lib/excelExportService';
 import * as XLSX from 'xlsx';
+import { flushPendingSync } from '@/lib/serverSyncService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
@@ -789,6 +790,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
       localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
     } catch (e) {}
+
+    // Subir ya al servidor para que ninguna sincronización posterior restaure datos antiguos
+    flushPendingSync().catch(() => {});
 
     setIsSaved(true);
     setToastMessage('¡Precios de Compras, Gasolina Bronco y Tarifas Guardados Correctamente!');

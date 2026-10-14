@@ -16,7 +16,8 @@ import {
   initClientAutoSync,
   checkServerVersion,
   pullStateFromServer,
-  isUserRecentlyActive
+  isUserRecentlyActive,
+  hasUnsyncedChanges
 } from '@/lib/serverSyncService';
 
 function AppContent() {
@@ -67,6 +68,8 @@ function AppContent() {
       if (isSyncingRef.current) return;
       // Si el usuario estuvo interactuando o tecleando en los últimos 10s, no interrumpir con sincronizaciones
       if (isUserRecentlyActive(10)) return;
+      // Si hay cambios locales aún sin confirmar en el servidor, no descargar (se perderían)
+      if (hasUnsyncedChanges()) return;
 
       try {
         isSyncingRef.current = true;

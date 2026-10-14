@@ -35,6 +35,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// Cola de escritura: evita que dos guardados simultáneos lean la misma versión y se sobrescriban
+let writeQueue: Promise<unknown> = Promise.resolve();
+function enqueueWrite<T>(task: () => Promise<T>): Promise<T> {
+  const run = writeQueue.then(task, task);
+  writeQueue = run.catch(() => undefined);
+  return run;
+}
+
 // POST /api/sync - Guardar estado maestro o cambios incrementales
 export async function POST(req: NextRequest) {
   try {
@@ -60,48 +68,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const currentState = await getServerState();
-    let nextData: Record<string, any> = {};
+    return await enqueueWrite(async () => {
+      const currentState = await getServerState();
+      let nextData: Record<string, any> = {};
 
-    if (mode === 'incremental' && currentState.data) {
-      // Fusionar solo las claves enviadas manteniendo el resto
-      nextData = {
-        ...currentState.data,
-        ...data,
+      if (mode === 'incremental' && currentState.data) {
+        // Fusionar solo las claves enviadas manteniendo el resto
+        nextData = {
+          ...currentState.data,
+          ...data,
+        };
+      } else {
+        // Carga maestra autoritativa: el estado del usuario que sube es el estado del servidor
+        nextData = { ...data };
+      }
+
+      const newVersion = (currentState.version || 0) + 1;
+      const now = new Date().toISOString();
+
+      const newPayload: ServerStatePayload = {
+        version: newVersion,
+        updatedAt: now,
+        updatedBy: updatedBy || 'Usuario',
+        data: nextData,
       };
-    } else {
-      // Carga maestra autoritativa: el estado del usuario que sube es el estado del servidor
-      nextData = { ...data };
-    }
 
-    const newVersion = (currentState.version || 0) + 1;
-    const now = new Date().toISOString();
+      const ok = await saveServerState(newPayload);
+      if (!ok) {
+        return NextResponse.json(
+          { success: false, error: 'Fallo al escribir en la base de datos o disco del servidor.' },
+          { status: 500 }
+        );
+      }
 
-    const newPayload: ServerStatePayload = {
-      version: newVersion,
-      updatedAt: now,
-      updatedBy: updatedBy || 'Usuario',
-      data: nextData,
-    };
-
-    const ok = await saveServerState(newPayload);
-    if (!ok) {
-      return NextResponse.json(
-        { success: false, error: 'Fallo al escribir en la base de datos o disco del servidor.' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      version: newVersion,
-      updatedAt: now,
-      updatedBy: updatedBy || 'Usuario',
-      keysCount: Object.keys(nextData).length,
-      isPostgres: isPostgresConfigured(),
-      message: isPostgresConfigured()
-        ? 'Todos los datos han sido guardados y sincronizados en PostgreSQL con éxito.'
-        : 'Todos los datos han sido guardados y sincronizados en el servidor central con éxito.',
+      return NextResponse.json({
+        success: true,
+        version: newVersion,
+        updatedAt: now,
+        updatedBy: updatedBy || 'Usuario',
+        keysCount: Object.keys(nextData).length,
+        isPostgres: isPostgresConfigured(),
+        message: isPostgresConfigured()
+          ? 'Todos los datos han sido guardados y sincronizados en PostgreSQL con éxito.'
+          : 'Todos los datos han sido guardados y sincronizados en el servidor central con éxito.',
+      });
     });
   } catch (error: any) {
     return NextResponse.json(
