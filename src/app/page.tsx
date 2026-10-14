@@ -24,7 +24,18 @@ function AppContent() {
   const { currentUser } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedDate, setSelectedDate] = useState('2026-08-18');
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return (
+          localStorage.getItem('efi_compras_valid_from') ||
+          localStorage.getItem('efi_global_valid_from_date') ||
+          new Date().toISOString().split('T')[0]
+        );
+      } catch (e) {}
+    }
+    return '2026-10-15';
+  });
   const [syncNotification, setSyncNotification] = useState<string | null>(null);
   const isSyncingRef = useRef(false);
 

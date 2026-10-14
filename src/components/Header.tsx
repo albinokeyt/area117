@@ -9,6 +9,7 @@ import {
   CloudUpload, RefreshCw, Lock, AlertCircle, Check
 } from 'lucide-react';
 import { pushAllStateToServer, pullStateFromServer } from '@/lib/serverSyncService';
+import { APP_VERSION, APP_BUILD_DATE } from '@/lib/version';
 
 interface HeaderProps {
   activeTab: string;
@@ -126,9 +127,17 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
                 <Fuel className="h-5 w-5 text-slate-950" />
               </div>
               <div className="hidden md:block">
-                <h1 className="text-base font-bold tracking-tight leading-tight text-white">
-                  EFI DATA OIL
-                </h1>
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-base font-bold tracking-tight leading-tight text-white">
+                    EFI DATA OIL
+                  </h1>
+                  <span
+                    className="text-[10px] font-black tracking-wide px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                    title={`Versión desplegada: ${APP_VERSION} (Compilación: ${APP_BUILD_DATE})`}
+                  >
+                    {APP_VERSION}
+                  </span>
+                </div>
                 <p className="text-[10px] text-amber-400 font-medium leading-tight">Gestión de Combustibles</p>
               </div>
             </div>
@@ -153,15 +162,23 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
 
             {/* Right Side: Sync + Date + User */}
             <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+              {/* App Version Badge on Top Bar */}
+              <div
+                className="hidden xl:flex items-center px-2 py-1 rounded-xl bg-slate-800/90 border border-amber-500/30 text-[10px] font-mono text-amber-300 font-bold shadow-sm"
+                title={`Versión activa del Software: ${APP_VERSION} (${APP_BUILD_DATE})`}
+              >
+                App {APP_VERSION}
+              </div>
+
               {/* Sync Status / Manual Refresh */}
               <button
                 onClick={handleManualPull}
                 disabled={isPulling}
-                title="Sincronizar datos con el servidor central"
+                title="Sincronizar datos con el servidor central (PostgreSQL / BD)"
                 className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 shadow-sm text-xs font-semibold transition-all"
               >
                 <RefreshCw className={`h-3.5 w-3.5 text-emerald-400 ${isPulling ? 'animate-spin' : ''}`} />
-                <span className="hidden lg:inline text-[11px] text-slate-300">v{serverVersion}</span>
+                <span className="hidden lg:inline text-[11px] text-slate-300">BD #{serverVersion}</span>
               </button>
 
               {/* Master Upload Button */}

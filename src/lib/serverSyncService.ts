@@ -44,19 +44,31 @@ export function collectAllLocalState(): Record<string, any> {
 let isApplyingFromServer = false;
 let isSyncInitialized = false;
 let pendingKeysToSync = new Set<string>();
+let inFlightKeys = new Set<string>();
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let inFlightPushes: Promise<void>[] = [];
 let syncUserNameGetter: (() => string) | undefined;
+
+// Mapa en memoria para recordar cuándo se editó cada clave localmente en este navegador
+const localKeyEditTimestamps = new Map<string, number>();
+
+export function markKeyModifiedLocally(key: string) {
+  localKeyEditTimestamps.set(key, Date.now());
+  pendingKeysToSync.add(key);
+}
 
 function scheduleSync(delayMs: number = 2500) {
   if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
     syncDebounceTimer = null;
     const keys = Array.from(pendingKeysToSync);
-    pendingKeysToSync.clear();
     if (keys.length > 0) {
+      keys.forEach((k) => inFlightKeys.add(k));
+      pendingKeysToSync.clear();
       const userName = syncUserNameGetter ? syncUserNameGetter() : 'Usuario';
-      trackPush(pushIncrementalStateToServer(keys, userName));
+      trackPush(pushIncrementalStateToServer(keys, userName).finally(() => {
+        keys.forEach((k) => inFlightKeys.delete(k));
+      }));
     }
   }, delayMs);
 }
@@ -76,17 +88,32 @@ export async function flushPendingSync(): Promise<void> {
     syncDebounceTimer = null;
   }
   const keys = Array.from(pendingKeysToSync);
-  pendingKeysToSync.clear();
   if (keys.length > 0) {
+    keys.forEach((k) => inFlightKeys.add(k));
+    pendingKeysToSync.clear();
     const userName = syncUserNameGetter ? syncUserNameGetter() : 'Usuario';
-    trackPush(pushIncrementalStateToServer(keys, userName));
+    trackPush(pushIncrementalStateToServer(keys, userName).finally(() => {
+      keys.forEach((k) => inFlightKeys.delete(k));
+    }));
   }
   await Promise.all(inFlightPushes.slice());
 }
 
 // Hay cambios locales aún sin confirmar en el servidor
 export function hasUnsyncedChanges(): boolean {
-  return pendingKeysToSync.size > 0 || inFlightPushes.length > 0;
+  return pendingKeysToSync.size > 0 || inFlightKeys.size > 0 || inFlightPushes.length > 0;
+}
+
+// Extraer timestamp numérico de un objeto JSON si existe
+function extractItemTimestamp(item: any): number {
+  if (!item) return 0;
+  if (typeof item === 'object' && item !== null) {
+    if (typeof item.updatedAt === 'string') {
+      const t = Date.parse(item.updatedAt);
+      if (!isNaN(t)) return t;
+    }
+  }
+  return 0;
 }
 
 // Guarda la versión del servidor sin retroceder nunca (las respuestas pueden llegar desordenadas)
@@ -103,26 +130,44 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
   if (typeof window === 'undefined' || !serverData) return 0;
   let count = 0;
   const keysKeptLocal: string[] = [];
+  const now = Date.now();
 
   isApplyingFromServer = true;
   try {
     Object.entries(serverData).forEach(([key, val]) => {
       try {
-        // No pisar datos locales pendientes de subir (cambios recién guardados por el usuario)
-        if (pendingKeysToSync.has(key)) return;
+        // 1. Si la clave está encolada para subir o enviándose actualmente, NUNCA pisarla
+        if (pendingKeysToSync.has(key) || inFlightKeys.has(key)) {
+          return;
+        }
 
-        // Última escritura gana: si el dato local es más reciente que el del servidor, conservarlo
-        if (val && typeof val === 'object' && typeof val.updatedAt === 'string') {
-          const localRaw = localStorage.getItem(key);
-          if (localRaw) {
+        // 2. Si el usuario guardó o editó esta clave localmente en los últimos 3 minutos, NUNCA pisarla
+        const lastEdit = localKeyEditTimestamps.get(key) || 0;
+        if (now - lastEdit < 180000) {
+          keysKeptLocal.push(key);
+          return;
+        }
+
+        // 3. Comparación de fecha de última actualización (Last-write-wins)
+        const localRaw = localStorage.getItem(key);
+        if (localRaw !== null) {
+          try {
+            let localVal: any = null;
             try {
-              const localVal = JSON.parse(localRaw);
-              if (localVal && typeof localVal.updatedAt === 'string' && localVal.updatedAt > val.updatedAt) {
-                keysKeptLocal.push(key);
-                return;
-              }
-            } catch {}
-          }
+              localVal = JSON.parse(localRaw);
+            } catch {
+              localVal = localRaw;
+            }
+
+            const localTime = extractItemTimestamp(localVal);
+            const serverTime = extractItemTimestamp(val);
+
+            // Si el dato local tiene timestamp y el servidor no, o el dato local es más reciente o igual, CONSERVAR LOCAL
+            if (localTime > 0 && (serverTime === 0 || localTime >= serverTime)) {
+              keysKeptLocal.push(key);
+              return;
+            }
+          } catch {}
         }
 
         const strVal = typeof val === 'string' ? val : JSON.stringify(val);
@@ -146,7 +191,7 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
     isApplyingFromServer = false;
   }
 
-  // Los datos locales más recientes que el servidor deben subirse, no perderse
+  // Los datos locales que fueron más recientes que el servidor deben subirse para que el servidor se actualice
   if (keysKeptLocal.length > 0) {
     keysKeptLocal.forEach((k) => pendingKeysToSync.add(k));
     scheduleSync(500);
@@ -194,6 +239,7 @@ export function initClientAutoSync(getUserName?: () => string) {
         }
 
         recordUserActivity();
+        localKeyEditTimestamps.set(key, Date.now());
         pendingKeysToSync.add(key);
         scheduleSync(2500); // 2.5s debounce para evitar peticiones repetitivas mientras el usuario escribe
       }

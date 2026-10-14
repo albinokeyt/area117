@@ -18,7 +18,7 @@ import {
 import { StationManagerModal } from './StationManagerModal';
 import { generateAndDownloadCierreWorkbook, downloadWorkbookAsXlsx, GasolinaBroncoRow } from '@/lib/excelExportService';
 import * as XLSX from 'xlsx';
-import { flushPendingSync } from '@/lib/serverSyncService';
+import { flushPendingSync, markKeyModifiedLocally } from '@/lib/serverSyncService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
@@ -222,17 +222,24 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
     try {
-      const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
-      const savedGlobal = localStorage.getItem('efi_compras_data');
+      const effValid = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_valid_from') : null;
+      const savedDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
+      const savedValid = effValid ? localStorage.getItem(`efi_purchases_${effValid}`) : null;
+      const savedGlobal = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_data') : null;
       let rawData: Record<string, PurchaseRowValues> | null = null;
-      if (savedDate) {
-        const parsed = JSON.parse(savedDate);
-        if (parsed.data && Object.keys(parsed.data).length > 0) rawData = parsed.data;
+
+      for (const raw of [savedDate, savedValid, savedGlobal]) {
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed.data && Object.keys(parsed.data).length > 0) {
+              rawData = parsed.data;
+              break;
+            }
+          } catch {}
+        }
       }
-      if (!rawData && savedGlobal) {
-        const parsed = JSON.parse(savedGlobal);
-        if (parsed.data && Object.keys(parsed.data).length > 0) rawData = parsed.data;
-      }
+
       if (rawData) {
         const sanitized: Record<string, PurchaseRowValues> = {};
         Object.entries(rawData).forEach(([k, v]) => {
@@ -352,61 +359,84 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     };
   });
 
-  const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
+  const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(() => {
+    try {
+      const effValid = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_valid_from') : null;
+      const savedDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
+      const savedValid = effValid ? localStorage.getItem(`efi_purchases_${effValid}`) : null;
+      const savedGlobal = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_data') : null;
+
+      for (const raw of [savedDate, savedValid, savedGlobal]) {
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.modified) && parsed.modified.length > 0) {
+              return new Set(parsed.modified);
+            }
+          } catch {}
+        }
+      }
+    } catch (e) {}
+    return new Set<string>();
+  });
+
+  const modifiedKeysRef = useRef<Set<string>>(modifiedKeys);
+  useEffect(() => {
+    modifiedKeysRef.current = modifiedKeys;
+  }, [modifiedKeys]);
+
   const [isSaved, setIsSaved] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
+      const effValid = localStorage.getItem('efi_compras_valid_from');
+      const savedDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
+      const savedValid = effValid ? localStorage.getItem(`efi_purchases_${effValid}`) : null;
       const savedGlobal = localStorage.getItem('efi_compras_data');
       const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v4');
-      const savedValidDate = localStorage.getItem('efi_compras_valid_from');
-      const savedBroncoDate = localStorage.getItem(`efi_purchases_bronco_${selectedDate}`);
+      const savedBroncoDate = selectedDate ? localStorage.getItem(`efi_purchases_bronco_${selectedDate}`) : null;
+      const savedBroncoValid = effValid ? localStorage.getItem(`efi_purchases_bronco_${effValid}`) : null;
       const savedBroncoGlobal = localStorage.getItem('efi_compras_gasolina_bronco');
 
-      if (savedValidDate) {
-        setValidFromDate(savedValidDate);
+      if (effValid) {
+        setValidFromDate(effValid);
       }
 
-      if (savedDate) {
-        const parsed = JSON.parse(savedDate);
-        if (parsed.data) {
-          const sanitized: Record<string, PurchaseRowValues> = {};
-          Object.entries(parsed.data as Record<string, PurchaseRowValues>).forEach(([k, v]) => {
-            sanitized[k] = {
-              ...v,
-              prev: (v.prev || '').replace('.', ','),
-              curr: (v.curr || '').replace('.', ','),
-              porte: (v.porte || '').replace('.', ','),
-              pase: (v.pase || '').replace('.', ','),
-              fin: (v.fin || '').replace('.', ','),
-              prevSale: v.prevSale !== undefined ? String(v.prevSale).replace('.', ',') : undefined,
-              sale: (v.sale || '').replace('.', ','),
-            };
-          });
-          setPurchases(sanitized);
+      let parsedPurchases: any = null;
+      for (const raw of [savedDate, savedValid, savedGlobal]) {
+        if (raw) {
+          try {
+            const p = JSON.parse(raw);
+            if (p && p.data && Object.keys(p.data).length > 0) {
+              parsedPurchases = p;
+              break;
+            }
+          } catch {}
         }
-        if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
-      } else if (savedGlobal) {
-        const parsed = JSON.parse(savedGlobal);
-        if (parsed.data) {
-          const sanitized: Record<string, PurchaseRowValues> = {};
-          Object.entries(parsed.data as Record<string, PurchaseRowValues>).forEach(([k, v]) => {
-            sanitized[k] = {
-              ...v,
-              prev: (v.prev || '').replace('.', ','),
-              curr: (v.curr || '').replace('.', ','),
-              porte: (v.porte || '').replace('.', ','),
-              pase: (v.pase || '').replace('.', ','),
-              fin: (v.fin || '').replace('.', ','),
-              prevSale: v.prevSale !== undefined ? String(v.prevSale).replace('.', ',') : undefined,
-              sale: (v.sale || '').replace('.', ','),
-            };
-          });
-          setPurchases(sanitized);
+      }
+
+      if (parsedPurchases) {
+        const sanitized: Record<string, PurchaseRowValues> = {};
+        Object.entries(parsedPurchases.data as Record<string, PurchaseRowValues>).forEach(([k, v]) => {
+          sanitized[k] = {
+            ...v,
+            prev: (v.prev || '').replace('.', ','),
+            curr: (v.curr || '').replace('.', ','),
+            porte: (v.porte || '').replace('.', ','),
+            pase: (v.pase || '').replace('.', ','),
+            fin: (v.fin || '').replace('.', ','),
+            prevSale: v.prevSale !== undefined ? String(v.prevSale).replace('.', ',') : undefined,
+            sale: (v.sale || '').replace('.', ','),
+          };
+        });
+        setPurchases(sanitized);
+
+        if (Array.isArray(parsedPurchases.modified)) {
+          const modSet = new Set<string>(parsedPurchases.modified);
+          setModifiedKeys(modSet);
+          modifiedKeysRef.current = modSet;
         }
-        if (parsed.modified) setModifiedKeys(new Set(parsed.modified));
       }
 
       if (savedSpecial) {
@@ -530,25 +560,27 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     } catch (e) {}
   };
 
-  const purchasesDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const debouncedPersistPurchases = useCallback((dataToSave: Record<string, PurchaseRowValues>, modsToSave: Set<string>) => {
-    if (purchasesDebounceTimerRef.current) clearTimeout(purchasesDebounceTimerRef.current);
-    purchasesDebounceTimerRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
-          data: dataToSave,
-          modified: Array.from(modsToSave),
-          updatedAt: new Date().toISOString(),
-        }));
-        localStorage.setItem('efi_compras_data', JSON.stringify({
-          data: dataToSave,
-          modified: Array.from(modsToSave),
-          updatedAt: new Date().toISOString(),
-        }));
-        window.dispatchEvent(new Event('efi_compras_updated'));
-      } catch (e) {}
-    }, 200);
-  }, [selectedDate]);
+  const persistPurchasesNow = useCallback((dataToSave: Record<string, PurchaseRowValues>, modsToSave: Set<string>) => {
+    try {
+      const nowIso = new Date().toISOString();
+      const payload = JSON.stringify({
+        data: dataToSave,
+        modified: Array.from(modsToSave),
+        updatedAt: nowIso,
+      });
+      if (validFromDate) {
+        localStorage.setItem(`efi_purchases_${validFromDate}`, payload);
+        markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
+      }
+      if (selectedDate && selectedDate !== validFromDate) {
+        localStorage.setItem(`efi_purchases_${selectedDate}`, payload);
+        markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
+      }
+      localStorage.setItem('efi_compras_data', payload);
+      markKeyModifiedLocally('efi_compras_data');
+      window.dispatchEvent(new Event('efi_compras_updated'));
+    } catch (e) {}
+  }, [selectedDate, validFromDate]);
 
   const handleInputChange = (
     stationName: string,
@@ -559,6 +591,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     const cleanVal = field === 'clh' ? rawVal : rawVal.replace('.', ',');
     const key = `${stationName}_${prodCode}`;
     const fieldKey = `${key}_${field}`;
+
+    modifiedKeysRef.current = new Set(modifiedKeysRef.current).add(fieldKey);
+    const updatedMods = new Set(modifiedKeysRef.current);
+    setModifiedKeys(updatedMods);
+    setIsSaved(false);
 
     setPurchases((prev) => {
       const currentItem = prev[key] || {
@@ -591,14 +628,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }
 
       const nextPurchases = { ...prev, [key]: updated };
-      const nextMods = new Set(modifiedKeys).add(fieldKey);
-      debouncedPersistPurchases(nextPurchases, nextMods);
+      persistPurchasesNow(nextPurchases, updatedMods);
 
       return nextPurchases;
     });
-
-    setModifiedKeys((prev) => new Set(prev).add(fieldKey));
-    setIsSaved(false);
   };
 
   // Helper para buscar el item de Gasóleo A (GOA) de una estación en compras
@@ -774,21 +807,39 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   const handleSave = () => {
     try {
-      localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
+      const nowIso = new Date().toISOString();
+      const currentMods = Array.from(modifiedKeysRef.current);
+      const payload = JSON.stringify({
         data: purchases,
-        modified: Array.from(modifiedKeys),
-        updatedAt: new Date().toISOString(),
-      }));
-      localStorage.setItem('efi_compras_data', JSON.stringify({
-        data: purchases,
-        modified: Array.from(modifiedKeys),
-        updatedAt: new Date().toISOString(),
-      }));
+        modified: currentMods,
+        updatedAt: nowIso,
+      });
+
+      if (validFromDate) {
+        localStorage.setItem(`efi_purchases_${validFromDate}`, payload);
+        markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
+        localStorage.setItem('efi_compras_valid_from', validFromDate);
+        localStorage.setItem('efi_global_valid_from_date', validFromDate);
+      }
+      if (selectedDate && selectedDate !== validFromDate) {
+        localStorage.setItem(`efi_purchases_${selectedDate}`, payload);
+        markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
+      }
+      localStorage.setItem('efi_compras_data', payload);
+      markKeyModifiedLocally('efi_compras_data');
+
       localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(specialRates));
       localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
-      localStorage.setItem('efi_compras_valid_from', validFromDate);
-      localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
-      localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
+      markKeyModifiedLocally('efi_special_rates_b50_f82_v4');
+
+      const broncoPayload = JSON.stringify(gasolinaBronco);
+      if (validFromDate) localStorage.setItem(`efi_purchases_bronco_${validFromDate}`, broncoPayload);
+      if (selectedDate && selectedDate !== validFromDate) localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, broncoPayload);
+      localStorage.setItem('efi_compras_gasolina_bronco', broncoPayload);
+      markKeyModifiedLocally('efi_compras_gasolina_bronco');
+
+      window.dispatchEvent(new Event('efi_compras_updated'));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {}
 
     // Subir ya al servidor para que ninguna sincronización posterior restaure datos antiguos
@@ -843,24 +894,41 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const timestamp = new Date().toISOString();
       try {
         // 2) Guardar y sincronizar todas las ventanas del sistema (compras, postes, sabana de precios, pdfs y clientes, efi export)
-        localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
-          data: nextPurchases,
-          modified: [],
-          updatedAt: timestamp,
-        }));
+        if (validFromDate) {
+          localStorage.setItem(`efi_purchases_${validFromDate}`, JSON.stringify({
+            data: nextPurchases,
+            modified: [],
+            updatedAt: timestamp,
+          }));
+          markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
+        }
+        if (selectedDate && selectedDate !== validFromDate) {
+          localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
+            data: nextPurchases,
+            modified: [],
+            updatedAt: timestamp,
+          }));
+          markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
+        }
         localStorage.setItem('efi_compras_data', JSON.stringify({
           data: nextPurchases,
           modified: [],
           updatedAt: timestamp,
         }));
+        markKeyModifiedLocally('efi_compras_data');
         localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(cleanedSpecialRates));
         localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(cleanedSpecialRates));
-        localStorage.setItem('efi_compras_valid_from', validFromDate);
-        localStorage.setItem('efi_global_valid_from_date', validFromDate);
+        markKeyModifiedLocally('efi_special_rates_b50_f82_v4');
+        if (validFromDate) {
+          localStorage.setItem('efi_compras_valid_from', validFromDate);
+          localStorage.setItem('efi_global_valid_from_date', validFromDate);
+        }
         localStorage.setItem('efi_last_cierre_date', selectedDate);
         localStorage.setItem('efi_last_cierre_timestamp', timestamp);
-        localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
+        if (validFromDate) localStorage.setItem(`efi_purchases_bronco_${validFromDate}`, JSON.stringify(gasolinaBronco));
+        if (selectedDate && selectedDate !== validFromDate) localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
         localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
+        markKeyModifiedLocally('efi_compras_gasolina_bronco');
 
         localStorage.setItem(`efi_cierre_completo_${selectedDate}`, JSON.stringify({
           selectedDate,
@@ -910,6 +978,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     });
 
     setModifiedKeys(new Set());
+    modifiedKeysRef.current = new Set();
     setToastMessage('¡Cierre de Día Completado! Marcas de modificación limpiadas en todos los módulos y Excel descargado.');
     setTimeout(() => setToastMessage(null), 4000);
   };
@@ -988,16 +1057,21 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       try {
         const timestamp = new Date().toISOString();
-        localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
+        const payload = JSON.stringify({
           data: nextPurchases,
-          modified: Array.from(modifiedKeys),
+          modified: Array.from(modifiedKeysRef.current),
           updatedAt: timestamp,
-        }));
-        localStorage.setItem('efi_compras_data', JSON.stringify({
-          data: nextPurchases,
-          modified: Array.from(modifiedKeys),
-          updatedAt: timestamp,
-        }));
+        });
+        if (validFromDate) {
+          localStorage.setItem(`efi_purchases_${validFromDate}`, payload);
+          markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
+        }
+        if (selectedDate && selectedDate !== validFromDate) {
+          localStorage.setItem(`efi_purchases_${selectedDate}`, payload);
+          markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
+        }
+        localStorage.setItem('efi_compras_data', payload);
+        markKeyModifiedLocally('efi_compras_data');
         window.dispatchEvent(new Event('efi_compras_updated'));
       } catch (e) {
         console.error('Error al guardar copia de precios:', e);
