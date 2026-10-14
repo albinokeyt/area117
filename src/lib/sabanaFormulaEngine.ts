@@ -28,6 +28,98 @@ const parseNum = (val: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
+// Helper universal para buscar un producto de compra para cualquier estación con normalización inteligente
+export function findPurchaseItem(purchases: Record<string, any>, stationName: string, prodCode: string = 'GOA'): any {
+  if (!purchases || typeof purchases !== 'object') return null;
+  const directKey = `${stationName}_${prodCode}`;
+  if (purchases[directKey]) return purchases[directKey];
+
+  const norm = (s: string) =>
+    s
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^ES\s+/, '')
+      .replace(/^GANESHA\s+/, '')
+      .replace(/[-_]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const targetNorm = norm(stationName);
+  const entries = Object.entries(purchases).filter(([k]) => k.endsWith(`_${prodCode}`));
+
+  for (const [k, v] of entries) {
+    const base = k.slice(0, -(prodCode.length + 1));
+    if (norm(base) === targetNorm) return v;
+  }
+
+  for (const [k, v] of entries) {
+    const baseNorm = norm(k.slice(0, -(prodCode.length + 1)));
+    if (baseNorm && targetNorm && (baseNorm.includes(targetNorm) || targetNorm.includes(baseNorm))) {
+      return v;
+    }
+  }
+
+  return null;
+}
+
+// Obtener precio de venta efectivo dinámico o costo total en vivo de Compras
+export function getPurchaseItemSalePrice(item: any, stationName: string, costsFallback: any): number {
+  if (item) {
+    if (item.sale && item.sale.toString().trim() !== '' && item.sale !== '0' && item.sale !== '0.000' && item.sale !== '0,000') {
+      const val = parseNum(item.sale);
+      if (val > 0) return val;
+    }
+    // Si no tiene sale o es 0 pero tiene curr ingresado, calcular costo total dinámico
+    const currN = item.curr !== undefined && item.curr !== '' ? parseNum(item.curr) : 0;
+    if (currN > 0) {
+      const porteN = item.porte !== undefined && item.porte !== '' ? parseNum(item.porte) : parseNum(costsFallback?.porte ?? 0);
+      const paseN = item.pase !== undefined && item.pase !== '' ? parseNum(item.pase) : parseNum(costsFallback?.pase ?? 0);
+      const finN = item.fin !== undefined && item.fin !== '' ? parseNum(item.fin) : parseNum(costsFallback?.fin ?? 0);
+      const tot = round3(currN + porteN + paseN + finN);
+      if (tot > 0) return tot;
+    }
+  }
+  const cleanTarget = stationName.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
+  const official = OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? OFFICIAL_SUGGESTED_SALE_PRICES[stationName];
+  if (official !== undefined) return official;
+
+  const defaultCurr = parseNum(costsFallback?.defaultCurr ?? 1.200);
+  const porte = parseNum(costsFallback?.porte ?? 0.005);
+  const pase = parseNum(costsFallback?.pase ?? 0.010);
+  const fin = parseNum(costsFallback?.fin ?? 0.010);
+  return round3(defaultCurr + porte + pase + fin);
+}
+
+// Helper para obtener el payload más reciente de Compras entre fechas y global
+export function getFreshestPurchasesData(selectedDate?: string): Record<string, any> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const validFrom = localStorage.getItem('efi_compras_valid_from');
+    const sValid = validFrom ? localStorage.getItem(`efi_purchases_${validFrom}`) : null;
+    const sDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
+    const sGlob = localStorage.getItem('efi_compras_data');
+
+    let newestData: Record<string, any> = {};
+    let newestTime = 0;
+
+    for (const raw of [sValid, sDate, sGlob]) {
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        const t = parsed.updatedAt ? new Date(parsed.updatedAt).getTime() : 1;
+        if (t >= newestTime && parsed.data && Object.keys(parsed.data).length > 0) {
+          newestTime = t;
+          newestData = parsed.data;
+        }
+      } catch (e) {}
+    }
+    return newestData;
+  } catch (e) {
+    return {};
+  }
+}
+
 export function getProgramVariables(
   selectedDate: string,
   livePurchases?: Record<string, any>,
@@ -68,12 +160,7 @@ export function getProgramVariables(
   if (livePurchases && typeof livePurchases === "object" && Object.keys(livePurchases).length > 0) {
     purchasesData = livePurchases;
   } else {
-    try {
-      const sDate = localStorage.getItem("efi_purchases_" + selectedDate);
-      const sGlob = localStorage.getItem("efi_compras_data");
-      if (sDate) purchasesData = JSON.parse(sDate).data || {};
-      else if (sGlob) purchasesData = JSON.parse(sGlob).data || {};
-    } catch (e) {}
+    purchasesData = getFreshestPurchasesData(selectedDate);
   }
 
   // Tarifas Especiales (Compras)
@@ -90,8 +177,7 @@ export function getProgramVariables(
   const allStations = typeof window !== 'undefined' ? getAllStations() : [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
   const stationCosts = typeof window !== 'undefined' ? getStationExcelCosts() : STATION_EXCEL_COSTS;
   allStations.forEach((st) => {
-    const keyGoa = st.name + "_GOA";
-    const itemGoa = purchasesData[keyGoa];
+    const itemGoa = findPurchaseItem(purchasesData, st.name, "GOA");
     const costs = stationCosts[st.name] || {
       porte: 0.005,
       pase: 0.01,
@@ -100,15 +186,13 @@ export function getProgramVariables(
       defaultCurr: 1.2,
     };
 
-    const currGoa = itemGoa ? parseNum(itemGoa.curr) : costs.defaultCurr;
-    const porte = itemGoa ? parseNum(itemGoa.porte) : costs.porte;
-    const pase = itemGoa ? parseNum(itemGoa.pase) : costs.pase;
-    const fin = itemGoa ? parseNum(itemGoa.fin) : costs.fin;
+    const currGoa = itemGoa && itemGoa.curr && parseNum(itemGoa.curr) > 0 ? parseNum(itemGoa.curr) : costs.defaultCurr;
+    const porte = itemGoa && itemGoa.porte !== undefined && itemGoa.porte !== '' ? parseNum(itemGoa.porte) : costs.porte;
+    const pase = itemGoa && itemGoa.pase !== undefined && itemGoa.pase !== '' ? parseNum(itemGoa.pase) : costs.pase;
+    const fin = itemGoa && itemGoa.fin !== undefined && itemGoa.fin !== '' ? parseNum(itemGoa.fin) : costs.fin;
     const totalCostGoa = round3(currGoa + porte + pase + fin);
-    const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
-    const defaultSug = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? totalCostGoa;
-    const pVentaGoa = itemGoa?.sale ? parseNum(itemGoa.sale) : defaultSug;
-    const pAntGoa = itemGoa ? parseNum(itemGoa.prev) : costs.defaultPrev;
+    const pVentaGoa = getPurchaseItemSalePrice(itemGoa, st.name, costs);
+    const pAntGoa = itemGoa && itemGoa.prev ? parseNum(itemGoa.prev) : costs.defaultPrev;
 
     const group = st.type === "PROPIA" ? "Estaciones Propias" : "Estaciones Colaboradoras";
     const normName = st.name.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
@@ -122,9 +206,8 @@ export function getProgramVariables(
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":FINANCIACION", "Financiacion (T) (" + st.name + ")", fin, st.name);
 
     // Gasolina 95
-    const keyGas = st.name + "_GASOLINA";
-    const itemGas = purchasesData[keyGas];
-    const currGas = itemGas ? parseNum(itemGas.curr) : costs.defaultCurr + 0.12;
+    const itemGas = findPurchaseItem(purchasesData, st.name, "GASOLINA");
+    const currGas = itemGas && itemGas.curr && parseNum(itemGas.curr) > 0 ? parseNum(itemGas.curr) : costs.defaultCurr + 0.12;
     const totalCostGas = round3(currGas + porte + pase + fin);
     const pVentaGas = itemGas?.isCustomSale && itemGas.sale ? parseNum(itemGas.sale) : totalCostGas;
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":GASOLINA_COSTO", "Costo Total Gasolina 95 (" + st.name + ")", totalCostGas, st.name);
@@ -323,19 +406,20 @@ export function getProgramVariables(
     const norm = st.name.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
 
     // Default values if no special row
-    const keyGoa = st.name + "_GOA";
-    const itemGoa = purchasesData[keyGoa];
-    const costs = STATION_EXCEL_COSTS[st.name] || {
+    const itemGoa = findPurchaseItem(purchasesData, st.name, "GOA");
+    const costs = stationCosts[st.name] || STATION_EXCEL_COSTS[st.name] || {
       porte: 0.005,
       pase: 0.01,
       fin: 0.01,
       defaultPrev: 1.2,
       defaultCurr: 1.2,
     };
-    const currGoa = itemGoa ? parseNum(itemGoa.curr) : costs.defaultCurr;
-    const totalCostGoa = round3(currGoa + costs.porte + costs.pase + costs.fin);
-    const defaultSug = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? totalCostGoa;
-    const pVentaGoa = itemGoa?.sale ? parseNum(itemGoa.sale) : defaultSug;
+    const currGoa = itemGoa && itemGoa.curr && parseNum(itemGoa.curr) > 0 ? parseNum(itemGoa.curr) : costs.defaultCurr;
+    const porte = itemGoa && itemGoa.porte !== undefined && itemGoa.porte !== '' ? parseNum(itemGoa.porte) : costs.porte;
+    const pase = itemGoa && itemGoa.pase !== undefined && itemGoa.pase !== '' ? parseNum(itemGoa.pase) : costs.pase;
+    const fin = itemGoa && itemGoa.fin !== undefined && itemGoa.fin !== '' ? parseNum(itemGoa.fin) : costs.fin;
+    const totalCostGoa = round3(currGoa + porte + pase + fin);
+    const pVentaGoa = getPurchaseItemSalePrice(itemGoa, st.name, costs);
 
     let actualVal = pVentaGoa;
     let refVal = round3(pVentaGoa + 0.008);
@@ -412,19 +496,20 @@ export function getProgramVariables(
     const normName = st.name.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
 
     const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
-    const costs = STATION_EXCEL_COSTS[st.name] || {
+    const itemGoa = findPurchaseItem(purchasesData, st.name, "GOA");
+    const costs = stationCosts[st.name] || STATION_EXCEL_COSTS[st.name] || {
       porte: 0.005,
       pase: 0.01,
       fin: 0.01,
       defaultPrev: 1.2,
       defaultCurr: 1.2,
     };
-    const keyGoa = st.name + "_GOA";
-    const itemGoa = purchasesData[keyGoa];
-    const currGoa = itemGoa ? parseNum(itemGoa.curr) : costs.defaultCurr;
-    const totalCostGoa = round3(currGoa + costs.porte + costs.pase + costs.fin);
-    const defaultSug = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? totalCostGoa;
-    const pVentaGoa = itemGoa?.sale ? parseNum(itemGoa.sale) : defaultSug;
+    const currGoa = itemGoa && itemGoa.curr && parseNum(itemGoa.curr) > 0 ? parseNum(itemGoa.curr) : costs.defaultCurr;
+    const porte = itemGoa && itemGoa.porte !== undefined && itemGoa.porte !== '' ? parseNum(itemGoa.porte) : costs.porte;
+    const pase = itemGoa && itemGoa.pase !== undefined && itemGoa.pase !== '' ? parseNum(itemGoa.pase) : costs.pase;
+    const fin = itemGoa && itemGoa.fin !== undefined && itemGoa.fin !== '' ? parseNum(itemGoa.fin) : costs.fin;
+    const totalCostGoa = round3(currGoa + porte + pase + fin);
+    const pVentaGoa = getPurchaseItemSalePrice(itemGoa, st.name, costs);
 
     // 5.1 Tarifas Estándar (12 a 60)
     standardTariffDefs.forEach((td) => {
@@ -901,13 +986,7 @@ export function getSabanaTariff60ConIvaForStation(
   }
 
   // 3. Evaluar fórmulas personalizadas de Sábana
-  let purchasesData: Record<string, any> = {};
-  try {
-    const sDate = (selectedDate && localStorage.getItem('efi_purchases_' + selectedDate)) || localStorage.getItem('efi_purchases_' + activeDate);
-    const sGlob = localStorage.getItem('efi_compras_data');
-    if (sDate) purchasesData = JSON.parse(sDate).data || {};
-    else if (sGlob) purchasesData = JSON.parse(sGlob).data || {};
-  } catch (e) {}
+  const purchasesData: Record<string, any> = getFreshestPurchasesData(selectedDate || activeDate);
 
   const allFormulas = {
     ...loadSabanaFormulas('global'),
@@ -989,28 +1068,18 @@ export function getSabanaTariff60ConIvaForStation(
     }
   } catch (e) {}
 
-  // 5. Calcular Precio Base según la lógica de Sábana de Precios
+  // 5. Calcular Precio Base según la lógica dinámica de Compras y Sábana de Precios
   let basePrice = 0;
+  const allCosts = typeof window !== 'undefined' ? getStationExcelCosts() : STATION_EXCEL_COSTS;
 
   for (const al of aliasList) {
-    const keyGoa = `${al}_GOA`;
-    if (purchasesData[keyGoa]?.sale) {
-      basePrice = parseNum(purchasesData[keyGoa].sale);
-      if (basePrice > 0) break;
-    }
-  }
-
-  if (!basePrice || basePrice <= 0) {
-    const matchedKey = Object.keys(purchasesData).find((k) => {
-      if (!k.endsWith('_GOA')) return false;
-      const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
-      return aliasList.some((al) => {
-        const cleanAl = al.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
-        return baseK === cleanAl || baseK.includes(cleanAl) || cleanAl.includes(baseK);
-      });
-    });
-    if (matchedKey && purchasesData[matchedKey]?.sale) {
-      basePrice = parseNum(purchasesData[matchedKey].sale);
+    const item = findPurchaseItem(purchasesData, al, 'GOA');
+    if (item) {
+      const price = getPurchaseItemSalePrice(item, al, allCosts[al]);
+      if (price > 0) {
+        basePrice = price;
+        break;
+      }
     }
   }
 

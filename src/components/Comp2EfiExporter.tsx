@@ -17,6 +17,7 @@ import {
   EfiExportAddedRow
 } from '@/lib/excelExportService';
 import { EfiExportModifierModal } from './EfiExportModifierModal';
+import { getFreshestPurchasesData } from '@/lib/sabanaFormulaEngine';
 
 interface Comp2Props {
   selectedDate: string;
@@ -107,10 +108,10 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
 
   useEffect(() => {
     try {
-      const sDate = localStorage.getItem('efi_purchases_' + selectedDate);
-      const sGlob = localStorage.getItem('efi_compras_data');
-      if (sDate) setComprasPurchases(JSON.parse(sDate).data || {});
-      else if (sGlob) setComprasPurchases(JSON.parse(sGlob).data || {});
+      const freshest = getFreshestPurchasesData(selectedDate);
+      if (freshest && Object.keys(freshest).length > 0) {
+        setComprasPurchases(freshest);
+      }
 
       const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
       if (sp) setSpecialRates(JSON.parse(sp));

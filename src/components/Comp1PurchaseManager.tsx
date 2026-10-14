@@ -865,7 +865,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         const stName = key.replace(/_(GOA|GASOLINA|ADBLUE)$/, '');
         const cleanName = stName.toUpperCase().replace(/^ES\s+/, '').trim();
         const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
-        const defaultSale = officialPrice !== undefined ? officialPrice.toFixed(3) : totalCost.toFixed(3);
+        const defaultSale = totalCost > 0 ? formatNum(totalCost, 3) : (officialPrice !== undefined ? officialPrice.toFixed(3) : '0,000');
         const effectiveSale = item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000'
           ? item.sale
           : defaultSale;
@@ -946,12 +946,23 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
             const parsedPostes = JSON.parse(rawPostes);
             parsedPostes.modified = [];
             localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsedPostes));
+            markKeyModifiedLocally('efi_postes_data_v2');
           }
           const rawPostesDate = localStorage.getItem(`efi_postes_data_${selectedDate}`);
           if (rawPostesDate) {
             const parsedPostesDate = JSON.parse(rawPostesDate);
             parsedPostesDate.modified = [];
             localStorage.setItem(`efi_postes_data_${selectedDate}`, JSON.stringify(parsedPostesDate));
+            markKeyModifiedLocally(`efi_postes_data_${selectedDate}`);
+          }
+          if (validFromDate && validFromDate !== selectedDate) {
+            const rawPostesValid = localStorage.getItem(`efi_postes_data_${validFromDate}`);
+            if (rawPostesValid) {
+              const parsedPostesValid = JSON.parse(rawPostesValid);
+              parsedPostesValid.modified = [];
+              localStorage.setItem(`efi_postes_data_${validFromDate}`, JSON.stringify(parsedPostesValid));
+              markKeyModifiedLocally(`efi_postes_data_${validFromDate}`);
+            }
           }
         } catch (e) {
           console.error('Error al limpiar modified en efi_postes_data_v2:', e);
@@ -973,6 +984,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       } catch (e) {
         console.error('Error al generar libro Excel de Cierre:', e);
       }
+
+      // Sincronizar inmediatamente el cierre a PostgreSQL
+      flushPendingSync().catch(() => {});
 
       return nextPurchases;
     });

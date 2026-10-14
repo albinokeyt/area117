@@ -34,7 +34,10 @@ import {
   CellFormula,
   getProgramVariables,
   evaluateFormula,
-  reevaluateAllSabanaFormulas
+  reevaluateAllSabanaFormulas,
+  findPurchaseItem,
+  getPurchaseItemSalePrice,
+  getFreshestPurchasesData
 } from '@/lib/sabanaFormulaEngine';
 
 interface SabanaProps {
@@ -551,14 +554,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const loadComprasData = () => {
     try {
-      const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
-      const savedGlobal = localStorage.getItem('efi_compras_data');
-      if (savedDate) {
-        const parsed = JSON.parse(savedDate);
-        if (parsed.data) setComprasPurchases(parsed.data);
-      } else if (savedGlobal) {
-        const parsed = JSON.parse(savedGlobal);
-        if (parsed.data) setComprasPurchases(parsed.data);
+      const freshest = getFreshestPurchasesData(selectedDate);
+      if (freshest && Object.keys(freshest).length > 0) {
+        setComprasPurchases(freshest);
       }
     } catch (e) {}
   };
@@ -642,52 +640,11 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
   }, [selectedDate]);
 
-  // Obtener P. Venta Sugerido de Compras para cada estación con resolución exacta
+  // Obtener P. Venta Sugerido de Compras para cada estación con resolución dinámica y fallback
   const getStationBasePrice = (stName: string, isPropia?: boolean): number => {
-    // 1. Coincidencia directa en comprasPurchases
-    let item = comprasPurchases[`${stName}_GOA`];
-
-    // 2. Coincidencia normalizada sin prefijos 'ES '
-    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-    if (!item?.sale) {
-      const matchedKey = Object.keys(comprasPurchases).find((k) => {
-        if (!k.endsWith('_GOA')) return false;
-        const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
-        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-      });
-      if (matchedKey) {
-        item = comprasPurchases[matchedKey];
-      }
-    }
-
-    if (item?.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000') {
-      const val = parseFloat(item.sale.toString().replace(',', '.'));
-      if (!isNaN(val) && val > 0) return val;
-    }
-
-    // 3. Fallback con OFFICIAL_SUGGESTED_SALE_PRICES (P. Venta Sugerido oficial de Compras)
-    if (OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] !== undefined) {
-      return OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget];
-    }
-    if (OFFICIAL_SUGGESTED_SALE_PRICES[stName] !== undefined) {
-      return OFFICIAL_SUGGESTED_SALE_PRICES[stName];
-    }
-    const matchedOfficialKey = Object.keys(OFFICIAL_SUGGESTED_SALE_PRICES).find((k) => {
-      const baseK = k.toUpperCase().replace(/^ES\s+/, '').trim();
-      return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-    });
-    if (matchedOfficialKey) {
-      return OFFICIAL_SUGGESTED_SALE_PRICES[matchedOfficialKey];
-    }
-
-    // 4. Fallback con Costo Total del Excel si nada coincide
-    const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[cleanTarget] || {
-      porte: 0.0050,
-      pase: 0.0100,
-      fin: 0.0100,
-      defaultCurr: 1.2000,
-    };
-    return Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+    const item = findPurchaseItem(comprasPurchases, stName, 'GOA');
+    const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[stName.toUpperCase().replace(/^ES\s+/, '').trim()];
+    return getPurchaseItemSalePrice(item, stName, costs);
   };
 
   // Helper para identificar estaciones con celda Naranja en Los Javi (copian Precio Actual / Especial de Tarifas Especiales de Compras)

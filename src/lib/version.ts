@@ -2,7 +2,7 @@
  * Identificador Oficial de Versión de la Aplicación EFI DATA OIL
  * Permite verificar inequívocamente en la cabecera qué compilación está ejecutando el navegador.
  */
-export const APP_VERSION = 'v1.4.4';
-export const APP_BUILD_DATE = '14/10/2026 21:50';
-export const APP_RELEASE_NAME = 'v1.4.4 - Exclusivo PostgreSQL 100%';
-export const APP_RELEASE_NOTES = 'Persistencia y sincronización exclusiva en PostgreSQL sin almacenamiento en archivos locales de disco.';
+export const APP_VERSION = 'v1.4.5';
+export const APP_BUILD_DATE = '14/10/2026 22:50';
+export const APP_RELEASE_NAME = 'v1.4.5 - Datos Dinámicos Variables & Cierre de Día Global';
+export const APP_RELEASE_NOTES = 'Celdas 100% dinámicas y variables en Compras con propagación inmediata a Sábana de Precios, Postes y PDFs. Cierre de día con copia a anteriores y restablecimiento total de marcas amarillas.';

@@ -3,7 +3,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
 import { getAllStations } from '@/lib/stationsService';
-import { loadSabanaFormulas, reevaluateAllSabanaFormulas } from '@/lib/sabanaFormulaEngine';
+import {
+  loadSabanaFormulas,
+  reevaluateAllSabanaFormulas,
+  findPurchaseItem,
+  getPurchaseItemSalePrice,
+  getFreshestPurchasesData
+} from '@/lib/sabanaFormulaEngine';
 import { DEFAULT_SPECIAL_RATES_B50_F82 } from '@/components/Comp1PurchaseManager';
 import {
   Printer, Download, FileText, Search, Calendar, Check,
@@ -1441,11 +1447,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     let specialRates: any[] = [];
     if (typeof window !== 'undefined') {
       try {
-        const sDate = localStorage.getItem('efi_purchases_' + targetDate);
-        const sGlob = localStorage.getItem('efi_compras_data');
-        if (sDate) purchasesData = JSON.parse(sDate).data || {};
-        else if (sGlob) purchasesData = JSON.parse(sGlob).data || {};
-
+        purchasesData = getFreshestPurchasesData(targetDate || selectedDate);
         const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
         if (sp) specialRates = JSON.parse(sp);
       } catch (e) {}
@@ -1463,42 +1465,9 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     );
 
     const getStationBasePrice = (stName: string): number => {
-      let item = purchasesData[`${stName}_GOA`];
-      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-      if (!item?.sale) {
-        const matchedKey = Object.keys(purchasesData).find((k) => {
-          if (!k.endsWith('_GOA')) return false;
-          const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
-          return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-        });
-        if (matchedKey) {
-          item = purchasesData[matchedKey];
-        }
-      }
-      if (item?.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000') {
-        const val = parseFloat(item.sale.toString().replace(',', '.'));
-        if (!isNaN(val) && val > 0) return val;
-      }
-      if (OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] !== undefined) {
-        return OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget];
-      }
-      if (OFFICIAL_SUGGESTED_SALE_PRICES[stName] !== undefined) {
-        return OFFICIAL_SUGGESTED_SALE_PRICES[stName];
-      }
-      const matchedOfficialKey = Object.keys(OFFICIAL_SUGGESTED_SALE_PRICES).find((k) => {
-        const baseK = k.toUpperCase().replace(/^ES\s+/, '').trim();
-        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-      });
-      if (matchedOfficialKey) {
-        return OFFICIAL_SUGGESTED_SALE_PRICES[matchedOfficialKey];
-      }
-      const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[cleanTarget] || {
-        porte: 0.0050,
-        pase: 0.0100,
-        fin: 0.0100,
-        defaultCurr: 1.2000,
-      };
-      return Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(4));
+      const item = findPurchaseItem(purchasesData, stName, 'GOA');
+      const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[stName.toUpperCase().replace(/^ES\s+/, '').trim()];
+      return getPurchaseItemSalePrice(item, stName, costs);
     };
 
     const getSpecialRateRefPrice = (stName: string): number => {

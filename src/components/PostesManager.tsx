@@ -20,6 +20,7 @@ import {
   evaluateFormula
 } from '@/lib/sabanaFormulaEngine';
 import { SabanaFormulaModal } from '@/components/SabanaFormulaModal';
+import { markKeyModifiedLocally } from '@/lib/serverSyncService';
 
 // Configuración oficial de fórmulas de costes de Gasolina de la Columna D de CALCULO INICIAL
 // Fórmula: Margen Gasolina = Precio Poste - (Base + Porte + Pase) * 1.21
@@ -261,7 +262,18 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     'GNL (Gas Natural Licuado)': { sinIva: '0,890', poste: '1,079' },
   });
 
-  const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(new Set());
+  const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('efi_postes_data_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.modified)) {
+          return new Set(parsed.modified);
+        }
+      }
+    } catch (e) {}
+    return new Set<string>();
+  });
   const [isSaved, setIsSaved] = useState(false);
   const [imageToast, setImageToast] = useState<string | null>(null);
   const [validFromDate, setValidFromDate] = useState<string>(() => {
@@ -347,6 +359,9 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
       } catch (e) {}
       setComprasUpdateTick((t) => t + 1);
     };
+
+    handleUpdates();
+
     window.addEventListener('efi_valid_date_changed', handleUpdates);
     window.addEventListener('efi_compras_updated', handleUpdates);
     window.addEventListener('efi_sabana_updated', handleUpdates);
@@ -809,6 +824,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
         updatedAt: new Date().toISOString(),
       };
       localStorage.setItem('efi_postes_data_v2', JSON.stringify(dataToSave));
+      markKeyModifiedLocally('efi_postes_data_v2');
       window.dispatchEvent(new Event('efi_postes_updated'));
       window.dispatchEvent(new Event('storage'));
     } catch (e) {
@@ -956,8 +972,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
           const parsed = JSON.parse(saved);
           parsed.modified = [];
           localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
-          window.dispatchEvent(new Event('efi_postes_updated'));
-          window.dispatchEvent(new Event('storage'));
+          markKeyModifiedLocally('efi_postes_data_v2');
         }
       } catch (e) {}
     };
