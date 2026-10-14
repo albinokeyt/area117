@@ -8,7 +8,7 @@ import {
   TrendingUp, Building2, Store, CheckCircle2, DollarSign, Printer, FileText,
   CloudUpload, RefreshCw, Lock, AlertCircle, Check
 } from 'lucide-react';
-import { pushAllStateToServer, pullStateFromServer } from '@/lib/serverSyncService';
+import { pushAllStateToServer, pullStateFromServer, checkServerVersion } from '@/lib/serverSyncService';
 import { APP_VERSION, APP_BUILD_DATE } from '@/lib/version';
 
 interface HeaderProps {
@@ -48,10 +48,16 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
   const [serverVersion, setServerVersion] = useState<string>('1');
 
+  const [isPostgres, setIsPostgres] = useState<boolean | null>(null);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const v = localStorage.getItem('efi_last_server_version') || '1';
       setServerVersion(v);
+
+      checkServerVersion()
+        .then((s) => setIsPostgres(s.isPostgres))
+        .catch(() => {});
 
       const handleSyncEvent = (e: any) => {
         if (e.detail?.version) {
@@ -170,11 +176,30 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
                 App {APP_VERSION}
               </div>
 
+              {/* PostgreSQL Status Indicator */}
+              {isPostgres !== null && (
+                <div
+                  className={`hidden sm:inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm ${
+                    isPostgres
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  }`}
+                  title={
+                    isPostgres
+                      ? 'Base de Datos PostgreSQL Conectada y Activa'
+                      : 'PostgreSQL no conectado (revisa DATABASE_URL en Easypanel)'
+                  }
+                >
+                  <span className={`h-2 w-2 rounded-full ${isPostgres ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                  <span>{isPostgres ? 'PostgreSQL' : 'Sin BD'}</span>
+                </div>
+              )}
+
               {/* Sync Status / Manual Refresh */}
               <button
                 onClick={handleManualPull}
                 disabled={isPulling}
-                title="Sincronizar datos con el servidor central (PostgreSQL / BD)"
+                title="Sincronizar datos con PostgreSQL central"
                 className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 shadow-sm text-xs font-semibold transition-all"
               >
                 <RefreshCw className={`h-3.5 w-3.5 text-emerald-400 ${isPulling ? 'animate-spin' : ''}`} />

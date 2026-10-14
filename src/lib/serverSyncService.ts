@@ -389,6 +389,7 @@ export async function checkServerVersion(): Promise<{
   updatedAt: string;
   updatedBy: string;
   hasData: boolean;
+  isPostgres: boolean;
 }> {
   try {
     const res = await fetch('/api/sync?versionOnly=true', {
@@ -411,6 +412,7 @@ export async function checkServerVersion(): Promise<{
       updatedAt: json.updatedAt,
       updatedBy: json.updatedBy,
       hasData: Boolean(json.hasData),
+      isPostgres: Boolean(json.isPostgres),
     };
   } catch {
     return {
@@ -419,6 +421,7 @@ export async function checkServerVersion(): Promise<{
       updatedAt: '',
       updatedBy: '',
       hasData: false,
+      isPostgres: false,
     };
   }
 }
