@@ -1,5 +1,7 @@
 'use client';
 
+import { registerSabanaValidationReader, SabanaValidationSnapshot, SourceDetails } from '@/lib/pdfPriceValidation';
+import { checkSabanaFormula } from '@/lib/formulaValidation';
 import { liveSpecialPrice } from '@/lib/livePriceSources';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 
@@ -1722,14 +1724,33 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
     };
   };
 
-  // Publish the same final cells used by the tables, including independent VAT formulas.
-  // Consumers never rebuild these prices from a PDF-specific markup or a seed value.
-  useEffect(() => {
-    if (Object.keys(comprasPurchases).length === 0) return;
-    const published: SabanaPrices = { date: selectedDate, sources: {}, tariffs: {} };
-    const addSource = (id: string, names: string[], getPrice: (name: string, own: boolean) => PricePair) => {
+  // A fresh capture reads the live model, not the stored copy consumed by PDFs.
+  const buildPriceSnapshot = (audit = false): SabanaValidationSnapshot => {
+    if (audit) { basePriceCache.clear(); specialPriceCache.clear(); tariffPriceCache.clear(); }
+    const published: SabanaValidationSnapshot = { date: selectedDate, sources: {}, tariffs: {}, details: {}, formulaIssues: [] };
+    const formulaErrors = new Map<CellFormula, string>();
+    if (audit) {
+      const { map } = getProgramVariables(selectedDate, comprasPurchases, specialRates, resolvedFormulas);
+      for (const [cell, formula] of Object.entries(resolvedFormulas)) {
+        const station = allStations.find(st => cell.includes(st.name))?.name;
+        const error = checkSabanaFormula(formula, map, station);
+        if (error) { formulaErrors.set(formula, error); published.formulaIssues.push({ cell, message: error }); }
+      }
+    }
+    type TablePrice = PricePair & { customFormulaSinIva?: CellFormula; customFormulaConIva?: CellFormula; customSinIva?: CellFormula; customConIva?: CellFormula };
+    const addSource = (id: string, names: string[], getPrice: (name: string, own: boolean) => TablePrice) => {
+      if (audit) published.details[id] = {};
+
       published.sources[id] = Object.fromEntries(allStations.map(st => {
         const price = getPrice(st.name, st.type === 'PROPIA');
+        if (audit) {
+          const sin = price.customFormulaSinIva || price.customSinIva;
+          const con = price.customFormulaConIva || price.customConIva;
+          const details: SourceDetails = { sinFormula: sin?.rawFormula, conFormula: con?.rawFormula, issues: [] };
+          if (sin && formulaErrors.has(sin)) details.issues.push(`Fórmula sin IVA: ${formulaErrors.get(sin)}`);
+          if (con && formulaErrors.has(con)) details.issues.push(`Fórmula con IVA: ${formulaErrors.get(con)}`);
+          published.details[id][st.name] = details;
+        }
         return [st.name, { sinIva: price.sinIva, conIva: price.conIva }];
       }));
       names.forEach(name => { published.tariffs[normalizePriceName(name)] = id; });
@@ -1755,7 +1776,17 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
     addSource('COMPRAS_ESPECIAL_ACTUAL', ['Compras — Precio Actual Especial (regla guardada)'], name => pair(getSpecialRateActualPrice(name)));
     addSource('COMPRAS_VENTA_SUGERIDO', ['Compras — Venta Sugerida (regla guardada)'], name => pair(getStationBasePrice(name)));
     addSource('COMPRAS_MEDIO', ['Compras — Compra Hoy (regla guardada)'], (name, own) => pair(resolveCustomSourceValue('COMPRAS_MEDIO', name, own)));
-    const raw = JSON.stringify(published);
+    return published;
+  };
+
+  // Re-register after each commit so an audit cannot hold a previous date or rule.
+  useEffect(() => registerSabanaValidationReader(() => Object.keys(comprasPurchases).length ? buildPriceSnapshot(true) : null));
+
+  // Publish the same final cells used by the tables, including independent VAT formulas.
+  useEffect(() => {
+    if (Object.keys(comprasPurchases).length === 0) return;
+    const { date, sources, tariffs } = buildPriceSnapshot();
+    const raw = JSON.stringify({ date, sources, tariffs } satisfies SabanaPrices);
     if (workspaceStorage.getItem(SABANA_PRICES_KEY) !== raw) {
       workspaceStorage.setItem(SABANA_PRICES_KEY, raw);
       window.dispatchEvent(new Event(SABANA_PRICES_EVENT));
