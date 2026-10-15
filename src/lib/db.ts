@@ -1,4 +1,5 @@
 import { hashPassword } from "./passwords";
+import { jsonValuesEqual } from './jsonEquality';
 import { mergeState } from "./stateMerge";
 import { Pool } from 'pg';
 
@@ -254,6 +255,10 @@ export async function patchServerState(data: Record<string, any>, base: Record<s
     for (const key of Object.keys(data)) {
       const value = mergeState(base[key], data[key] === null ? undefined : data[key], current.data[key], key);
       if (value === undefined) delete next[key]; else next[key] = value;
+    }
+    if (jsonValuesEqual(next, current.data)) {
+      await client.query('COMMIT');
+      return { version: current.version, updatedAt: current.updated_at.toISOString(), updatedBy: current.updated_by, data: current.data };
     }
     const result = await client.query(`UPDATE efi_server_state SET data = $1::jsonb,
       version = version + 1, updated_at = NOW(), updated_by = $2 WHERE id = 1
