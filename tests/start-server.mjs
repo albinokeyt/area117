@@ -11,7 +11,8 @@ const pg = new EmbeddedPostgres({ databaseDir: join(await mkdtemp(join(tmpdir(),
 await pg.initialise();
 await pg.start();
 const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3107', '-H', '127.0.0.1'], {
-  env: { ...process.env, DATABASE_URL: 'postgresql://postgres:test-only@127.0.0.1:55437/postgres', NEXT_TELEMETRY_DISABLED: '1' },
+  env: { ...process.env, DATABASE_URL: 'postgresql://postgres:test-only@127.0.0.1:55437/postgres', NEXT_TELEMETRY_DISABLED: '1',
+    ADMIN_USERNAME: 'recovery-test', ADMIN_PASSWORD: 'recovery-test-password' },
   stdio: 'inherit', windowsHide: true,
 });
 let closing = false;

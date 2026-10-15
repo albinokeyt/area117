@@ -5,7 +5,7 @@ import { Client } from 'pg';
 
 async function login(page: Page) {
   await page.goto('/');
-  await page.getByRole('textbox', { name: 'Correo Electrónico' }).fill('admin@efidataoil.com');
+  await page.getByRole('textbox', { name: 'Usuario o correo electrónico' }).fill('admin@efidataoil.com');
   await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
   await page.getByRole('button', { name: /Entrar|Acceder|Iniciar/i }).click();
   await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toBeVisible();

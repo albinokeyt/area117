@@ -101,8 +101,11 @@ export async function ensureTables() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS efi_sessions (
-        token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES efi_server_users(id) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL
+        token_hash TEXT PRIMARY KEY, user_id TEXT REFERENCES efi_server_users(id) ON DELETE CASCADE,
+        environment_fingerprint TEXT, expires_at TIMESTAMPTZ NOT NULL
       );
+      ALTER TABLE efi_sessions ALTER COLUMN user_id DROP NOT NULL;
+      ALTER TABLE efi_sessions ADD COLUMN IF NOT EXISTS environment_fingerprint TEXT;
     `);
 
     // Inicializar fila de estado si está vacía
