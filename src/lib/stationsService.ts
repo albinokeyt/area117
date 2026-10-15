@@ -1,3 +1,4 @@
+import { workspaceStorage } from '@/lib/workspaceStorage';
 import { getLatestPurchasePayload } from "./purchaseState";
 /**
  * Servicio Central de Catálogo Dinámico de Estaciones de Servicio
@@ -157,7 +158,7 @@ export function getStationsCatalog(): StationsCatalog {
   }
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = workspaceStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.propias) && Array.isArray(parsed.colaboradoras)) {
@@ -170,7 +171,7 @@ export function getStationsCatalog(): StationsCatalog {
 
   const def = getDefaultStationsCatalog();
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(def));
+    workspaceStorage.setItem(STORAGE_KEY, JSON.stringify(def));
   } catch (e) {}
   return def;
 }
@@ -183,7 +184,7 @@ export function saveStationsCatalog(catalog: StationsCatalog) {
 
   try {
     catalog.version = (catalog.version || 1) + 1;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(catalog));
+    workspaceStorage.setItem(STORAGE_KEY, JSON.stringify(catalog));
 
     // Despachar eventos de actualización en cascada
     window.dispatchEvent(new Event('efi_stations_updated'));
@@ -372,7 +373,7 @@ export function createStation(params: CreateStationParams): { success: boolean; 
     };
   }
 
-  // Cascada: Inicializar compra para la fecha actual en localStorage si existe compras
+  // Cascada: Inicializar compra para la fecha actual en workspaceStorage si existe compras
   try {
     const buyPrice = params.initialBuyPrice !== undefined && params.initialBuyPrice > 0 ? params.initialBuyPrice : defaultCurr;
     const today = new Date().toISOString().split('T')[0];
@@ -391,8 +392,8 @@ export function createStation(params: CreateStationParams): { success: boolean; 
       ...entry(params.adblueBuyPrice ?? 0.4, params.adblueSalePrice ?? 0.799), porte: '0', pase: '0', fin: '0', clh: '-'
     };
     const payload = JSON.stringify({ ...parsed, data, updatedAt: new Date().toISOString() });
-    localStorage.setItem(sKey, payload);
-    localStorage.setItem('efi_compras_data', payload);
+    workspaceStorage.setItem(sKey, payload);
+    workspaceStorage.setItem('efi_compras_data', payload);
 
   } catch (e) {
     console.warn('No se pudo inicializar compra previa para la nueva estación:', e);
@@ -534,15 +535,15 @@ export function updateStation(
     delete catalog.adblueConfig[cleanOld];
   }
 
-  // 7. Cascada de renombramiento en localStorage
+  // 7. Cascada de renombramiento en workspaceStorage
   if (isRenaming) {
     try {
       // Renombrar en compras
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
+      for (let i = 0; i < workspaceStorage.length; i++) {
+        const k = workspaceStorage.key(i);
         if (k && (k.startsWith('efi_purchases_') || k === 'efi_compras_data')) {
           try {
-            const raw = localStorage.getItem(k);
+            const raw = workspaceStorage.getItem(k);
             if (raw) {
               const parsed = JSON.parse(raw);
               const data = parsed.data || parsed;
@@ -554,20 +555,20 @@ export function updateStation(
                   delete data[oldKey];
                 }
               });
-              localStorage.setItem(k, JSON.stringify(parsed));
+              workspaceStorage.setItem(k, JSON.stringify(parsed));
             }
           } catch (e) {}
         }
       }
 
       // Renombrar en postes
-      const rawPostes = localStorage.getItem('efi_postes_data_v2');
+      const rawPostes = workspaceStorage.getItem('efi_postes_data_v2');
       if (rawPostes) {
         const parsed = JSON.parse(rawPostes);
         if (parsed.postes && parsed.postes[cleanOld]) {
           parsed.postes[cleanNew] = parsed.postes[cleanOld];
           delete parsed.postes[cleanOld];
-          localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
+          workspaceStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
         }
       }
     } catch (e) {
@@ -606,18 +607,18 @@ export function deleteStation(stationName: string): { success: boolean; message:
   // Cascada de eliminación en todo el almacenamiento local
   try {
     // 1. Limpiar compras (efi_purchases_* y efi_compras_data)
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
+    for (let i = 0; i < workspaceStorage.length; i++) {
+      const k = workspaceStorage.key(i);
       if (k && (k.startsWith('efi_purchases_') || k === 'efi_compras_data')) {
         try {
-          const raw = localStorage.getItem(k);
+          const raw = workspaceStorage.getItem(k);
           if (raw) {
             const parsed = JSON.parse(raw);
             const data = parsed.data || parsed;
             ['GOA', 'GASOLINA', 'ADBLUE'].forEach((prod) => {
               delete data[`${cleanName}_${prod}`];
             });
-            localStorage.setItem(k, JSON.stringify(parsed));
+            workspaceStorage.setItem(k, JSON.stringify(parsed));
           }
         } catch (e) {}
       }
@@ -625,34 +626,34 @@ export function deleteStation(stationName: string): { success: boolean; message:
 
     // 2. Limpiar tarifas especiales de compras (efi_special_rates_*)
     ['efi_special_rates_b50_f82_v4', 'efi_special_rates_b50_f82_v3'].forEach((spKey) => {
-      const rawSp = localStorage.getItem(spKey);
+      const rawSp = workspaceStorage.getItem(spKey);
       if (rawSp) {
         try {
           const arr: any[] = JSON.parse(rawSp);
           const filtered = arr.filter((r) => !String(r.stationName || '').toUpperCase().includes(cleanName));
-          localStorage.setItem(spKey, JSON.stringify(filtered));
+          workspaceStorage.setItem(spKey, JSON.stringify(filtered));
         } catch (e) {}
       }
     });
 
     // 3. Limpiar postes (efi_postes_data_v2)
-    const rawPostes = localStorage.getItem('efi_postes_data_v2');
+    const rawPostes = workspaceStorage.getItem('efi_postes_data_v2');
     if (rawPostes) {
       try {
         const parsed = JSON.parse(rawPostes);
         if (parsed.postes) {
           delete parsed.postes[cleanName];
-          localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
+          workspaceStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
         }
       } catch (e) {}
     }
 
     // 4. Limpiar fórmulas personalizadas de sábana que apunten a esa estación
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
+    for (let i = 0; i < workspaceStorage.length; i++) {
+      const k = workspaceStorage.key(i);
       if (k && k.startsWith('sabana_custom_formulas_')) {
         try {
-          const rawF = localStorage.getItem(k);
+          const rawF = workspaceStorage.getItem(k);
           if (rawF) {
             const formulas = JSON.parse(rawF);
             let changed = false;
@@ -663,7 +664,7 @@ export function deleteStation(stationName: string): { success: boolean; message:
               }
             });
             if (changed) {
-              localStorage.setItem(k, JSON.stringify(formulas));
+              workspaceStorage.setItem(k, JSON.stringify(formulas));
             }
           }
         } catch (e) {}
@@ -671,7 +672,7 @@ export function deleteStation(stationName: string): { success: boolean; message:
     }
 
     // 5. Limpiar sobreescrituras en EFI export
-    const rawEfiOver = localStorage.getItem('efi_export_custom_overrides_v1');
+    const rawEfiOver = workspaceStorage.getItem('efi_export_custom_overrides_v1');
     if (rawEfiOver) {
       try {
         const overrides = JSON.parse(rawEfiOver);
@@ -683,13 +684,13 @@ export function deleteStation(stationName: string): { success: boolean; message:
           }
         });
         if (changed) {
-          localStorage.setItem('efi_export_custom_overrides_v1', JSON.stringify(overrides));
+          workspaceStorage.setItem('efi_export_custom_overrides_v1', JSON.stringify(overrides));
         }
       } catch (e) {}
     }
 
     // 6. Limpiar orígenes personalizados de PDFs
-    const rawPdf = localStorage.getItem('efi_pdf_custom_station_sources_v1');
+    const rawPdf = workspaceStorage.getItem('efi_pdf_custom_station_sources_v1');
     if (rawPdf) {
       try {
         const pdfSources = JSON.parse(rawPdf);
@@ -701,7 +702,7 @@ export function deleteStation(stationName: string): { success: boolean; message:
           }
         });
         if (changed) {
-          localStorage.setItem('efi_pdf_custom_station_sources_v1', JSON.stringify(pdfSources));
+          workspaceStorage.setItem('efi_pdf_custom_station_sources_v1', JSON.stringify(pdfSources));
         }
       } catch (e) {}
     }

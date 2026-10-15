@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import { getLatestPurchasePayload, closePurchaseDay } from '@/lib/purchaseState';
 import { jsonValuesEqual } from '@/lib/jsonEquality';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -146,7 +148,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   const [activeProductTab, setActiveProductTab] = useState<ProductSubTab>('GOA');
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
-      return localStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
+      return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
     } catch (e) {
       return selectedDate;
     }
@@ -306,7 +308,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   // Estado de Tarifas Especiales B50:F82 EXACTAS
   const [specialRates, setSpecialRates] = useState<SpecialStationRateRow[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_special_rates_b50_f82_v4');
+      const saved = workspaceStorage.getItem('efi_special_rates_b50_f82_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -318,8 +320,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   // Estado de Cuadro Especial: Gasolina Bronco (Cálculo Inicial F3:H4)
   const [gasolinaBronco, setGasolinaBronco] = useState<GasolinaBroncoRow>(() => {
     try {
-      const savedDate = localStorage.getItem(`efi_purchases_bronco_${selectedDate}`);
-      const savedGlobal = localStorage.getItem('efi_compras_gasolina_bronco');
+      const savedDate = workspaceStorage.getItem(`efi_purchases_bronco_${selectedDate}`);
+      const savedGlobal = workspaceStorage.getItem('efi_compras_gasolina_bronco');
       const raw = savedDate ? JSON.parse(savedDate) : savedGlobal ? JSON.parse(savedGlobal) : null;
       if (raw) {
         return {
@@ -360,11 +362,11 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     if (keys && !keys.some(key => key.startsWith('efi_purchases_') || key.startsWith('efi_compras_') ||
       key.startsWith('efi_special_rates_') || key === 'efi_global_valid_from_date')) return;
     try {
-      const effValid = localStorage.getItem('efi_compras_valid_from');
-      const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v4');
-      const savedBroncoDate = selectedDate ? localStorage.getItem(`efi_purchases_bronco_${selectedDate}`) : null;
-      const savedBroncoValid = effValid ? localStorage.getItem(`efi_purchases_bronco_${effValid}`) : null;
-      const savedBroncoGlobal = localStorage.getItem('efi_compras_gasolina_bronco');
+      const effValid = workspaceStorage.getItem('efi_compras_valid_from');
+      const savedSpecial = workspaceStorage.getItem('efi_special_rates_b50_f82_v4');
+      const savedBroncoDate = selectedDate ? workspaceStorage.getItem(`efi_purchases_bronco_${selectedDate}`) : null;
+      const savedBroncoValid = effValid ? workspaceStorage.getItem(`efi_purchases_bronco_${effValid}`) : null;
+      const savedBroncoGlobal = workspaceStorage.getItem('efi_compras_gasolina_bronco');
 
       if (effValid) {
         setValidFromDate(effValid);
@@ -411,7 +413,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       } else {
         setSpecialRates(DEFAULT_SPECIAL_RATES_B50_F82);
         try {
-          localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(DEFAULT_SPECIAL_RATES_B50_F82));
+          workspaceStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(DEFAULT_SPECIAL_RATES_B50_F82));
         } catch (e) {}
       }
 
@@ -483,9 +485,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }
 
       try {
-        if (validFromDate) localStorage.setItem(`efi_purchases_bronco_${validFromDate}`, JSON.stringify(updated));
-        localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(updated));
-        localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(updated));
+        if (validFromDate) workspaceStorage.setItem(`efi_purchases_bronco_${validFromDate}`, JSON.stringify(updated));
+        workspaceStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(updated));
+        workspaceStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(updated));
         window.dispatchEvent(new Event('efi_compras_updated'));
       } catch (e) {}
 
@@ -515,8 +517,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   const handleValidDateChange = (newDate: string) => {
     setValidFromDate(newDate);
     try {
-      localStorage.setItem('efi_compras_valid_from', newDate);
-      localStorage.setItem('efi_global_valid_from_date', newDate);
+      workspaceStorage.setItem('efi_compras_valid_from', newDate);
+      workspaceStorage.setItem('efi_global_valid_from_date', newDate);
       window.dispatchEvent(new Event('efi_valid_date_changed'));
     } catch (e) {}
   };
@@ -530,14 +532,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         updatedAt: nowIso,
       });
       if (validFromDate) {
-        localStorage.setItem(`efi_purchases_${validFromDate}`, payload);
+        workspaceStorage.setItem(`efi_purchases_${validFromDate}`, payload);
         markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
       }
       if (selectedDate && selectedDate !== validFromDate) {
-        localStorage.setItem(`efi_purchases_${selectedDate}`, payload);
+        workspaceStorage.setItem(`efi_purchases_${selectedDate}`, payload);
         markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
       }
-      localStorage.setItem('efi_compras_data', payload);
+      workspaceStorage.setItem('efi_compras_data', payload);
       markKeyModifiedLocally('efi_compras_data');
       window.dispatchEvent(new Event('efi_compras_updated'));
     } catch (e) {}
@@ -737,8 +739,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       });
 
       try {
-        localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(next));
-        localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(next));
+        workspaceStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(next));
+        workspaceStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(next));
         window.dispatchEvent(new Event('efi_compras_updated'));
         window.dispatchEvent(new Event('storage'));
       } catch (e) {}
@@ -768,26 +770,26 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       });
 
       if (validFromDate) {
-        localStorage.setItem(`efi_purchases_${validFromDate}`, payload);
+        workspaceStorage.setItem(`efi_purchases_${validFromDate}`, payload);
         markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
-        localStorage.setItem('efi_compras_valid_from', validFromDate);
-        localStorage.setItem('efi_global_valid_from_date', validFromDate);
+        workspaceStorage.setItem('efi_compras_valid_from', validFromDate);
+        workspaceStorage.setItem('efi_global_valid_from_date', validFromDate);
       }
       if (selectedDate && selectedDate !== validFromDate) {
-        localStorage.setItem(`efi_purchases_${selectedDate}`, payload);
+        workspaceStorage.setItem(`efi_purchases_${selectedDate}`, payload);
         markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
       }
-      localStorage.setItem('efi_compras_data', payload);
+      workspaceStorage.setItem('efi_compras_data', payload);
       markKeyModifiedLocally('efi_compras_data');
 
-      localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(specialRates));
-      localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
+      workspaceStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(specialRates));
+      workspaceStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(specialRates));
       markKeyModifiedLocally('efi_special_rates_b50_f82_v4');
 
       const broncoPayload = JSON.stringify(gasolinaBronco);
-      if (validFromDate) localStorage.setItem(`efi_purchases_bronco_${validFromDate}`, broncoPayload);
-      if (selectedDate && selectedDate !== validFromDate) localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, broncoPayload);
-      localStorage.setItem('efi_compras_gasolina_bronco', broncoPayload);
+      if (validFromDate) workspaceStorage.setItem(`efi_purchases_bronco_${validFromDate}`, broncoPayload);
+      if (selectedDate && selectedDate !== validFromDate) workspaceStorage.setItem(`efi_purchases_bronco_${selectedDate}`, broncoPayload);
+      workspaceStorage.setItem('efi_compras_gasolina_bronco', broncoPayload);
       markKeyModifiedLocally('efi_compras_gasolina_bronco');
 
       window.dispatchEvent(new Event('efi_compras_updated'));
@@ -817,7 +819,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       try {
         // 2) Guardar y sincronizar todas las ventanas del sistema (compras, postes, sabana de precios, pdfs y clientes, efi export)
         if (validFromDate) {
-          localStorage.setItem(`efi_purchases_${validFromDate}`, JSON.stringify({
+          workspaceStorage.setItem(`efi_purchases_${validFromDate}`, JSON.stringify({
             data: nextPurchases,
             modified: [],
             updatedAt: timestamp,
@@ -825,34 +827,34 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
         }
         if (selectedDate && selectedDate !== validFromDate) {
-          localStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
+          workspaceStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
             data: nextPurchases,
             modified: [],
             updatedAt: timestamp,
           }));
           markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
         }
-        localStorage.setItem('efi_compras_data', JSON.stringify({
+        workspaceStorage.setItem('efi_compras_data', JSON.stringify({
           data: nextPurchases,
           modified: [],
           updatedAt: timestamp,
         }));
         markKeyModifiedLocally('efi_compras_data');
-        localStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(cleanedSpecialRates));
-        localStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(cleanedSpecialRates));
+        workspaceStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(cleanedSpecialRates));
+        workspaceStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(cleanedSpecialRates));
         markKeyModifiedLocally('efi_special_rates_b50_f82_v4');
         if (validFromDate) {
-          localStorage.setItem('efi_compras_valid_from', validFromDate);
-          localStorage.setItem('efi_global_valid_from_date', validFromDate);
+          workspaceStorage.setItem('efi_compras_valid_from', validFromDate);
+          workspaceStorage.setItem('efi_global_valid_from_date', validFromDate);
         }
-        localStorage.setItem('efi_last_cierre_date', selectedDate);
-        localStorage.setItem('efi_last_cierre_timestamp', timestamp);
-        if (validFromDate) localStorage.setItem(`efi_purchases_bronco_${validFromDate}`, JSON.stringify(gasolinaBronco));
-        if (selectedDate && selectedDate !== validFromDate) localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
-        localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
+        workspaceStorage.setItem('efi_last_cierre_date', selectedDate);
+        workspaceStorage.setItem('efi_last_cierre_timestamp', timestamp);
+        if (validFromDate) workspaceStorage.setItem(`efi_purchases_bronco_${validFromDate}`, JSON.stringify(gasolinaBronco));
+        if (selectedDate && selectedDate !== validFromDate) workspaceStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
+        workspaceStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
         markKeyModifiedLocally('efi_compras_gasolina_bronco');
 
-        localStorage.setItem(`efi_cierre_completo_${selectedDate}`, JSON.stringify({
+        workspaceStorage.setItem(`efi_cierre_completo_${selectedDate}`, JSON.stringify({
           selectedDate,
           validFromDate,
           purchases: nextPurchases,
@@ -863,26 +865,26 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
         // Limpiar marcas amarillas de modificación en Postes manteniendo intactos todos los datos ingresados
         try {
-          const rawPostes = localStorage.getItem('efi_postes_data_v2');
+          const rawPostes = workspaceStorage.getItem('efi_postes_data_v2');
           if (rawPostes) {
             const parsedPostes = JSON.parse(rawPostes);
             parsedPostes.modified = [];
-            localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsedPostes));
+            workspaceStorage.setItem('efi_postes_data_v2', JSON.stringify(parsedPostes));
             markKeyModifiedLocally('efi_postes_data_v2');
           }
-          const rawPostesDate = localStorage.getItem(`efi_postes_data_${selectedDate}`);
+          const rawPostesDate = workspaceStorage.getItem(`efi_postes_data_${selectedDate}`);
           if (rawPostesDate) {
             const parsedPostesDate = JSON.parse(rawPostesDate);
             parsedPostesDate.modified = [];
-            localStorage.setItem(`efi_postes_data_${selectedDate}`, JSON.stringify(parsedPostesDate));
+            workspaceStorage.setItem(`efi_postes_data_${selectedDate}`, JSON.stringify(parsedPostesDate));
             markKeyModifiedLocally(`efi_postes_data_${selectedDate}`);
           }
           if (validFromDate && validFromDate !== selectedDate) {
-            const rawPostesValid = localStorage.getItem(`efi_postes_data_${validFromDate}`);
+            const rawPostesValid = workspaceStorage.getItem(`efi_postes_data_${validFromDate}`);
             if (rawPostesValid) {
               const parsedPostesValid = JSON.parse(rawPostesValid);
               parsedPostesValid.modified = [];
-              localStorage.setItem(`efi_postes_data_${validFromDate}`, JSON.stringify(parsedPostesValid));
+              workspaceStorage.setItem(`efi_postes_data_${validFromDate}`, JSON.stringify(parsedPostesValid));
               markKeyModifiedLocally(`efi_postes_data_${validFromDate}`);
             }
           }
@@ -897,7 +899,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         window.dispatchEvent(new Event('efi_cierre_dia'));
         window.dispatchEvent(new Event('storage'));
       } catch (e) {
-        console.error('Error al guardar cierre en localStorage:', e);
+        console.error('Error al guardar cierre en workspaceStorage:', e);
       }
 
     setModifiedKeys(new Set());
@@ -2046,8 +2048,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       {/* Toast de Notificaciones */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-5">
-          <Check className="h-5 w-5" />
+        <div role={toastMessage.startsWith('No se pudo') ? 'alert' : 'status'} className={`fixed bottom-6 right-6 z-50 font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-5 ${toastMessage.startsWith('No se pudo') ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'}`}>
+          {toastMessage.startsWith('No se pudo') ? <AlertCircle className="h-5 w-5" /> : <Check className="h-5 w-5" />}
           <span>{toastMessage}</span>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { workspaceStorage } from '@/lib/workspaceStorage';
 import { getLatestPurchasePayload } from "./purchaseState";
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from "./dataSeed";
 import { getAllStations, getStationExcelCosts } from "./stationsService";
@@ -136,7 +137,7 @@ export function getProgramVariables(
     specialRates = liveSpecialRates;
   } else {
     try {
-      const sp = localStorage.getItem("efi_special_rates_b50_f82_v4") || localStorage.getItem("efi_special_rates_b50_f82_v3");
+      const sp = workspaceStorage.getItem("efi_special_rates_b50_f82_v4") || workspaceStorage.getItem("efi_special_rates_b50_f82_v3");
       if (sp) specialRates = JSON.parse(sp);
     } catch (e) {}
   }
@@ -199,8 +200,8 @@ export function getProgramVariables(
     compra: "1.348",
   };
   try {
-    const bDate = localStorage.getItem("efi_purchases_bronco_" + selectedDate);
-    const bGlob = localStorage.getItem("efi_compras_gasolina_bronco");
+    const bDate = workspaceStorage.getItem("efi_purchases_bronco_" + selectedDate);
+    const bGlob = workspaceStorage.getItem("efi_compras_gasolina_bronco");
     if (bDate) broncoData = JSON.parse(bDate);
     else if (bGlob) broncoData = JSON.parse(bGlob);
   } catch (e) {}
@@ -213,14 +214,14 @@ export function getProgramVariables(
   // 3. POSTES
   let postesStorage: any = {};
   try {
-    const s = localStorage.getItem("efi_postes_data_v2");
+    const s = workspaceStorage.getItem("efi_postes_data_v2");
     if (s) postesStorage = JSON.parse(s);
   } catch (e) {}
 
   let postesFormulas: Record<string, CellFormula> = {};
   try {
-    const pfDate = localStorage.getItem(`efi_postes_custom_formulas_${selectedDate}`);
-    const pfGlob = localStorage.getItem('efi_postes_custom_formulas_global');
+    const pfDate = workspaceStorage.getItem(`efi_postes_custom_formulas_${selectedDate}`);
+    const pfGlob = workspaceStorage.getItem('efi_postes_custom_formulas_global');
     if (pfDate) postesFormulas = JSON.parse(pfDate) || {};
     else if (pfGlob) postesFormulas = JSON.parse(pfGlob) || {};
   } catch (e) {}
@@ -735,8 +736,8 @@ export function reevaluateAllSabanaFormulas(
 
 export function loadSabanaFormulas(selectedDate: string): Record<string, CellFormula> {
   try {
-    const sDate = localStorage.getItem("efi_sabana_custom_formulas_" + selectedDate);
-    const sGlob = localStorage.getItem("efi_sabana_custom_formulas_global");
+    const sDate = workspaceStorage.getItem("efi_sabana_custom_formulas_" + selectedDate);
+    const sGlob = workspaceStorage.getItem("efi_sabana_custom_formulas_global");
     if (sDate) {
       const parsed = JSON.parse(sDate);
       if (parsed && typeof parsed === "object") return parsed;
@@ -764,8 +765,8 @@ export function saveSabanaFormula(
   };
 
   try {
-    localStorage.setItem("efi_sabana_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    localStorage.setItem("efi_sabana_custom_formulas_global", JSON.stringify(updated));
+    workspaceStorage.setItem("efi_sabana_custom_formulas_" + selectedDate, JSON.stringify(updated));
+    workspaceStorage.setItem("efi_sabana_custom_formulas_global", JSON.stringify(updated));
     window.dispatchEvent(new Event("efi_sabana_updated"));
     window.dispatchEvent(new Event("storage"));
   } catch (e) {}
@@ -782,8 +783,8 @@ export function removeSabanaFormula(
   delete updated[cellKey];
 
   try {
-    localStorage.setItem("efi_sabana_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    localStorage.setItem("efi_sabana_custom_formulas_global", JSON.stringify(updated));
+    workspaceStorage.setItem("efi_sabana_custom_formulas_" + selectedDate, JSON.stringify(updated));
+    workspaceStorage.setItem("efi_sabana_custom_formulas_global", JSON.stringify(updated));
     window.dispatchEvent(new Event("efi_sabana_updated"));
     window.dispatchEvent(new Event("storage"));
   } catch (e) {}
@@ -793,8 +794,8 @@ export function removeSabanaFormula(
 
 export function clearAllSabanaFormulas(selectedDate: string): void {
   try {
-    localStorage.removeItem("efi_sabana_custom_formulas_" + selectedDate);
-    localStorage.removeItem("efi_sabana_custom_formulas_global");
+    workspaceStorage.removeItem("efi_sabana_custom_formulas_" + selectedDate);
+    workspaceStorage.removeItem("efi_sabana_custom_formulas_global");
     window.dispatchEvent(new Event("efi_sabana_updated"));
     window.dispatchEvent(new Event("storage"));
   } catch (e) {}
@@ -831,7 +832,7 @@ export function getSabanaTariff60ConIvaForStation(
     let activeDate = selectedDate || '';
     try {
       if (!activeDate) {
-        activeDate = localStorage.getItem('efi_compras_valid_from') || todayStr;
+        activeDate = workspaceStorage.getItem('efi_compras_valid_from') || todayStr;
       }
     } catch (e) {
       activeDate = todayStr;
@@ -903,7 +904,7 @@ export function getSabanaTariff60ConIvaForStation(
   // 2. Comprobar caché de Sábana de Precios (publicada por SabanaPreciosManager)
   const checkCache = (cacheKey: string): number | null => {
     try {
-      const raw = localStorage.getItem(cacheKey);
+      const raw = workspaceStorage.getItem(cacheKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') return null;
@@ -1034,7 +1035,7 @@ export function getSabanaTariff60ConIvaForStation(
   // 4. Margen modificado para la Tarifa 60 (por defecto 0.0800)
   let effectiveMarkup = 0.0800;
   try {
-    const savedMods = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+    const savedMods = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
     if (savedMods) {
       const parsedMods = JSON.parse(savedMods);
       if (parsedMods['60']?.markup !== undefined) effectiveMarkup = parsedMods['60'].markup;
@@ -1109,8 +1110,8 @@ export function getSabanaTariff60ConIvaForStation(
 
 export function loadPostesFormulas(selectedDate: string): Record<string, CellFormula> {
   try {
-    const sDate = localStorage.getItem("efi_postes_custom_formulas_" + selectedDate);
-    const sGlob = localStorage.getItem("efi_postes_custom_formulas_global");
+    const sDate = workspaceStorage.getItem("efi_postes_custom_formulas_" + selectedDate);
+    const sGlob = workspaceStorage.getItem("efi_postes_custom_formulas_global");
     if (sDate) {
       const parsed = JSON.parse(sDate);
       if (parsed && typeof parsed === "object") return parsed;
@@ -1138,8 +1139,8 @@ export function savePostesFormula(
   };
 
   try {
-    localStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    localStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
+    workspaceStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
+    workspaceStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
     window.dispatchEvent(new Event("efi_postes_updated"));
     window.dispatchEvent(new Event("storage"));
   } catch (e) {}
@@ -1156,8 +1157,8 @@ export function removePostesFormula(
   delete updated[cellKey];
 
   try {
-    localStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    localStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
+    workspaceStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
+    workspaceStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
     window.dispatchEvent(new Event("efi_postes_updated"));
     window.dispatchEvent(new Event("storage"));
   } catch (e) {}
@@ -1167,8 +1168,8 @@ export function removePostesFormula(
 
 export function clearAllPostesFormulas(selectedDate: string): void {
   try {
-    localStorage.removeItem("efi_postes_custom_formulas_" + selectedDate);
-    localStorage.removeItem("efi_postes_custom_formulas_global");
+    workspaceStorage.removeItem("efi_postes_custom_formulas_" + selectedDate);
+    workspaceStorage.removeItem("efi_postes_custom_formulas_global");
     window.dispatchEvent(new Event("efi_postes_updated"));
     window.dispatchEvent(new Event("storage"));
   } catch (e) {}

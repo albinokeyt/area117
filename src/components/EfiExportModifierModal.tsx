@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   X, Plus, Sliders, Check, RotateCcw, Trash2, ArrowRight,
@@ -286,9 +288,9 @@ export function EfiExportModifierModal({
   const sabanaTariffsData = useMemo(() => {
     if (typeof window === 'undefined') return { cStd: [], cSpec: [], modConfig: {} };
     try {
-      const cStdRaw = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
-      const cSpecRaw = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
-      const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      const cStdRaw = workspaceStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      const cSpecRaw = workspaceStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const modRaw = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
       const cStd: SabanaTariffDef[] = cStdRaw ? JSON.parse(cStdRaw) : [];
       const cSpec: SabanaTariffDef[] = cSpecRaw ? JSON.parse(cSpecRaw) : [];
       const modConfig: Record<string, any> = modRaw ? JSON.parse(modRaw) : {};
@@ -679,7 +681,7 @@ export function EfiExportModifierModal({
 
     if (type === 'COMPRAS_BRONCO') {
       try {
-        const b = localStorage.getItem('efi_compras_gasolina_bronco') || localStorage.getItem('efi_purchases_bronco_' + selectedDate);
+        const b = workspaceStorage.getItem('efi_compras_gasolina_bronco') || workspaceStorage.getItem('efi_purchases_bronco_' + selectedDate);
         if (b) {
           const parsed = JSON.parse(b);
           const p = parseFloat(String(parsed.conIva || '').replace(',', '.'));

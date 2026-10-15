@@ -22,6 +22,12 @@ Este acceso tiene todos los permisos de administrador y es independiente de los 
 
 La base PostgreSQL debe estar operativa, igual que para el resto del sistema. No guardes las credenciales reales en el repositorio.
 
+## Guardado y copia de trabajo
+
+PostgreSQL es la fuente persistente de precios, fórmulas, cierres y configuración. Al iniciar sesión se descarga el estado del servidor antes de abrir los editores. Compras, Postes, Sábana, PDFs y EFI comparten una copia de trabajo en memoria que se sincroniza con `/api/sync`; no se duplica el histórico en `localStorage` ni se depende de su cuota. El botón Guardar solo confirma éxito después de recibir la confirmación de PostgreSQL.
+
+Mientras una escritura siga pendiente, la aplicación avisa antes de abandonar la página. Si falla la conexión, conserva los cambios en la pestaña y reintenta: no cierres ni recargues hasta completar el guardado. Al actualizar desde v1.5.2, anota cualquier edición todavía pendiente antes de recargar; las ediciones que fallaron por cuota pueden existir únicamente en la pestaña anterior.
+
 ## 📋 Módulos del Sistema
 
 1. **📊 Vista Ejecutiva (Dashboard):**

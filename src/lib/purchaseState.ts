@@ -1,14 +1,15 @@
+import { workspaceStorage } from '@/lib/workspaceStorage';
 // One selector for the editor, formulas and exports, including legacy dated copies.
 export function getLatestPurchasePayload(selectedDate?: string): any | null {
   if (typeof window === 'undefined') return null;
-  const validFrom = localStorage.getItem('efi_compras_valid_from');
+  const validFrom = workspaceStorage.getItem('efi_compras_valid_from');
   const keys = ['efi_compras_data', validFrom && `efi_purchases_${validFrom}`,
     selectedDate && `efi_purchases_${selectedDate}`].filter(Boolean) as string[];
   let latest: any = null;
   let timestamp = -1;
   for (const key of keys) {
     try {
-      const payload = JSON.parse(localStorage.getItem(key) || 'null');
+      const payload = JSON.parse(workspaceStorage.getItem(key) || 'null');
       if (!payload?.data || typeof payload.data !== 'object') continue;
       const time = Date.parse(payload.updatedAt) || 0;
       if (time > timestamp) {
@@ -19,7 +20,7 @@ export function getLatestPurchasePayload(selectedDate?: string): any | null {
   }
   if (!latest) return null;
   let costs: Record<string, any> = {};
-  try { costs = JSON.parse(localStorage.getItem('efi_stations_catalog_v1') || '{}').costs || {}; } catch {}
+  try { costs = JSON.parse(workspaceStorage.getItem('efi_stations_catalog_v1') || '{}').costs || {}; } catch {}
   const data = Object.fromEntries(Object.entries(latest.data).filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value)).map(([key, value]) => {
     const row = value as Record<string, any>;
     const cost = costs[key.replace(/_(GOA|GASOLINA|ADBLUE)$/, '')] || {};

@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { jsonValuesEqual } from '@/lib/jsonEquality';
 import {
@@ -185,7 +187,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const [comprasPurchases, setComprasPurchases] = useState<Record<string, { sale: string }>>({});
   const [specialRates, setSpecialRates] = useState<any[]>(() => {
     try {
-      const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
+      const sp = workspaceStorage.getItem('efi_special_rates_b50_f82_v4') || workspaceStorage.getItem('efi_special_rates_b50_f82_v3');
       if (sp) {
         const parsed = JSON.parse(sp);
         if (Array.isArray(parsed)) return parsed;
@@ -207,7 +209,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     return reevaluateAllSabanaFormulas(customFormulas, selectedDate, comprasPurchases, specialRates);
   }, [customFormulas, selectedDate, comprasPurchases, specialRates, postesFormulaRevision]);
 
-  // Sincronizar fórmulas recalculadas a localStorage si cambiaron por variaciones en Compras
+  // Sincronizar fórmulas recalculadas a workspaceStorage si cambiaron por variaciones en Compras
   useEffect(() => {
     let hasDiff = false;
     for (const [key, item] of Object.entries(resolvedFormulas)) {
@@ -218,8 +220,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     }
     if (hasDiff) {
       try {
-        localStorage.setItem(`efi_sabana_custom_formulas_${selectedDate}`, JSON.stringify(resolvedFormulas));
-        localStorage.setItem('efi_sabana_custom_formulas_global', JSON.stringify(resolvedFormulas));
+        workspaceStorage.setItem(`efi_sabana_custom_formulas_${selectedDate}`, JSON.stringify(resolvedFormulas));
+        workspaceStorage.setItem('efi_sabana_custom_formulas_global', JSON.stringify(resolvedFormulas));
       } catch (e) {}
     }
   }, [resolvedFormulas, selectedDate, customFormulas]);
@@ -236,7 +238,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   // Estados para Tarifas Personalizadas y Orígenes de Datos
   const [customStandardTariffs, setCustomStandardTariffs] = useState<SabanaTariffDef[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      const saved = workspaceStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return [];
@@ -244,7 +246,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const [customSpecialTariffs, setCustomSpecialTariffs] = useState<SabanaTariffDef[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const saved = workspaceStorage.getItem('efi_sabana_custom_special_tariffs_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -259,7 +261,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const [customBlockTariffs, setCustomBlockTariffs] = useState<SabanaTariffDef[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_sabana_custom_block_tariffs_v1');
+      const saved = workspaceStorage.getItem('efi_sabana_custom_block_tariffs_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return [];
@@ -267,7 +269,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const [tariffSourcesMapping, setTariffSourcesMapping] = useState<Record<string, SabanaSourceConfig>>(() => {
     try {
-      const saved = localStorage.getItem('efi_sabana_tariff_source_mapping_v1');
+      const saved = workspaceStorage.getItem('efi_sabana_tariff_source_mapping_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return {};
@@ -275,7 +277,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const [modifiedTariffsConfig, setModifiedTariffsConfig] = useState<Record<string, Partial<SabanaTariffDef>>>(() => {
     try {
-      const saved = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      const saved = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return {};
@@ -283,7 +285,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const [postesData, setPostesData] = useState<any>(() => {
     try {
-      const saved = localStorage.getItem('efi_postes_data_v2');
+      const saved = workspaceStorage.getItem('efi_postes_data_v2');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return null;
@@ -291,7 +293,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const [deletedTariffIds, setDeletedTariffIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('efi_sabana_deleted_tariffs_v1');
+      const saved = workspaceStorage.getItem('efi_sabana_deleted_tariffs_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return [];
@@ -437,7 +439,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const nextDeleted = deletedTariffIds.filter((id) => id !== tariff.id);
       setDeletedTariffIds(nextDeleted);
       try {
-        localStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
+        workspaceStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
       } catch (e) {}
     }
 
@@ -445,19 +447,19 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       const nextList = [...customStandardTariffs.filter((t) => t.id !== tariff.id), tariff];
       setCustomStandardTariffs(nextList);
       try {
-        localStorage.setItem('efi_sabana_custom_standard_tariffs_v1', JSON.stringify(nextList));
+        workspaceStorage.setItem('efi_sabana_custom_standard_tariffs_v1', JSON.stringify(nextList));
       } catch (e) {}
     } else if (tariff.blockType === 'custom_block') {
       const nextList = [...customBlockTariffs.filter((t) => t.id !== tariff.id), tariff];
       setCustomBlockTariffs(nextList);
       try {
-        localStorage.setItem('efi_sabana_custom_block_tariffs_v1', JSON.stringify(nextList));
+        workspaceStorage.setItem('efi_sabana_custom_block_tariffs_v1', JSON.stringify(nextList));
       } catch (e) {}
     } else {
       const nextList = [...customSpecialTariffs.filter((t) => t.id !== tariff.id), tariff];
       setCustomSpecialTariffs(nextList);
       try {
-        localStorage.setItem('efi_sabana_custom_special_tariffs_v1', JSON.stringify(nextList));
+        workspaceStorage.setItem('efi_sabana_custom_special_tariffs_v1', JSON.stringify(nextList));
       } catch (e) {}
     }
 
@@ -468,7 +470,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       };
       setTariffSourcesMapping(updatedMapping);
       try {
-        localStorage.setItem('efi_sabana_tariff_source_mapping_v1', JSON.stringify(updatedMapping));
+        workspaceStorage.setItem('efi_sabana_tariff_source_mapping_v1', JSON.stringify(updatedMapping));
       } catch (e) {}
     }
 
@@ -500,7 +502,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
     setModifiedTariffsConfig(updated);
     try {
-      localStorage.setItem('efi_sabana_modified_tariffs_config_v1', JSON.stringify(updated));
+      workspaceStorage.setItem('efi_sabana_modified_tariffs_config_v1', JSON.stringify(updated));
     } catch (e) {}
 
     window.dispatchEvent(new Event('efi_sabana_updated'));
@@ -520,10 +522,10 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     setDeletedTariffIds(nextDeleted);
 
     try {
-      localStorage.setItem('efi_sabana_custom_standard_tariffs_v1', JSON.stringify(nextStd));
-      localStorage.setItem('efi_sabana_custom_special_tariffs_v1', JSON.stringify(nextSpec));
-      localStorage.setItem('efi_sabana_custom_block_tariffs_v1', JSON.stringify(nextBlock));
-      localStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
+      workspaceStorage.setItem('efi_sabana_custom_standard_tariffs_v1', JSON.stringify(nextStd));
+      workspaceStorage.setItem('efi_sabana_custom_special_tariffs_v1', JSON.stringify(nextSpec));
+      workspaceStorage.setItem('efi_sabana_custom_block_tariffs_v1', JSON.stringify(nextBlock));
+      workspaceStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
     } catch (e) {}
 
     window.dispatchEvent(new Event('efi_sabana_updated'));
@@ -535,7 +537,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     const nextDeleted = deletedTariffIds.filter((id) => id !== tariffId);
     setDeletedTariffIds(nextDeleted);
     try {
-      localStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
+      workspaceStorage.setItem('efi_sabana_deleted_tariffs_v1', JSON.stringify(nextDeleted));
     } catch (e) {}
 
     window.dispatchEvent(new Event('efi_sabana_updated'));
@@ -546,7 +548,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const handleSaveSourceMapping = (mapping: Record<string, SabanaSourceConfig>) => {
     setTariffSourcesMapping(mapping);
     try {
-      localStorage.setItem('efi_sabana_tariff_source_mapping_v1', JSON.stringify(mapping));
+      workspaceStorage.setItem('efi_sabana_tariff_source_mapping_v1', JSON.stringify(mapping));
     } catch (e) {}
 
     window.dispatchEvent(new Event('efi_sabana_updated'));
@@ -565,7 +567,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const loadSpecialRates = () => {
     try {
-      const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
+      const sp = workspaceStorage.getItem('efi_special_rates_b50_f82_v4') || workspaceStorage.getItem('efi_special_rates_b50_f82_v3');
       if (sp) {
         const parsed = JSON.parse(sp);
         if (Array.isArray(parsed)) setSpecialRates(parsed);
@@ -575,7 +577,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   const loadPostesData = () => {
     try {
-      const saved = localStorage.getItem('efi_postes_data_v2');
+      const saved = workspaceStorage.getItem('efi_postes_data_v2');
       if (saved) setPostesData(JSON.parse(saved));
     } catch (e) {}
   };
@@ -583,15 +585,15 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const loadFormulas = () => {
     setCustomFormulas(loadSabanaFormulas(selectedDate));
     try {
-      const savedStd = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      const savedStd = workspaceStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
       if (savedStd) setCustomStandardTariffs(JSON.parse(savedStd));
-      const savedSpec = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const savedSpec = workspaceStorage.getItem('efi_sabana_custom_special_tariffs_v1');
       if (savedSpec) setCustomSpecialTariffs(JSON.parse(savedSpec));
-      const savedBlock = localStorage.getItem('efi_sabana_custom_block_tariffs_v1');
+      const savedBlock = workspaceStorage.getItem('efi_sabana_custom_block_tariffs_v1');
       if (savedBlock) setCustomBlockTariffs(JSON.parse(savedBlock));
-      const savedMap = localStorage.getItem('efi_sabana_tariff_source_mapping_v1');
+      const savedMap = workspaceStorage.getItem('efi_sabana_tariff_source_mapping_v1');
       if (savedMap) setTariffSourcesMapping(JSON.parse(savedMap));
-      const savedMods = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      const savedMods = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
       if (savedMods) setModifiedTariffsConfig(JSON.parse(savedMods));
     } catch (e) {}
   };
@@ -945,7 +947,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const cacheSnapshot = () => ['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => JSON.parse(localStorage.getItem(k) || 'null'));
+      const cacheSnapshot = () => ['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => JSON.parse(workspaceStorage.getItem(k) || 'null'));
       const before = cacheSnapshot();
       const cache: Record<string, number> = {};
       const fullCache: Record<string, { sinIva: number; conIva: number }> = {};
@@ -1011,9 +1013,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         });
       });
 
-      localStorage.setItem('efi_sabana_custom_special_table_cache_v1', JSON.stringify(cache));
-      localStorage.setItem(`efi_sabana_custom_special_table_cache_${selectedDate}`, JSON.stringify(cache));
-      localStorage.setItem('efi_sabana_custom_special_table_full_v1', JSON.stringify(fullCache));
+      workspaceStorage.setItem('efi_sabana_custom_special_table_cache_v1', JSON.stringify(cache));
+      workspaceStorage.setItem(`efi_sabana_custom_special_table_cache_${selectedDate}`, JSON.stringify(cache));
+      workspaceStorage.setItem('efi_sabana_custom_special_table_full_v1', JSON.stringify(fullCache));
 
       // Publicar también Tarifas Estándar (incluyendo Tarifa 60 con IVA para la ventana POSTES)
       const stdCache: Record<string, number> = {};
@@ -1102,10 +1104,10 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         });
       });
 
-      localStorage.setItem('efi_sabana_standard_table_cache_v1', JSON.stringify(stdCache));
-      localStorage.setItem(`efi_sabana_standard_table_cache_${selectedDate}`, JSON.stringify(stdCache));
-      localStorage.setItem('efi_sabana_standard_table_full_v1', JSON.stringify(stdFullCache));
-      localStorage.setItem(`efi_sabana_standard_table_full_${selectedDate}`, JSON.stringify(stdFullCache));
+      workspaceStorage.setItem('efi_sabana_standard_table_cache_v1', JSON.stringify(stdCache));
+      workspaceStorage.setItem(`efi_sabana_standard_table_cache_${selectedDate}`, JSON.stringify(stdCache));
+      workspaceStorage.setItem('efi_sabana_standard_table_full_v1', JSON.stringify(stdFullCache));
+      workspaceStorage.setItem(`efi_sabana_standard_table_full_${selectedDate}`, JSON.stringify(stdFullCache));
 
       const after = cacheSnapshot();
       if (!jsonValuesEqual(before, after)) window.dispatchEvent(new Event('efi_export_updated'));
@@ -1852,7 +1854,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const buildStandardSheet = () => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -1902,7 +1904,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const buildSpecialBlockSheet = (block: SpecialTariffGroupDef) => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -2056,7 +2058,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const handleExportStandardXlsx = () => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -2074,7 +2076,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const handleExportSpecialBlockXlsx = (block: SpecialTariffGroupDef) => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -2094,7 +2096,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const handleExportFullSabanaXlsx = () => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -2143,7 +2145,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const buildCustomSpecialTariffsSheet = () => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -2193,7 +2195,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const handleExportCustomSpecialTariffsXlsx = () => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -2211,7 +2213,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const buildCustomBlockSheet = (group: { id: string; name: string; tariffs: SabanaTariffDef[] }) => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }
@@ -2261,7 +2263,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   const handleExportCustomBlockXlsx = (group: { id: string; name: string; tariffs: SabanaTariffDef[] }) => {
     const validDate = (() => {
       try {
-        return localStorage.getItem('efi_compras_valid_from') || selectedDate;
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
       } catch (e) {
         return selectedDate;
       }

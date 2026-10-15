@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import React, { useState, useEffect } from 'react';
 import { useAuth, User } from '@/context/AuthContext';
 import {
@@ -51,7 +53,7 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const v = localStorage.getItem('efi_last_server_version') || '1';
+      const v = workspaceStorage.getItem('efi_last_server_version') || '1';
       setServerVersion(v);
 
       checkServerVersion()

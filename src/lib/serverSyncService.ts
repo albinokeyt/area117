@@ -1,3 +1,4 @@
+import { workspaceStorage } from '@/lib/workspaceStorage';
 import { storedValuesEqual } from './jsonEquality';
 
 /**
@@ -19,11 +20,11 @@ export function collectAllLocalState(): Record<string, any> {
   const state: Record<string, any> = {};
 
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < workspaceStorage.length; i++) {
+      const key = workspaceStorage.key(i);
       if (key && isBusinessKey(key)) {
         try {
-          const raw = localStorage.getItem(key);
+          const raw = workspaceStorage.getItem(key);
           if (raw !== null) {
             // Intentar parsear JSON para guardar objetos limpios en el servidor
             try {
@@ -112,12 +113,12 @@ export function hasUnsyncedChanges(): boolean {
 function setLocalServerVersion(version: number, updatedAt?: string) {
   if (version >= confirmedVersion) {
     confirmedVersion = version;
-    localStorage.setItem('efi_last_server_version', version.toString());
-    if (updatedAt) localStorage.setItem('efi_last_server_sync_time', updatedAt);
+    workspaceStorage.setItem('efi_last_server_version', version.toString());
+    if (updatedAt) workspaceStorage.setItem('efi_last_server_sync_time', updatedAt);
   }
 }
 
-// Aplica el estado recibido del servidor en el localStorage del cliente
+// Aplica el estado recibido del servidor en el workspaceStorage del cliente
 export function applyServerStateToLocal(serverData: Record<string, any>): number {
   if (typeof window === 'undefined' || !serverData) return 0;
   let count = 0;
@@ -127,7 +128,7 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
   try {
     for (const key of Object.keys(collectAllLocalState())) {
       if (!(key in serverData) && !pendingKeysToSync.has(key) && !inFlightKeys.has(key)) {
-        localStorage.removeItem(key);
+        workspaceStorage.removeItem(key);
         changedKeys.push(key);
       }
     }
@@ -136,8 +137,8 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
       try {
         if (pendingKeysToSync.has(key) || inFlightKeys.has(key)) return;
         const strVal = typeof val === 'string' ? val : JSON.stringify(val);
-        if (storedValuesEqual(localStorage.getItem(key), strVal)) return;
-        localStorage.setItem(key, strVal);
+        if (storedValuesEqual(workspaceStorage.getItem(key), strVal)) return;
+        workspaceStorage.setItem(key, strVal);
         changedKeys.push(key);
         count++;
       } catch (e) {}
@@ -184,24 +185,11 @@ export function initClientAutoSync(getUserName?: () => string) {
     window.addEventListener('keydown', recordUserActivity, { passive: true });
     window.addEventListener('pointerdown', recordUserActivity, { passive: true });
 
-    // Storage instance properties are named storage entries in real browsers.
-    // Wrap the prototype methods and preserve their native receiver instead.
-    const originalSetItem = Storage.prototype.setItem;
-    const originalRemoveItem = Storage.prototype.removeItem;
-    Storage.prototype.setItem = function (key: string, value: string) {
-      const changed = !storedValuesEqual(this.getItem(key), String(value));
-      originalSetItem.call(this, key, value);
-      if (this === window.localStorage && changed && !isApplyingFromServer && isBusinessKey(key)) {
+    workspaceStorage.subscribe((key, before, after) => {
+      if (!storedValuesEqual(before, after) && !isApplyingFromServer && isBusinessKey(key)) {
         markKeyModifiedLocally(key);
       }
-    };
-    Storage.prototype.removeItem = function (key: string) {
-      const existed = this.getItem(key) !== null;
-      originalRemoveItem.call(this, key);
-      if (this === window.localStorage && existed && !isApplyingFromServer && isBusinessKey(key)) {
-        markKeyModifiedLocally(key);
-      }
-    };
+    });
     window.addEventListener('beforeunload', event => {
       if (hasUnsyncedChanges()) {
         event.preventDefault();
@@ -210,7 +198,7 @@ export function initClientAutoSync(getUserName?: () => string) {
     });
 
   } catch (e) {
-    console.warn('[SyncService] No se pudo enganchar autoSync en localStorage:', e);
+    console.warn('[SyncService] No se pudo enganchar autoSync en workspaceStorage:', e);
   }
 }
 
@@ -235,7 +223,7 @@ export async function pushIncrementalStateToServer(keys: string[], userName?: st
   try {
     const data: Record<string, any> = {};
     keys.forEach((key) => {
-      const raw = localStorage.getItem(key);
+      const raw = workspaceStorage.getItem(key);
       if (raw !== null) {
         try {
           data[key] = JSON.parse(raw);
@@ -345,7 +333,7 @@ export async function checkServerVersion(): Promise<{
 
     const json = await res.json();
     const serverVer = typeof json.version === 'number' ? json.version : 0;
-    const localVerStr = typeof window !== 'undefined' ? localStorage.getItem('efi_last_server_version') : '0';
+    const localVerStr = typeof window !== 'undefined' ? workspaceStorage.getItem('efi_last_server_version') : '0';
     const localVer = parseInt(localVerStr || '0', 10);
 
     const needsUpdate = serverVer > localVer;
