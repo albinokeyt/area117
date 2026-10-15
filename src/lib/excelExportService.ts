@@ -1,3 +1,4 @@
+import { collectAllLocalState } from "./serverSyncService";
 import * as XLSX from 'xlsx';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from './dataSeed';
 import {
@@ -13,6 +14,7 @@ import {
   findPurchaseItem,
   getPurchaseItemSalePrice,
   getFreshestPurchasesData,
+  getProgramVariables,
 } from './sabanaFormulaEngine';
 
 export interface PurchaseRowValues {
@@ -102,7 +104,7 @@ export interface GasolinaBroncoRow {
   fecha: string;
 }
 
-export function generateAndDownloadCierreWorkbook(
+export function buildCierreWorkbook(
   selectedDate: string,
   validFromDate: string,
   purchases: Record<string, PurchaseRowValues>,
@@ -177,7 +179,7 @@ export function generateAndDownloadCierreWorkbook(
         const paseNum = parseNum(item.pase);
         const finNum = parseNum(item.fin);
         const totalCost = round3(currNum + porteNum + paseNum + finNum);
-        const effectiveSale = item.isCustomSale && item.sale ? parseNum(item.sale) : totalCost;
+        const effectiveSale = item.sale !== undefined && item.sale !== '' ? parseNum(item.sale) : totalCost;
         const prevSale = item.prevSale ? parseNum(item.prevSale) : effectiveSale;
         const margin = round3(effectiveSale - totalCost);
         const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
@@ -201,14 +203,14 @@ export function generateAndDownloadCierreWorkbook(
     });
   };
 
-  appendStationPurchases(PROPIAS_STATIONS, '1. ESTACIONES PROPIAS');
+  appendStationPurchases(getPropiasStations(), '1. ESTACIONES PROPIAS');
 
   const fixedCollaborators = FIXED_COLLABORATOR_NAMES
-    .map(name => COLABORADORA_STATIONS.find(st => st.name.toUpperCase() === name.toUpperCase() || st.name.toUpperCase().includes(name.toUpperCase())))
+    .map(name => getColaboradoraStations().find(st => st.name.toUpperCase() === name.toUpperCase() || st.name.toUpperCase().includes(name.toUpperCase())))
     .filter(Boolean) as typeof COLABORADORA_STATIONS;
   appendStationPurchases(fixedCollaborators, '2. ESTACIONES COLABORADORAS FIJAS');
 
-  const remainingCollaborators = COLABORADORA_STATIONS.filter(
+  const remainingCollaborators = getColaboradoraStations().filter(
     st => !FIXED_COLLABORATOR_NAMES.some(fname => st.name.toUpperCase().includes(fname.toUpperCase()))
   );
   appendStationPurchases(remainingCollaborators, '3. ESTACIONES COLABORADORAS RESTANTES');
@@ -273,107 +275,13 @@ export function generateAndDownloadCierreWorkbook(
   const wsSabana = XLSX.utils.aoa_to_sheet(sabanaRows);
   XLSX.utils.book_append_sheet(wb, wsSabana, 'SABANA DE PRECIOS');
 
-  // 3. HOJA: POSTES
-  const postesRows: any[][] = [];
-  postesRows.push(['POSTES DE COMBUSTIBLE - AREA 117']);
-  postesRows.push(['Fecha Emision:', selectedDate, 'Valido A Partir De:', validFromDate]);
-  postesRows.push([]);
-
-  let postesData: any = null;
-  if (typeof window !== 'undefined') {
-    try {
-      const s = localStorage.getItem('efi_postes_data_v2');
-      if (s) postesData = JSON.parse(s);
-    } catch (e) {}
-  }
-
-  postesRows.push(['1. POSTES ESTACIONES PROPIAS']);
-  postesRows.push([
-    'ESTACION',
-    'PRECIO COMPRA GOA (EUR)',
-    'COSTO TOTAL GOA (EUR)',
-    'POSTE GOA (EUR)',
-    'MARGEN GOA (EUR)',
-    'PRECIO COMPRA GASOLINA (EUR)',
-    'COSTO TOTAL GASOLINA (EUR)',
-    'POSTE GASOLINA (EUR)',
-    'MARGEN GASOLINA (EUR)',
-  ]);
-
-  const POSTES_PROPIAS_DEF = [
-    { name: 'ARCOS', defaultGoa: 1.779, defaultGasolina: 0, gain: 0, hasGas: false },
-    { name: 'ALCUBILLAS', defaultGoa: 1.799, defaultGasolina: 1.799, gain: 0.271, hasGas: true },
-    { name: 'ALFAJARIN', defaultGoa: 1.799, defaultGasolina: 1.799, gain: 0.271, hasGas: true },
-    { name: 'TORREMOCHA', defaultGoa: 1.799, defaultGasolina: 1.799, gain: 0.272, hasGas: true },
-    { name: 'UCLES', defaultGoa: 1.799, defaultGasolina: 1.799, gain: 0.284, hasGas: true },
-    { name: 'VALLECAS', defaultGoa: 1.699, defaultGasolina: 1.739, gain: 0.212, hasGas: true },
-    { name: 'GANESHA MADRID', defaultGoa: 1.749, defaultGasolina: 1.739, gain: 0.212, hasGas: true },
-    { name: 'GANESHA TORREJON', defaultGoa: 1.749, defaultGasolina: 1.739, gain: 0.212, hasGas: true },
-    { name: 'VALDEMORO', defaultGoa: 1.649, defaultGasolina: 1.649, gain: 0.122, hasGas: true },
-    { name: 'BENAMEJI', defaultGoa: 1.839, defaultGasolina: 1.799, gain: 0.274, hasGas: true },
-    { name: 'HUMILLADERO', defaultGoa: 1.839, defaultGasolina: 1.799, gain: 0.274, hasGas: true },
-    { name: 'ES RIBA-ROJA', defaultGoa: 1.659, defaultGasolina: 1.689, gain: 0.340, hasGas: true },
-    { name: 'ES PISTA DE SILLA', defaultGoa: 1.659, defaultGasolina: 1.689, gain: 0.340, hasGas: true },
-    { name: 'ES REAL DE GANDIA', defaultGoa: 1.680, defaultGasolina: 1.689, gain: 0.340, hasGas: true },
-  ];
-
-  POSTES_PROPIAS_DEF.forEach((pDef) => {
-    const pSaved = postesData?.postes?.[pDef.name];
-    const posteGoa = pSaved?.goa ? parseNum(pSaved.goa) : pDef.defaultGoa;
-    const posteGas = pDef.hasGas ? (pSaved?.gasolina ? parseNum(pSaved.gasolina) : pDef.defaultGasolina) : 0;
-    const marginGas = pDef.hasGas ? (pSaved?.gasolinaGain ? parseNum(pSaved.gasolinaGain) : pDef.gain) : 0;
-
-    const goaItem = purchases[`${pDef.name}_GOA`] || purchases[`TORREJON_GOA`];
-    const gasItem = purchases[`${pDef.name}_GASOLINA`] || purchases[`TORREJON_GASOLINA`];
-
-    const pCompraGoa = goaItem ? parseNum(goaItem.curr) : 1.200;
-    const cTotalGoa = goaItem ? round3(parseNum(goaItem.curr) + parseNum(goaItem.porte) + parseNum(goaItem.pase) + parseNum(goaItem.fin)) : 1.220;
-    const tarifa60ConIva = round3((cTotalGoa + 0.080) * 1.21);
-    const margenGoa = round3(tarifa60ConIva - posteGoa);
-
-    const pCompraGas = gasItem ? parseNum(gasItem.curr) : 1.320;
-    const cTotalGas = gasItem ? round3(parseNum(gasItem.curr) + parseNum(gasItem.porte) + parseNum(gasItem.pase) + parseNum(gasItem.fin)) : 1.340;
-
-    postesRows.push([
-      pDef.name,
-      pCompraGoa,
-      cTotalGoa,
-      posteGoa,
-      margenGoa,
-      pDef.hasGas ? pCompraGas : '-',
-      pDef.hasGas ? cTotalGas : '-',
-      pDef.hasGas ? posteGas : '-',
-      pDef.hasGas ? marginGas : '-',
-    ]);
+  // All current Postes boxes, including HVO, gases, AdBlue and formula values.
+  const variables = getProgramVariables(selectedDate, purchases, specialRates);
+  const postesRows: any[][] = [['GRUPO', 'ESTACION', 'CAMPO', 'VALOR', 'VARIABLE']];
+  variables.list.filter(variable => variable.windowId === 'postes').forEach(variable => {
+    postesRows.push([variable.groupName, variable.stationName || '', variable.fieldLabel, variable.currentValue, variable.token]);
   });
-
-  postesRows.push([]);
-  postesRows.push(['2. GASOLEO B (ESPECIFICO POSTES)']);
-  postesRows.push(['ESTACION', 'PRECIO COMPRA SIN IVA (EUR)', 'PRECIO TRANSFRIRED (EUR)', 'TRANSFRIRED CON IVA (EUR)', 'PRECIO POSTE GASOLEO B (EUR)']);
-
-  const gasoleoBList = [
-    { name: 'UCLES', defaultCompra: 1.0045 },
-    { name: 'TORREMOCHA', defaultCompra: 1.0045 },
-    { name: 'ARCOS', defaultCompra: 1.0045 },
-  ];
-
-  gasoleoBList.forEach((gb) => {
-    const savedGb = postesData?.gasoleoBRows?.[gb.name];
-    const compra = savedGb?.compra ? parseNum(savedGb.compra) : gb.defaultCompra;
-    const transfer = savedGb?.transfer && savedGb.transfer.trim() !== '' ? parseNum(savedGb.transfer) : round3(compra + 0.017);
-    const transConIva = round3(transfer * 1.21);
-    const posteGb = savedGb?.poste && savedGb.poste.trim() !== '' ? parseNum(savedGb.poste) : round3((compra + 0.035) * 1.21);
-    postesRows.push([gb.name, compra, transfer, transConIva, posteGb]);
-  });
-
-  postesRows.push([]);
-  postesRows.push(['3. POSTES HVO']);
-  postesRows.push(['PRODUCTO', 'UBICACION', 'PRECIO SIN IVA (EUR)', 'PRECIO CON IVA (EUR)']);
-  postesRows.push(['HVO 100', 'ALFAJARIN', 1.256, round3(1.256 * 1.21)]);
-  postesRows.push(['HVO 100', 'VALDEMORO', 1.326, round3(1.326 * 1.21)]);
-
-  const wsPostes = XLSX.utils.aoa_to_sheet(postesRows);
-  XLSX.utils.book_append_sheet(wb, wsPostes, 'POSTES');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(postesRows), 'POSTES');
 
   // 4. HOJA: TARIFAS ESPECIALES
   const specialRows: any[][] = [];
@@ -382,53 +290,14 @@ export function generateAndDownloadCierreWorkbook(
   specialRows.push([]);
   specialRows.push(['ESTACION', 'PRECIO REFERENCIA (EUR)', 'PRECIO ACTUAL / ESPECIAL (EUR)', 'PRECIO BASE / COSTE (EUR)']);
 
-  specialRates.forEach((row) => {
-    // 1) Precio actual/especial se copia siempre de p. venta sugerido de Gasoleo A
-    let act = parseNum(row.actualPrice);
-    if (!act || act === 0) {
-      const cleanTarget = row.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-      const matchedKey = Object.keys(purchases).find((k) => {
-        if (!k.endsWith('_GOA')) return false;
-        const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-      });
-      if (matchedKey && purchases[matchedKey]) {
-        const item = purchases[matchedKey];
-        const cTotal = round3(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin));
-        const cleanSt = row.name.toUpperCase().replace(/^ES\s+/, '').trim();
-        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[row.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanSt];
-        act = item.sale && parseNum(item.sale) > 0
-          ? parseNum(item.sale)
-          : (officialPrice !== undefined ? officialPrice : cTotal);
-      }
-      if (!act || act === 0) {
-        const cleanSt = row.name.toUpperCase().replace(/^ES\s+/, '').trim();
-        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[row.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanSt];
-        act = officialPrice !== undefined ? officialPrice : 1.320;
-      }
-    }
-
-    // 2) Precio base / coste se copia siempre de costo total de GOA / 1000 + 0.008
-    let base = parseNum(row.basePrice);
-    if (!base || base === 0) {
-      const cleanTarget = row.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-      const matchedKey = Object.keys(purchases).find((k) => {
-        if (!k.endsWith('_GOA')) return false;
-        const baseK = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').trim();
-        return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-      });
-      let cTotal = 1.230;
-      if (matchedKey && purchases[matchedKey]) {
-        const item = purchases[matchedKey];
-        cTotal = round3(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin));
-      } else if (STATION_EXCEL_COSTS[row.name]) {
-        const costs = STATION_EXCEL_COSTS[row.name];
-        cTotal = round3(costs.defaultCurr + costs.porte + costs.pase + costs.fin);
-      }
-      base = round3(cTotal > 50 ? (cTotal / 1000) + 0.008 : cTotal + 0.008);
-    }
-
-    const ref = row.refPrice ? parseNum(row.refPrice) : round3(act + 0.008);
+  specialRates.forEach(row => {
+    const item = findPurchaseItem(purchases, row.name, 'GOA');
+    const costs = getStationExcelCosts()[row.name];
+    const total = item ? parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin)
+      : (costs?.defaultCurr ?? 0) + (costs?.porte ?? 0) + (costs?.pase ?? 0) + (costs?.fin ?? 0);
+    const act = row.isCustomActual && row.actualPrice !== '' ? parseNum(row.actualPrice) : getPurchaseItemSalePrice(item, row.name, costs);
+    const ref = row.isCustomRef && row.refPrice !== '' ? parseNum(row.refPrice) : round3(act + 0.008);
+    const base = row.isCustomBase && row.basePrice !== '' ? parseNum(row.basePrice) : round3((total > 50 ? total / 1000 : total) + 0.008);
     specialRows.push([row.name, ref, act, base]);
   });
 
@@ -466,9 +335,29 @@ export function generateAndDownloadCierreWorkbook(
   const wsImport = XLSX.utils.aoa_to_sheet(importRows);
   XLSX.utils.book_append_sheet(wb, wsImport, 'IMPORTACION_EFI');
 
-  // Descarga del archivo .xlsx
-  const filename = `CIERRE_DIARIO_AREA117_${selectedDate}_VALIDO_${validFromDate}.xlsx`;
-  downloadWorkbookAsXlsx(wb, filename);
+  // Exact calculated values published by Sábana, including custom formulas/tariffs.
+  const liveSabana = [['TARIFA Y ESTACION', 'SIN IVA', 'CON IVA']];
+  for (const key of ['efi_sabana_standard_table_full_v1', 'efi_sabana_custom_special_table_full_v1']) {
+    const values = JSON.parse(localStorage.getItem(key) || '{}');
+    for (const [name, price] of Object.entries(values) as [string, any][]) liveSabana.push([name, price.sinIva, price.conIva]);
+  }
+  wb.Sheets['SABANA DE PRECIOS'] = XLSX.utils.aoa_to_sheet(liveSabana);
+  wb.Sheets['IMPORTACION_EFI'] = XLSX.utils.aoa_to_sheet(buildImportacionTable(selectedDate, validFromDate));
+  // Include all persisted configuration (PDF clients, formulas, Postes, overrides).
+  // Chunk large values to respect Excel's 32,767-character cell limit.
+  const configRows: any[][] = [['CLAVE', 'PARTE', 'VALOR']];
+  for (const [key, value] of Object.entries(collectAllLocalState())) {
+    const text = JSON.stringify(value);
+    for (let offset = 0; offset < text.length; offset += 32000) configRows.push([key, offset / 32000 + 1, text.slice(offset, offset + 32000)]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(configRows), 'CONFIGURACION COMPLETA');
+  return wb;
+}
+
+export function generateAndDownloadCierreWorkbook(selectedDate: string, validFromDate: string,
+  purchases: Record<string, PurchaseRowValues>, specialRates: SpecialStationRateRow[], bronco?: GasolinaBroncoRow) {
+  const wb = buildCierreWorkbook(selectedDate, validFromDate, purchases, specialRates, bronco);
+  downloadWorkbookAsXlsx(wb, `CIERRE_DIARIO_AREA117_${selectedDate}_VALIDO_${validFromDate}.xlsx`);
 }
 
 export function downloadWorkbookAsXlsx(wb: XLSX.WorkBook, filename: string) {
@@ -797,15 +686,11 @@ export function buildImportacionTable(
       if (row) {
         if (row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
           const p = parseFloat(row.refPrice.toString().replace(',', '.'));
-          if (!isNaN(p) && p > 0) return p;
-        }
-        if (row.refPrice && row.refPrice.trim() !== '') {
-          const p = parseFloat(row.refPrice.toString().replace(',', '.'));
-          if (!isNaN(p) && p > 0) return p;
+          if (Number.isFinite(p) && p >= 0) return p;
         }
         if (row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
           const act = parseFloat(row.actualPrice.toString().replace(',', '.'));
-          if (!isNaN(act) && act > 0) return Number((act + 0.0080).toFixed(3));
+          if (Number.isFinite(act) && act >= 0) return Number((act + 0.0080).toFixed(3));
         }
       }
     }
@@ -828,7 +713,7 @@ export function buildImportacionTable(
       });
       if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
         const p = parseFloat(row.actualPrice.toString().replace(',', '.'));
-        if (!isNaN(p) && p > 0) return p;
+        if (Number.isFinite(p) && p >= 0) return p;
       }
     }
     return getStationBasePrice(stName);
@@ -1050,12 +935,12 @@ export function buildImportacionTable(
       }
       case 'COMPRAS_MEDIO': {
         const item = purchasesData[`${stName}_GOA`] || purchasesData[`${cleanTarget}_GOA`];
-        const val = item?.avg ? parseFloat(item.avg.replace(',', '.')) : (baseSale - 0.0425);
+        const val = item ? parseNum((item as any).curr) : baseSale;
         return isNaN(val) ? baseSale : val;
       }
       case 'COMPRAS_MINIMO': {
         const item = purchasesData[`${stName}_GOA`] || purchasesData[`${cleanTarget}_GOA`];
-        const val = item?.min ? parseFloat(item.min.replace(',', '.')) : (baseSale - 0.05);
+        const val = item ? parseNum((item as any).curr) : baseSale;
         return isNaN(val) ? baseSale : val;
       }
       case 'COMPRAS_ESPECIAL_REF':
@@ -1065,7 +950,7 @@ export function buildImportacionTable(
       case 'POSTE_GOA': {
         try {
           const row = postesData?.gasoleoARows?.[cleanTarget] || postesData?.gasoleoARows?.[stName] ||
-                      postesData?.propiasPvpRows?.[stName]?.gasoleoA || postesData?.propiasPvpRows?.[cleanTarget]?.gasoleoA;
+                      postesData?.postes?.[stName]?.goa || postesData?.postes?.[cleanTarget]?.goa || postesData?.propiasPvpRows?.[stName]?.gasoleoA || postesData?.propiasPvpRows?.[cleanTarget]?.gasoleoA;
           const pvpStr = row?.conIva || (typeof row === 'string' ? row : '');
           if (pvpStr && pvpStr.trim() !== '') {
             const p = parseFloat(pvpStr.replace(',', '.'));
@@ -1077,7 +962,7 @@ export function buildImportacionTable(
       case 'POSTE_G95': {
         try {
           const row = postesData?.gasolina95Rows?.[cleanTarget] || postesData?.gasolina95Rows?.[stName] ||
-                      postesData?.propiasPvpRows?.[stName]?.gasolina95 || postesData?.propiasPvpRows?.[cleanTarget]?.gasolina95;
+                      postesData?.postes?.[stName]?.gasolina || postesData?.postes?.[cleanTarget]?.gasolina || postesData?.propiasPvpRows?.[stName]?.gasolina95 || postesData?.propiasPvpRows?.[cleanTarget]?.gasolina95;
           const pvpStr = row?.conIva || (typeof row === 'string' ? row : '');
           if (pvpStr && pvpStr.trim() !== '') {
             const p = parseFloat(pvpStr.replace(',', '.'));
@@ -1693,10 +1578,10 @@ export function buildImportacionTable(
             } else if (customSrc.sourceType === 'COMPRAS_BRONCO') {
               base = parseNum(broncoData.sinIva) || 1.397;
             } else if (customSrc.sourceType === 'COMPRAS_MEDIO' || customSrc.sourceType === 'COMPRAS_PRECIO_COMPRA') {
-              const b = purchasesData[`${sabanaName}_GOA`]?.buy || purchasesData[`${st.name}_GOA`]?.buy;
+              const b = purchasesData[`${sabanaName}_GOA`]?.curr || purchasesData[`${st.name}_GOA`]?.curr;
               base = parseNum(b) || 1.200;
             } else if (customSrc.sourceType === 'POSTE_GOA') {
-              const p = postesData?.propiasPvpRows?.[sabanaName]?.gasoleoA || postesData?.propiasPvpRows?.[st.name]?.gasoleoA;
+              const p = postesData?.postes?.[sabanaName]?.goa || postesData?.postes?.[st.name]?.goa || postesData?.propiasPvpRows?.[sabanaName]?.gasoleoA || postesData?.propiasPvpRows?.[st.name]?.gasoleoA;
               if (p) base = round3(parseNum(p) / 1.21);
             } else if (customSrc.sourceType === 'MANUAL' && customSrc.manualPriceSinIva !== undefined) {
               base = customSrc.manualPriceSinIva;

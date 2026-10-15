@@ -1,5 +1,6 @@
 'use client';
 
+import { getLatestPurchasePayload, closePurchaseDay } from '@/lib/purchaseState';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   PROPIAS_STATIONS,
@@ -171,16 +172,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     const handleStationsUpdated = () => {
       setStationsVersion((v) => v + 1);
       try {
-        const savedDate = localStorage.getItem(`efi_purchases_${selectedDate}`);
-        const savedGlobal = localStorage.getItem('efi_compras_data');
-        let currentData: Record<string, PurchaseRowValues> | null = null;
-        if (savedDate) {
-          const parsed = JSON.parse(savedDate);
-          if (parsed.data) currentData = parsed.data;
-        } else if (savedGlobal) {
-          const parsed = JSON.parse(savedGlobal);
-          if (parsed.data) currentData = parsed.data;
-        }
+        const currentData = getLatestPurchasePayload(selectedDate)?.data;
 
         if (currentData) {
           setPurchases({ ...currentData });
@@ -222,23 +214,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
     try {
-      const effValid = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_valid_from') : null;
-      const savedDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
-      const savedValid = effValid ? localStorage.getItem(`efi_purchases_${effValid}`) : null;
-      const savedGlobal = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_data') : null;
       let rawData: Record<string, PurchaseRowValues> | null = null;
 
-      for (const raw of [savedDate, savedValid, savedGlobal]) {
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (parsed.data && Object.keys(parsed.data).length > 0) {
-              rawData = parsed.data;
-              break;
-            }
-          } catch {}
-        }
-      }
+      rawData = getLatestPurchasePayload(selectedDate)?.data || null;
 
       if (rawData) {
         const sanitized: Record<string, PurchaseRowValues> = {};
@@ -361,21 +339,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(() => {
     try {
-      const effValid = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_valid_from') : null;
-      const savedDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
-      const savedValid = effValid ? localStorage.getItem(`efi_purchases_${effValid}`) : null;
-      const savedGlobal = typeof window !== 'undefined' ? localStorage.getItem('efi_compras_data') : null;
 
-      for (const raw of [savedDate, savedValid, savedGlobal]) {
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed.modified) && parsed.modified.length > 0) {
-              return new Set(parsed.modified);
-            }
-          } catch {}
-        }
-      }
+      return new Set<string>(getLatestPurchasePayload(selectedDate)?.modified || []);
     } catch (e) {}
     return new Set<string>();
   });
@@ -389,11 +354,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    const reloadPurchases = () => {
     try {
       const effValid = localStorage.getItem('efi_compras_valid_from');
-      const savedDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
-      const savedValid = effValid ? localStorage.getItem(`efi_purchases_${effValid}`) : null;
-      const savedGlobal = localStorage.getItem('efi_compras_data');
       const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v4');
       const savedBroncoDate = selectedDate ? localStorage.getItem(`efi_purchases_bronco_${selectedDate}`) : null;
       const savedBroncoValid = effValid ? localStorage.getItem(`efi_purchases_bronco_${effValid}`) : null;
@@ -403,18 +366,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         setValidFromDate(effValid);
       }
 
-      let parsedPurchases: any = null;
-      for (const raw of [savedDate, savedValid, savedGlobal]) {
-        if (raw) {
-          try {
-            const p = JSON.parse(raw);
-            if (p && p.data && Object.keys(p.data).length > 0) {
-              parsedPurchases = p;
-              break;
-            }
-          } catch {}
-        }
-      }
+      const parsedPurchases = getLatestPurchasePayload(selectedDate);
 
       if (parsedPurchases) {
         const sanitized: Record<string, PurchaseRowValues> = {};
@@ -487,12 +439,16 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     } catch (e) {
       console.error(e);
     }
+    };
+    reloadPurchases();
+    window.addEventListener('efi_server_state_applied', reloadPurchases);
+    return () => window.removeEventListener('efi_server_state_applied', reloadPurchases);
   }, [selectedDate]);
 
   const handleBroncoChange = (field: keyof GasolinaBroncoRow, val: string) => {
     const cleanVal = field === 'name' || field === 'fecha' ? val : val.replace('.', ',');
-    setGasolinaBronco((prev) => {
-      const updated = { ...prev, [field]: cleanVal };
+    {
+      const updated = { ...gasolinaBronco, [field]: cleanVal };
 
       if (field === 'conIva') {
         const conIvaN = parseNum(cleanVal);
@@ -523,13 +479,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       }
 
       try {
+        if (validFromDate) localStorage.setItem(`efi_purchases_bronco_${validFromDate}`, JSON.stringify(updated));
         localStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(updated));
         localStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(updated));
         window.dispatchEvent(new Event('efi_compras_updated'));
       } catch (e) {}
 
-      return updated;
-    });
+      setGasolinaBronco(updated);
+    }
 
     setModifiedKeys((prev) => {
       const next = new Set(prev);
@@ -582,6 +539,14 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     } catch (e) {}
   }, [selectedDate, validFromDate]);
 
+  useEffect(() => {
+    const saved = getLatestPurchasePayload(selectedDate);
+    if (JSON.stringify(saved?.data) !== JSON.stringify(purchases) ||
+      JSON.stringify(saved?.modified) !== JSON.stringify(Array.from(modifiedKeys))) {
+      persistPurchasesNow(purchases, modifiedKeys);
+    }
+  }, [purchases, modifiedKeys, selectedDate, persistPurchasesNow]);
+
   const handleInputChange = (
     stationName: string,
     prodCode: string,
@@ -597,7 +562,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     setModifiedKeys(updatedMods);
     setIsSaved(false);
 
-    setPurchases((prev) => {
+    {
+      const prev = purchases;
       const currentItem = prev[key] || {
         prev: '0,000',
         curr: '0,000',
@@ -630,8 +596,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       const nextPurchases = { ...prev, [key]: updated };
       persistPurchasesNow(nextPurchases, updatedMods);
 
-      return nextPurchases;
-    });
+      setPurchases(nextPurchases);
+    }
   };
 
   // Helper para buscar el item de Gasóleo A (GOA) de una estación en compras
@@ -677,26 +643,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     const cleanName = stName.toUpperCase().replace(/^ES\s+/, '').trim();
 
     if (item) {
-      // Si en compras tiene un precio de venta sugerido válido, se toma directamente
-      if (item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000') {
-        return item.sale;
-      }
-
-      // Si no, tomar el precio oficial sugerido de Gasóleo A
-      const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
-      if (officialPrice !== undefined) {
-        return formatNum(officialPrice, 3);
-      }
-
-      // Fallback a costo total de la estación
-      const currNum = parseNum(item.curr);
-      const porteNum = parseNum(item.porte);
-      const paseNum = parseNum(item.pase);
-      const finNum = parseNum(item.fin);
-      const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-      if (totalCost > 0) {
-        return formatNum(totalCost, 3);
-      }
+      if (item.sale !== undefined && item.sale.trim() !== '') return item.sale;
+      return formatNum(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin), 3);
     }
 
     const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
@@ -725,7 +673,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       totalCostNum = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
     }
 
-    if (totalCostNum === 0) {
+    if (!item) {
       const costs = STATION_EXCEL_COSTS[stName] || {
         porte: 0.0050,
         pase: 0.0100,
@@ -774,8 +722,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     const customFlag =
       field === 'actualPrice' ? 'isCustomActual' : field === 'refPrice' ? 'isCustomRef' : 'isCustomBase';
 
-    setSpecialRates((prev) => {
-      const next = prev.map((row) => {
+    {
+      const next = specialRates.map((row) => {
         if (row.id !== id) return row;
         return {
           ...row,
@@ -791,8 +739,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         window.dispatchEvent(new Event('storage'));
       } catch (e) {}
 
-      return next;
-    });
+      setSpecialRates(next);
+    }
 
     setModifiedKeys((prev) => {
       const nextSet = new Set(prev);
@@ -805,7 +753,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
       const nowIso = new Date().toISOString();
       const currentMods = Array.from(modifiedKeysRef.current);
@@ -840,10 +788,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
       window.dispatchEvent(new Event('efi_compras_updated'));
       window.dispatchEvent(new Event('storage'));
-    } catch (e) {}
-
-    // Subir ya al servidor para que ninguna sincronización posterior restaure datos antiguos
-    flushPendingSync().catch(() => {});
+      await flushPendingSync();
+    } catch (e) {
+      setIsSaved(false);
+      setToastMessage('No se pudo guardar en PostgreSQL. Los cambios siguen pendientes. ' + (e instanceof Error ? e.message : ''));
+      return;
+    }
 
     setIsSaved(true);
     setToastMessage('¡Precios de Compras, Gasolina Bronco y Tarifas Guardados Correctamente!');
@@ -853,44 +803,12 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
     }, 3500);
   };
 
-  const handleCierreDeDia = () => {
-    setPurchases((prev) => {
-      const nextPurchases: Record<string, PurchaseRowValues> = {};
-      Object.entries(prev).forEach(([key, item]) => {
-        const currNum = parseNum(item.curr);
-        const porteNum = parseNum(item.porte);
-        const paseNum = parseNum(item.pase);
-        const finNum = parseNum(item.fin);
-        const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-        const stName = key.replace(/_(GOA|GASOLINA|ADBLUE)$/, '');
-        const cleanName = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
-        const defaultSale = totalCost > 0 ? formatNum(totalCost, 3) : (officialPrice !== undefined ? officialPrice.toFixed(3) : '0,000');
-        const effectiveSale = item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000'
-          ? item.sale
-          : defaultSale;
-
-        // 3) los datos de cada fila en la columna precio compra hoy se copian en p.ant.compra y p.venta sugerido en p. venta ant.
-        nextPurchases[key] = {
-          ...item,
-          prev: item.curr && item.curr.trim() !== '' ? item.curr : formatNum(currNum),
-          prevSale: effectiveSale,
-          sale: effectiveSale,
-          isCustomSale: false,
-        };
-      });
-
-      const cleanedSpecialRates = specialRates.map((row) => ({
-        ...row,
-        actualPrice: '',
-        refPrice: '',
-        basePrice: '',
-        isCustomActual: false,
-        isCustomRef: false,
-        isCustomBase: false,
-      }));
-      setSpecialRates(cleanedSpecialRates);
-
+  const handleCierreDeDia = async () => {
+    // Flush pending Postes edits before taking the closing snapshot.
+    window.dispatchEvent(new Event('efi_before_close_day'));
+    const nextPurchases = closePurchaseDay(purchases);
+    const cleanedSpecialRates = specialRates;
+    setPurchases(nextPurchases);
       const timestamp = new Date().toISOString();
       try {
         // 2) Guardar y sincronizar todas las ventanas del sistema (compras, postes, sabana de precios, pdfs y clientes, efi export)
@@ -978,128 +896,32 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
         console.error('Error al guardar cierre en localStorage:', e);
       }
 
-      // Descargar archivo Excel (.xlsx) con formato idéntico al oficial consolidado
-      try {
-        generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, cleanedSpecialRates, gasolinaBronco);
-      } catch (e) {
-        console.error('Error al generar libro Excel de Cierre:', e);
-      }
-
-      // Sincronizar inmediatamente el cierre a PostgreSQL
-      flushPendingSync().catch(() => {});
-
-      return nextPurchases;
-    });
-
     setModifiedKeys(new Set());
     modifiedKeysRef.current = new Set();
-    setToastMessage('¡Cierre de Día Completado! Marcas de modificación limpiadas en todos los módulos y Excel descargado.');
-    setTimeout(() => setToastMessage(null), 4000);
+    try {
+      await flushPendingSync();
+      generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, cleanedSpecialRates, gasolinaBronco);
+      setToastMessage('Cierre guardado en PostgreSQL. Marcas limpiadas y Excel descargado.');
+    } catch (e) {
+      setToastMessage('El cierre o su Excel no se completó: ' + (e instanceof Error ? e.message : 'Error desconocido'));
+    }
+    setTimeout(() => setToastMessage(null), 6000);
   };
 
   // Botón: Copiar "Precio Compra Hoy" a "P. Ant. Compra" y "P. Venta Sugerido" a "P. Venta Ant."
-  const handleCopyHoyToAnterior = () => {
-    setPurchases((prev) => {
-      const nextPurchases: Record<string, PurchaseRowValues> = { ...prev };
-      const allStations = [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
-
-      allStations.forEach((st) => {
-        const prods = getFilteredProductsForStation(st.name);
-        prods.forEach((prod) => {
-          const key = `${st.name}_${prod.code}`;
-          const item = nextPurchases[key] || {
-            prev: '0.000',
-            curr: '0.000',
-            clh: 'TORREJON',
-            porte: '0.000',
-            pase: '0.000',
-            fin: '0.000',
-            sale: '0.000',
-            prevSale: '0.000',
-            isCustomSale: false,
-          };
-
-          const currNum = parseNum(item.curr);
-          const porteNum = parseNum(item.porte);
-          const paseNum = parseNum(item.pase);
-          const finNum = parseNum(item.fin);
-          const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-          const cleanName = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
-          const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
-          const defaultSale = prod.code === 'GOA' && officialPrice !== undefined
-            ? officialPrice.toFixed(3)
-            : totalCost.toFixed(3);
-          const effectiveSale = item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000'
-            ? item.sale
-            : defaultSale;
-
-          nextPurchases[key] = {
-            ...item,
-            prev: item.curr && item.curr.trim() !== '' ? item.curr : formatNum(currNum),
-            prevSale: effectiveSale,
-          };
-        });
-      });
-
-      // Asegurar también cualquier clave existente en purchases
-      Object.keys(nextPurchases).forEach((key) => {
-        const item = nextPurchases[key];
-        if (!item) return;
-
-        const currNum = parseNum(item.curr);
-        const porteNum = parseNum(item.porte);
-        const paseNum = parseNum(item.pase);
-        const finNum = parseNum(item.fin);
-        const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-        const stName = key.replace(/_(GOA|GASOLINA|ADBLUE)$/, '');
-        const prodCode = key.split('_').pop() || 'GOA';
-        const cleanName = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-        const officialPrice = OFFICIAL_SUGGESTED_SALE_PRICES[stName] ?? OFFICIAL_SUGGESTED_SALE_PRICES[cleanName];
-        const defaultSale = prodCode === 'GOA' && officialPrice !== undefined
-          ? officialPrice.toFixed(3)
-          : totalCost.toFixed(3);
-        const effectiveSale = item.sale && item.sale.trim() !== '' && item.sale !== '0' && item.sale !== '0.000'
-          ? item.sale
-          : defaultSale;
-
-        nextPurchases[key] = {
-          ...item,
-          prev: item.curr && item.curr.trim() !== '' ? item.curr : formatNum(currNum),
-          prevSale: effectiveSale,
-        };
-      });
-
-      try {
-        const timestamp = new Date().toISOString();
-        const payload = JSON.stringify({
-          data: nextPurchases,
-          modified: Array.from(modifiedKeysRef.current),
-          updatedAt: timestamp,
-        });
-        if (validFromDate) {
-          localStorage.setItem(`efi_purchases_${validFromDate}`, payload);
-          markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
-        }
-        if (selectedDate && selectedDate !== validFromDate) {
-          localStorage.setItem(`efi_purchases_${selectedDate}`, payload);
-          markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
-        }
-        localStorage.setItem('efi_compras_data', payload);
-        markKeyModifiedLocally('efi_compras_data');
-        window.dispatchEvent(new Event('efi_compras_updated'));
-      } catch (e) {
-        console.error('Error al guardar copia de precios:', e);
-      }
-
-      return nextPurchases;
-    });
-
-    setIsSaved(true);
-    setToastMessage('¡Precios actualizados! Precio Compra Hoy → P. Ant. Compra y P. Venta Sugerido → P. Venta Ant.');
-    setTimeout(() => {
-      setToastMessage(null);
-      setIsSaved(false);
-    }, 3500);
+  const handleCopyHoyToAnterior = async () => {
+    const next = closePurchaseDay(purchases);
+    const mods = new Set(modifiedKeysRef.current);
+    for (const key of Object.keys(next)) { mods.add(`${key}_prev`); mods.add(`${key}_prevSale`); }
+    modifiedKeysRef.current = mods;
+    setModifiedKeys(mods);
+    setPurchases(next);
+    persistPurchasesNow(next, mods);
+    try {
+      await flushPendingSync();
+      setToastMessage('Precios copiados a las columnas anteriores y guardados en PostgreSQL.');
+    } catch { setToastMessage('No se pudo confirmar la copia en PostgreSQL. Los cambios siguen pendientes.'); }
+    setTimeout(() => setToastMessage(null), 5000);
   };
 
   const handleExportDailyExcel = () => {
@@ -1148,7 +970,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
           const paseNum = parseNum(item.pase);
           const finNum = parseNum(item.fin);
           const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-          const effectiveSale = item.isCustomSale && item.sale ? item.sale : totalCost.toFixed(3);
+          const effectiveSale = item.sale !== undefined && item.sale !== '' ? item.sale : totalCost.toFixed(3);
           const saleNum = parseNum(effectiveSale);
           const margin = Number((saleNum - totalCost).toFixed(3));
           const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
@@ -1367,7 +1189,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   const defaultSale = prod.code === 'GOA' && OFFICIAL_SUGGESTED_SALE_PRICES[st.name]
                     ? formatNum(OFFICIAL_SUGGESTED_SALE_PRICES[st.name], 3)
                     : formatNum(totalCost, 3);
-                  const displaySale = item.sale && item.sale !== '0' && item.sale !== '0,000' && item.sale !== '0.000' ? item.sale : defaultSale;
+                  const displaySale = item.sale !== undefined && item.sale !== '' ? item.sale : defaultSale;
                   const saleNum = parseNum(displaySale);
                   const margin = Number((saleNum - totalCost).toFixed(3));
                   const displayPrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || formatNum(totalCost, 3));
@@ -1387,7 +1209,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   if (activeProductTab === 'ADBLUE') {
                     const adblueSinIva = currNum;
                     const adblueConIva = Number((currNum * 1.21).toFixed(3));
-                    const displayAdblueSale = item.isCustomSale && item.sale ? item.sale : formatNum(currNum, 3);
+                    const displayAdblueSale = item.sale !== undefined && item.sale !== '' ? item.sale : formatNum(currNum, 3);
                     const adblueSaleNum = parseNum(displayAdblueSale);
                     const adblueMargin = Number((adblueSaleNum - currNum).toFixed(3));
                     const displayAdbluePrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || formatNum(currNum, 3));
@@ -1424,6 +1246,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             type="text"
                             inputMode="decimal"
                             value={item.prev}
+                            aria-label={`${st.name} ${prod.code} prev`}
                             onChange={(e) => handleInputChange(st.name, prod.code, 'prev', e.target.value)}
                             className={`w-20 rounded px-2 py-1 text-xs font-mono transition-all focus:outline-none ${
                               isPrevMod
@@ -1440,6 +1263,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                               type="text"
                               inputMode="decimal"
                               value={item.curr}
+                              aria-label={`${st.name} ${prod.code} curr`}
                               onChange={(e) => handleInputChange(st.name, prod.code, 'curr', e.target.value)}
                               placeholder="0,000"
                               className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
@@ -1472,6 +1296,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             type="text"
                             inputMode="decimal"
                             value={displayAdbluePrevSale}
+                            aria-label={`${st.name} ${prod.code} prevSale`}
                             onChange={(e) => handleInputChange(st.name, prod.code, 'prevSale', e.target.value)}
                             className={`w-20 rounded px-2 py-1 text-xs font-mono transition-all focus:outline-none ${
                               isPrevSaleMod
@@ -1488,6 +1313,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                               type="text"
                               inputMode="decimal"
                               value={displayAdblueSale}
+                              aria-label={`${st.name} ${prod.code} sale`}
                               onChange={(e) => handleInputChange(st.name, prod.code, 'sale', e.target.value)}
                               className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                                 isSaleMod
@@ -1565,6 +1391,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           type="text"
                           inputMode="decimal"
                           value={item.prev}
+                          aria-label={`${st.name} ${prod.code} prev`}
                           onChange={(e) => handleInputChange(st.name, prod.code, 'prev', e.target.value)}
                           className={`w-20 rounded px-2 py-1 text-xs font-mono transition-all focus:outline-none ${
                             isPrevMod
@@ -1581,6 +1408,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             type="text"
                             inputMode="decimal"
                             value={item.curr}
+                            aria-label={`${st.name} ${prod.code} curr`}
                             onChange={(e) => handleInputChange(st.name, prod.code, 'curr', e.target.value)}
                             placeholder="0,000"
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black transition-all focus:outline-none ${
@@ -1617,6 +1445,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           type="text"
                           inputMode="decimal"
                           value={item.porte}
+                          aria-label={`${st.name} ${prod.code} porte`}
                           onChange={(e) => handleInputChange(st.name, prod.code, 'porte', e.target.value)}
                           className={`w-16 rounded px-1.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                             isPorteMod
@@ -1632,6 +1461,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           type="text"
                           inputMode="decimal"
                           value={item.pase}
+                          aria-label={`${st.name} ${prod.code} pase`}
                           onChange={(e) => handleInputChange(st.name, prod.code, 'pase', e.target.value)}
                           className={`w-16 rounded px-1.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                             isPaseMod
@@ -1647,6 +1477,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           type="text"
                           inputMode="decimal"
                           value={item.fin}
+                          aria-label={`${st.name} ${prod.code} fin`}
                           onChange={(e) => handleInputChange(st.name, prod.code, 'fin', e.target.value)}
                           className={`w-16 rounded px-1.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                             isFinMod
@@ -1667,6 +1498,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                           type="text"
                           inputMode="decimal"
                           value={displayPrevSale}
+                          aria-label={`${st.name} ${prod.code} prevSale`}
                           onChange={(e) => handleInputChange(st.name, prod.code, 'prevSale', e.target.value)}
                           className={`w-20 rounded px-2 py-1 text-xs font-mono transition-all focus:outline-none ${
                             isPrevSaleMod
@@ -1683,6 +1515,7 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                             type="text"
                             inputMode="decimal"
                             value={displaySale}
+                            aria-label={`${st.name} ${prod.code} sale`}
                             onChange={(e) => handleInputChange(st.name, prod.code, 'sale', e.target.value)}
                             className={`w-24 rounded px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                               isSaleMod
@@ -2127,9 +1960,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
                   const displayRef = getSpecialRefPrice(row, displayActual);
                   const displayBase = getSpecialBasePrice(row);
 
-                  const isActMod = modifiedKeys.has(`special_${row.id}_actualPrice`) || Boolean(row.isCustomActual && row.actualPrice);
-                  const isRefMod = modifiedKeys.has(`special_${row.id}_refPrice`) || Boolean(row.isCustomRef && row.refPrice);
-                  const isBaseMod = modifiedKeys.has(`special_${row.id}_basePrice`) || Boolean(row.isCustomBase && row.basePrice);
+                  const isActMod = modifiedKeys.has(`special_${row.id}_actualPrice`);
+                  const isRefMod = modifiedKeys.has(`special_${row.id}_refPrice`);
+                  const isBaseMod = modifiedKeys.has(`special_${row.id}_basePrice`);
 
                   return (
                     <tr key={row.id} className="hover:bg-slate-800/40 transition-colors">

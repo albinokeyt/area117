@@ -75,14 +75,14 @@ export const PRESET_DATA_SOURCES = [
   {
     id: 'COMPRAS_MEDIO',
     window: 'Compras',
-    label: 'Compras — Precio Compra Medio',
-    description: 'Promedio ponderado de compra para la estación',
+    label: 'Compras — Precio Compra Hoy',
+    description: 'Columna Precio Compra Hoy de la estación',
   },
   {
     id: 'COMPRAS_MINIMO',
     window: 'Compras',
-    label: 'Compras — Proveedor Más Barato (Mínimo)',
-    description: 'Costo más bajo de los operadores disponibles',
+    label: 'Compras — Precio Compra Hoy (origen antiguo)',
+    description: 'Compatibilidad: columna Precio Compra Hoy de la estación',
   },
   {
     id: 'COMPRAS_ESPECIAL_REF',
@@ -1333,7 +1333,7 @@ export function SabanaTariffManagerModal({
                           setSelectedPointingCell({
                             windowName: 'Compras',
                             sourceId: 'COMPRAS_MEDIO',
-                            label: 'Compras — Precio Compra Medio',
+                            label: 'Compras — Precio Compra Hoy',
                             sampleStation: 'Promedio general',
                             sampleValueSinIva: sampleSin,
                             sampleValueConIva: Number((sampleSin * 1.21).toFixed(3)),

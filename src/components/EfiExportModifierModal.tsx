@@ -41,7 +41,7 @@ interface EfiExportModifierModalProps {
   onDeleteRow: (rowKey: string) => void;
   onDeleteTariffBlock: (tariffName: string) => void;
   onResetAll: () => void;
-  comprasPurchases?: Record<string, { sale?: string; buy?: string; min?: string; avg?: string }>;
+  comprasPurchases?: Record<string, { sale?: string; curr?: string; min?: string; avg?: string }>;
   specialRates?: any[];
   postesData?: any;
   sabanaFormulas?: Record<string, any>;
@@ -690,14 +690,14 @@ export function EfiExportModifierModal({
     }
 
     if (type === 'COMPRAS_PRECIO_COMPRA') {
-      let p = comprasPurchases[`${stName}_GOA`]?.buy;
+      let p = comprasPurchases[`${stName}_GOA`]?.curr;
       if (!p) {
         const matchK = Object.keys(comprasPurchases).find((k) => {
           if (!k.endsWith('_GOA')) return false;
           const b = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
           return b === cleanTarget || b.includes(cleanTarget) || cleanTarget.includes(b);
         });
-        if (matchK) p = comprasPurchases[matchK]?.buy;
+        if (matchK) p = comprasPurchases[matchK]?.curr;
       }
       const num = parseFloat(String(p || '').replace(',', '.'));
       if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
@@ -723,7 +723,7 @@ export function EfiExportModifierModal({
     }
 
     if (type === 'POSTES_GOA') {
-      const p = postesData?.propiasPvpRows?.[stName]?.gasoleoA || postesData?.propiasPvpRows?.[cleanTarget]?.gasoleoA;
+      const p = postesData?.postes?.[stName]?.goa || postesData?.postes?.[cleanTarget]?.goa || postesData?.propiasPvpRows?.[stName]?.gasoleoA || postesData?.propiasPvpRows?.[cleanTarget]?.gasoleoA;
       if (p) {
         const num = parseFloat(String(p).replace(',', '.'));
         if (!isNaN(num) && num > 0) return num;
@@ -732,7 +732,7 @@ export function EfiExportModifierModal({
     }
 
     if (type === 'POSTES_GAS95') {
-      const p = postesData?.propiasPvpRows?.[stName]?.gasolina95 || postesData?.propiasPvpRows?.[cleanTarget]?.gasolina95;
+      const p = postesData?.postes?.[stName]?.gasolina || postesData?.postes?.[cleanTarget]?.gasolina || postesData?.propiasPvpRows?.[stName]?.gasolina95 || postesData?.propiasPvpRows?.[cleanTarget]?.gasolina95;
       if (p) {
         const num = parseFloat(String(p).replace(',', '.'));
         if (!isNaN(num) && num > 0) return num;

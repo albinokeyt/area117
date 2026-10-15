@@ -372,9 +372,8 @@ git push -u origin main`}
                 title="Variables de Entorno para Easypanel"
                 code={`NODE_ENV=production
 PORT=3000
-DATABASE_URL=file:./dev.db
-NEXT_TELEMETRY_DISABLED=1
-SECRET_KEY=efi-data-oil-secure-token-2026`}
+DATABASE_URL=postgresql://usuario:clave@postgres:5432/efi_data_oil
+NEXT_TELEMETRY_DISABLED=1`}
               />
               <p className="text-[11px] text-slate-500">
                 * Nota: Si creas un servicio de base de datos PostgreSQL en Easypanel, simplemente cambia <code className="text-amber-300">DATABASE_URL</code> por la URL interna de Postgres que te da Easypanel (ej. <code className="text-amber-300">postgresql://user:pass@postgres:5432/efi_db</code>).

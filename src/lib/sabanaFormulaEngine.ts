@@ -1,3 +1,4 @@
+import { getLatestPurchasePayload } from "./purchaseState";
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from "./dataSeed";
 import { getAllStations, getStationExcelCosts } from "./stationsService";
 
@@ -66,19 +67,9 @@ export function findPurchaseItem(purchases: Record<string, any>, stationName: st
 // Obtener precio de venta efectivo dinámico o costo total en vivo de Compras
 export function getPurchaseItemSalePrice(item: any, stationName: string, costsFallback: any): number {
   if (item) {
-    if (item.sale && item.sale.toString().trim() !== '' && item.sale !== '0' && item.sale !== '0.000' && item.sale !== '0,000') {
-      const val = parseNum(item.sale);
-      if (val > 0) return val;
-    }
-    // Si no tiene sale o es 0 pero tiene curr ingresado, calcular costo total dinámico
-    const currN = item.curr !== undefined && item.curr !== '' ? parseNum(item.curr) : 0;
-    if (currN > 0) {
-      const porteN = item.porte !== undefined && item.porte !== '' ? parseNum(item.porte) : parseNum(costsFallback?.porte ?? 0);
-      const paseN = item.pase !== undefined && item.pase !== '' ? parseNum(item.pase) : parseNum(costsFallback?.pase ?? 0);
-      const finN = item.fin !== undefined && item.fin !== '' ? parseNum(item.fin) : parseNum(costsFallback?.fin ?? 0);
-      const tot = round3(currN + porteN + paseN + finN);
-      if (tot > 0) return tot;
-    }
+    // A saved value, including zero, always takes precedence over seed prices.
+    if (item.sale !== undefined && item.sale !== null && String(item.sale).trim() !== '') return parseNum(item.sale);
+    return round3(parseNum(item.curr) + parseNum(item.porte) + parseNum(item.pase) + parseNum(item.fin));
   }
   const cleanTarget = stationName.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
   const official = OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] ?? OFFICIAL_SUGGESTED_SALE_PRICES[stationName];
@@ -93,31 +84,7 @@ export function getPurchaseItemSalePrice(item: any, stationName: string, costsFa
 
 // Helper para obtener el payload más reciente de Compras entre fechas y global
 export function getFreshestPurchasesData(selectedDate?: string): Record<string, any> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const validFrom = localStorage.getItem('efi_compras_valid_from');
-    const sValid = validFrom ? localStorage.getItem(`efi_purchases_${validFrom}`) : null;
-    const sDate = selectedDate ? localStorage.getItem(`efi_purchases_${selectedDate}`) : null;
-    const sGlob = localStorage.getItem('efi_compras_data');
-
-    let newestData: Record<string, any> = {};
-    let newestTime = 0;
-
-    for (const raw of [sValid, sDate, sGlob]) {
-      if (!raw) continue;
-      try {
-        const parsed = JSON.parse(raw);
-        const t = parsed.updatedAt ? new Date(parsed.updatedAt).getTime() : 1;
-        if (t >= newestTime && parsed.data && Object.keys(parsed.data).length > 0) {
-          newestTime = t;
-          newestData = parsed.data;
-        }
-      } catch (e) {}
-    }
-    return newestData;
-  } catch (e) {
-    return {};
-  }
+  return getLatestPurchasePayload(selectedDate)?.data || {};
 }
 
 export function getProgramVariables(
@@ -186,13 +153,13 @@ export function getProgramVariables(
       defaultCurr: 1.2,
     };
 
-    const currGoa = itemGoa && itemGoa.curr && parseNum(itemGoa.curr) > 0 ? parseNum(itemGoa.curr) : costs.defaultCurr;
+    const currGoa = itemGoa ? parseNum(itemGoa.curr) : costs.defaultCurr;
     const porte = itemGoa && itemGoa.porte !== undefined && itemGoa.porte !== '' ? parseNum(itemGoa.porte) : costs.porte;
     const pase = itemGoa && itemGoa.pase !== undefined && itemGoa.pase !== '' ? parseNum(itemGoa.pase) : costs.pase;
     const fin = itemGoa && itemGoa.fin !== undefined && itemGoa.fin !== '' ? parseNum(itemGoa.fin) : costs.fin;
     const totalCostGoa = round3(currGoa + porte + pase + fin);
     const pVentaGoa = getPurchaseItemSalePrice(itemGoa, st.name, costs);
-    const pAntGoa = itemGoa && itemGoa.prev ? parseNum(itemGoa.prev) : costs.defaultPrev;
+    const pAntGoa = itemGoa ? parseNum(itemGoa.prev) : costs.defaultPrev;
 
     const group = st.type === "PROPIA" ? "Estaciones Propias" : "Estaciones Colaboradoras";
     const normName = st.name.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
@@ -205,11 +172,21 @@ export function getProgramVariables(
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":PASE", "Pase (S) (" + st.name + ")", pase, st.name);
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":FINANCIACION", "Financiacion (T) (" + st.name + ")", fin, st.name);
 
+    for (const product of ['GOA', 'GASOLINA', 'ADBLUE']) {
+      const row = findPurchaseItem(purchasesData, st.name, product);
+      if (!row) continue;
+      for (const [field, label] of Object.entries({ curr: 'COMPRA_HOY', prev: 'P_ANT_COMPRA',
+        porte: 'PORTE', pase: 'PASE', fin: 'FINANCIACION', sale: 'P_VENTA', prevSale: 'P_VENTA_ANT' })) {
+        addVar('compras', 'Compras', group, `COMPRAS:${normName}:${product}:${label}`,
+          `${product} ${label} (${st.name})`, parseNum(row[field]), st.name);
+      }
+    }
+
     // Gasolina 95
     const itemGas = findPurchaseItem(purchasesData, st.name, "GASOLINA");
-    const currGas = itemGas && itemGas.curr && parseNum(itemGas.curr) > 0 ? parseNum(itemGas.curr) : costs.defaultCurr + 0.12;
-    const totalCostGas = round3(currGas + porte + pase + fin);
-    const pVentaGas = itemGas?.isCustomSale && itemGas.sale ? parseNum(itemGas.sale) : totalCostGas;
+    const currGas = itemGas ? parseNum(itemGas.curr) : costs.defaultCurr + 0.12;
+    const totalCostGas = round3(currGas + parseNum(itemGas?.porte ?? porte) + parseNum(itemGas?.pase ?? pase) + parseNum(itemGas?.fin ?? fin));
+    const pVentaGas = itemGas ? getPurchaseItemSalePrice(itemGas, st.name, costs) : totalCostGas;
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":GASOLINA_COSTO", "Costo Total Gasolina 95 (" + st.name + ")", totalCostGas, st.name);
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":GASOLINA_VENTA", "P. Venta Sugerido Gasolina (" + st.name + ")", pVentaGas, st.name);
   });
@@ -264,7 +241,9 @@ export function getProgramVariables(
     "ES REAL DE GANDIA": { goa: 1.680, gas: 1.689, gain: 0.340 },
   };
 
-  Object.entries(defaultPostesProp).forEach(([stName, def]) => {
+  const postesNames = new Set([...Object.keys(defaultPostesProp), ...Object.keys(postesStorage.postes || {})]);
+  postesNames.forEach(stName => {
+    const def = defaultPostesProp[stName] || { goa: 0, gas: 0, gain: 0 };
     const saved = postesStorage?.postes?.[stName];
     const rawGoa = saved?.goa ? parseNum(saved.goa) : def.goa;
     const goaFormula = postesFormulas[`POSTE_${stName}_GOA`];
@@ -395,11 +374,6 @@ export function getProgramVariables(
   addVar("postes", "Postes", "Gasolina Bronco", "POSTES:BRONCO:COMPRA", "Gasolina Bronco Compra", bCompra);
   addVar("postes", "Postes", "Gasolina Bronco", "POSTES:BRONCO:BENEFICIO", "Gasolina Bronco Beneficio", bBeneficio);
 
-  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:SIN_IVA", "Gasolina Bronco Sin IVA", bSinIva);
-  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:CON_IVA", "Gasolina Bronco Con IVA", bConIva);
-  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:COMPRA", "Gasolina Bronco Compra", bCompra);
-  addVar("bronco", "Gasolina Bronco", "Gasolina Bronco", "BRONCO:BENEFICIO", "Gasolina Bronco Beneficio", bBeneficio);
-
   // 4. TARIFAS ESPECIALES (B50:F82 en Compras)
   allStations.forEach((st) => {
     const cleanTarget = st.name.toUpperCase().replace(/^ES\s+/, '').trim();
@@ -414,7 +388,7 @@ export function getProgramVariables(
       defaultPrev: 1.2,
       defaultCurr: 1.2,
     };
-    const currGoa = itemGoa && itemGoa.curr && parseNum(itemGoa.curr) > 0 ? parseNum(itemGoa.curr) : costs.defaultCurr;
+    const currGoa = itemGoa ? parseNum(itemGoa.curr) : costs.defaultCurr;
     const porte = itemGoa && itemGoa.porte !== undefined && itemGoa.porte !== '' ? parseNum(itemGoa.porte) : costs.porte;
     const pase = itemGoa && itemGoa.pase !== undefined && itemGoa.pase !== '' ? parseNum(itemGoa.pase) : costs.pase;
     const fin = itemGoa && itemGoa.fin !== undefined && itemGoa.fin !== '' ? parseNum(itemGoa.fin) : costs.fin;
@@ -423,7 +397,7 @@ export function getProgramVariables(
 
     let actualVal = pVentaGoa;
     let refVal = round3(pVentaGoa + 0.008);
-    let baseVal = totalCostGoa;
+    let baseVal = round3((totalCostGoa > 50 ? totalCostGoa / 1000 : totalCostGoa) + 0.008);
 
     const normSt = st.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
     const stCleanId = st.name.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
@@ -445,15 +419,15 @@ export function getProgramVariables(
         return false;
       });
       if (matchSpecial) {
-        if (matchSpecial.actualPrice && parseNum(matchSpecial.actualPrice) > 0) {
+        if (matchSpecial.isCustomActual && matchSpecial.actualPrice !== '') {
           actualVal = parseNum(matchSpecial.actualPrice);
         }
-        if (matchSpecial.refPrice && parseNum(matchSpecial.refPrice) > 0) {
+        if (matchSpecial.isCustomRef && matchSpecial.refPrice !== '') {
           refVal = parseNum(matchSpecial.refPrice);
-        } else if (actualVal > 0) {
+        } else {
           refVal = round3(actualVal + 0.008);
         }
-        if (matchSpecial.basePrice && parseNum(matchSpecial.basePrice) > 0) {
+        if (matchSpecial.isCustomBase && matchSpecial.basePrice !== '') {
           baseVal = parseNum(matchSpecial.basePrice);
         }
       }
@@ -504,7 +478,7 @@ export function getProgramVariables(
       defaultPrev: 1.2,
       defaultCurr: 1.2,
     };
-    const currGoa = itemGoa && itemGoa.curr && parseNum(itemGoa.curr) > 0 ? parseNum(itemGoa.curr) : costs.defaultCurr;
+    const currGoa = itemGoa ? parseNum(itemGoa.curr) : costs.defaultCurr;
     const porte = itemGoa && itemGoa.porte !== undefined && itemGoa.porte !== '' ? parseNum(itemGoa.porte) : costs.porte;
     const pase = itemGoa && itemGoa.pase !== undefined && itemGoa.pase !== '' ? parseNum(itemGoa.pase) : costs.pase;
     const fin = itemGoa && itemGoa.fin !== undefined && itemGoa.fin !== '' ? parseNum(itemGoa.fin) : costs.fin;

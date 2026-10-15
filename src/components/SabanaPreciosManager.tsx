@@ -196,6 +196,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
 
   // Estados del Modo Formulación
   const [isFormulaMode, setIsFormulaMode] = useState<boolean>(false);
+  const [postesFormulaRevision, setPostesFormulaRevision] = useState(0);
   const [customFormulas, setCustomFormulas] = useState<Record<string, CellFormula>>(() => {
     return loadSabanaFormulas(selectedDate);
   });
@@ -203,7 +204,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   // Reevaluación dinámica y reactiva de TODAS las fórmulas de la Sábana en función de los precios en vivo de Compras y celdas
   const resolvedFormulas = useMemo(() => {
     return reevaluateAllSabanaFormulas(customFormulas, selectedDate, comprasPurchases, specialRates);
-  }, [customFormulas, selectedDate, comprasPurchases, specialRates]);
+  }, [customFormulas, selectedDate, comprasPurchases, specialRates, postesFormulaRevision]);
 
   // Sincronizar fórmulas recalculadas a localStorage si cambiaron por variaciones en Compras
   useEffect(() => {
@@ -606,6 +607,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
     };
     const onSabanaUpdated = () => loadFormulas();
     const onPostesUpdated = () => {
+      setPostesFormulaRevision(v => v + 1);
       loadComprasData();
       loadPostesData();
     };
@@ -714,7 +716,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       });
       if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
         const p = parseFloat(row.actualPrice.toString().replace(',', '.'));
-        if (!isNaN(p) && p > 0) return p;
+        if (Number.isFinite(p) && p >= 0) return p;
       }
     }
     return getStationBasePrice(stName);
@@ -745,17 +747,13 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         // 1. Si el usuario modificó manualmente el Precio de Referencia en Compras
         if (row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
           const p = parseFloat(row.refPrice.toString().replace(',', '.'));
-          if (!isNaN(p) && p > 0) return p;
+          if (Number.isFinite(p) && p >= 0) return p;
         }
         // 2. Si existe un refPrice guardado válido
-        if (row.refPrice && row.refPrice.trim() !== '') {
-          const p = parseFloat(row.refPrice.toString().replace(',', '.'));
-          if (!isNaN(p) && p > 0) return p;
-        }
         // 3. Si se modificó actualPrice, el refPrice en Compras es actualPrice + 0.0080
         if (row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
           const act = parseFloat(row.actualPrice.toString().replace(',', '.'));
-          if (!isNaN(act) && act > 0) return Number((act + 0.0080).toFixed(3));
+          if (Number.isFinite(act) && act >= 0) return Number((act + 0.0080).toFixed(3));
         }
       }
     }
@@ -784,12 +782,12 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       }
       case 'COMPRAS_MEDIO': {
         const item = comprasPurchases[`${stName}_GOA`];
-        const val = (item as any)?.avg ? parseFloat((item as any).avg.replace(',', '.')) : (baseSale - 0.0425);
+        const val = item ? parseFloat(String((item as any).curr || '0').replace(',', '.')) : baseSale;
         return isNaN(val) ? baseSale : val;
       }
       case 'COMPRAS_MINIMO': {
         const item = comprasPurchases[`${stName}_GOA`];
-        const val = (item as any)?.min ? parseFloat((item as any).min.replace(',', '.')) : (baseSale - 0.05);
+        const val = item ? parseFloat(String((item as any).curr || '0').replace(',', '.')) : baseSale;
         return isNaN(val) ? baseSale : val;
       }
       case 'COMPRAS_ESPECIAL_REF':
@@ -798,7 +796,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
         return getSpecialRateActualPrice(stName);
       case 'POSTE_GOA': {
         try {
-          const row = postesData?.gasoleoARows?.[cleanTarget] || postesData?.gasoleoARows?.[stName];
+          const row = { conIva: postesData?.postes?.[stName]?.goa ?? postesData?.postes?.[cleanTarget]?.goa ?? postesData?.gasoleoARows?.[cleanTarget]?.conIva };
           if (row?.conIva && row.conIva.trim() !== '') {
             const p = parseFloat(row.conIva.replace(',', '.'));
             if (!isNaN(p) && p > 0) return Number((p / 1.21).toFixed(3));
@@ -808,7 +806,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       }
       case 'POSTE_G95': {
         try {
-          const row = postesData?.gasolina95Rows?.[cleanTarget] || postesData?.gasolina95Rows?.[stName];
+          const row = { conIva: postesData?.postes?.[stName]?.gasolina ?? postesData?.postes?.[cleanTarget]?.gasolina ?? postesData?.gasolina95Rows?.[cleanTarget]?.conIva };
           if (row?.conIva && row.conIva.trim() !== '') {
             const p = parseFloat(row.conIva.replace(',', '.'));
             if (!isNaN(p) && p > 0) return Number((p / 1.21).toFixed(3));
@@ -946,6 +944,7 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      const before = JSON.stringify(['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => localStorage.getItem(k)));
       const cache: Record<string, number> = {};
       const fullCache: Record<string, { sinIva: number; conIva: number }> = {};
 
@@ -1106,8 +1105,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       localStorage.setItem('efi_sabana_standard_table_full_v1', JSON.stringify(stdFullCache));
       localStorage.setItem(`efi_sabana_standard_table_full_${selectedDate}`, JSON.stringify(stdFullCache));
 
-      window.dispatchEvent(new Event('efi_export_updated'));
-      window.dispatchEvent(new Event('efi_sabana_updated'));
+      const after = JSON.stringify(['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => localStorage.getItem(k)));
+      if (before !== after) window.dispatchEvent(new Event('efi_export_updated'));
     } catch (e) {}
   }, [
     customSpecialTariffs,

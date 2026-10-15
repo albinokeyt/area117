@@ -9,8 +9,8 @@ Plataforma integral web para la gestión diaria de compras, formulación de prec
 | Rol | Correo Electrónico | Contraseña |
 | :--- | :--- | :--- |
 | **Administrador Principal** | `admin@efidataoil.com` | `admin123` |
-| **Compañero 1 (Compras)** | `compras@efidataoil.com` | `admin123` |
-| **Compañeros 2 y 3 (EFI)** | `efi@efidataoil.com` | `admin123` |
+| **Compañero 1 (Compras)** | `compras@efidataoil.com` | `compras123` |
+| **Compañeros 2 y 3 (EFI)** | `efi@efidataoil.com` | `efi123` |
 
 ---
 
@@ -71,9 +71,8 @@ Copia y pega las siguientes variables:
 ```env
 NODE_ENV=production
 PORT=3000
-DATABASE_URL=file:./dev.db
+DATABASE_URL=postgresql://usuario:clave@postgres:5432/efi_data_oil
 NEXT_TELEMETRY_DISABLED=1
-SECRET_KEY=efi-data-oil-secure-token-2026
 ```
 
 ### Paso 5: Dominios y Puertos

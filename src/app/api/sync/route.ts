@@ -1,135 +1,39 @@
+import { sessionUser } from "@/lib/auth";
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerState, saveServerState, isPostgresConfigured, ServerStatePayload } from '@/lib/db';
+import { getServerState, patchServerState } from '@/lib/db';
+import { StateConflictError } from '@/lib/stateMerge';
 
-// GET /api/sync - Obtener versión o estado completo
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const versionOnly = searchParams.get('versionOnly') === 'true';
-    const currentState = await getServerState();
-
-    if (versionOnly) {
-      return NextResponse.json({
-        success: true,
-        version: currentState.version,
-        updatedAt: currentState.updatedAt,
-        updatedBy: currentState.updatedBy,
-        hasData: Object.keys(currentState.data || {}).length > 0,
-        isPostgres: isPostgresConfigured(),
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      version: currentState.version,
-      updatedAt: currentState.updatedAt,
-      updatedBy: currentState.updatedBy,
-      data: currentState.data,
-      isPostgres: isPostgresConfigured(),
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message || 'Error interno' },
-      { status: 500 }
-    );
+    if (!await sessionUser(req)) return NextResponse.json({ error: 'Inicia sesión.' }, { status: 401 });
+    const state = await getServerState();
+    const versionOnly = req.nextUrl.searchParams.get('versionOnly') === 'true';
+    return NextResponse.json({ success: true, ...state,
+      data: versionOnly ? undefined : state.data,
+      hasData: Object.keys(state.data).length > 0, isPostgres: true,
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch {
+    return NextResponse.json({ success: false, error: 'No se pudo leer PostgreSQL.' }, { status: 503 });
   }
 }
 
-// Cola de escritura: evita que dos guardados simultáneos lean la misma versión y se sobrescriban
-let writeQueue: Promise<unknown> = Promise.resolve();
-function enqueueWrite<T>(task: () => Promise<T>): Promise<T> {
-  const run = writeQueue.then(task, task);
-  writeQueue = run.catch(() => undefined);
-  return run;
-}
-
-// POST /api/sync - Guardar estado maestro o cambios incrementales
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { password, data, updatedBy, mode } = body;
-
-    // Si se envía con contraseña para carga maestra, validarla con claves sencillas aceptadas
-    if (password !== undefined) {
-      const cleanPass = (password || '').toString().trim().toLowerCase();
-      const validPasswords = ['admin', 'admin123', '117', 'area117', '1234', 'master'];
-      if (!validPasswords.includes(cleanPass)) {
-        return NextResponse.json(
-          { success: false, error: 'Contraseña incorrecta para subir datos maestros al servidor.' },
-          { status: 401 }
-        );
-      }
+    const user = await sessionUser(req);
+    if (!user) return NextResponse.json({ error: 'Inicia sesión.' }, { status: 401 });
+    if (user.role === 'VISITOR') return NextResponse.json({ error: 'No tienes permiso para guardar.' }, { status: 403 });
+    const { data, baseData, updatedBy } = await req.json();
+    const record = (v: unknown) => v !== null && typeof v === 'object' && !Array.isArray(v);
+    if (!record(data) || !record(baseData) || Object.keys(data).some(key =>
+      !/^(efi_|sabana_|compras_)/.test(key) || ['efi_current_user', 'efi_users_list', 'efi_last_server_version', 'efi_last_server_sync_time'].includes(key))) {
+      return NextResponse.json({ success: false, error: 'Datos de sincronización no válidos. Recarga la aplicación.' }, { status: 400 });
     }
-
-    if (!data || typeof data !== 'object') {
-      return NextResponse.json(
-        { success: false, error: 'Datos no válidos proporcionados.' },
-        { status: 400 }
-      );
-    }
-
-    return await enqueueWrite(async () => {
-      const currentState = await getServerState();
-      let currentData: Record<string, any> = {};
-      if (currentState && currentState.data) {
-        if (typeof currentState.data === 'string') {
-          try {
-            currentData = JSON.parse(currentState.data);
-          } catch {
-            currentData = {};
-          }
-        } else if (typeof currentState.data === 'object' && !Array.isArray(currentState.data)) {
-          currentData = currentState.data;
-        }
-      }
-
-      let nextData: Record<string, any> = {};
-
-      if (mode === 'incremental') {
-        // Fusionar solo las claves enviadas manteniendo el resto
-        nextData = {
-          ...currentData,
-          ...data,
-        };
-      } else {
-        // Carga maestra autoritativa: el estado del usuario que sube es el estado del servidor
-        nextData = { ...data };
-      }
-
-      const newVersion = (currentState.version || 0) + 1;
-      const now = new Date().toISOString();
-
-      const newPayload: ServerStatePayload = {
-        version: newVersion,
-        updatedAt: now,
-        updatedBy: updatedBy || 'Usuario',
-        data: nextData,
-      };
-
-      const ok = await saveServerState(newPayload);
-      if (!ok) {
-        return NextResponse.json(
-          { success: false, error: 'Fallo al escribir en la base de datos o disco del servidor.' },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        version: newVersion,
-        updatedAt: now,
-        updatedBy: updatedBy || 'Usuario',
-        keysCount: Object.keys(nextData).length,
-        isPostgres: isPostgresConfigured(),
-        message: isPostgresConfigured()
-          ? 'Todos los datos han sido guardados y sincronizados en PostgreSQL con éxito.'
-          : 'Todos los datos han sido guardados y sincronizados en el servidor central con éxito.',
-      });
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message || 'Error al procesar sincronización' },
-      { status: 500 }
-    );
+    const state = await patchServerState(data, baseData, user.name);
+    return NextResponse.json({ success: true, ...state, isPostgres: true, keysCount: Object.keys(state.data).length });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: error instanceof StateConflictError ? error.message : 'No se pudo guardar en PostgreSQL.' },
+      { status: error instanceof StateConflictError ? 409 : 503 });
   }
 }

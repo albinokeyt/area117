@@ -190,7 +190,7 @@ export function UserManager() {
                   </td>
                   <td className="py-3.5 px-5 text-slate-400 font-mono text-xs">{u.email}</td>
                   <td className="py-3.5 px-5 font-mono text-xs text-amber-300">
-                    {u.password ? u.password : <span className="text-slate-500 font-sans">No asignada</span>}
+                    <span className="text-slate-500 font-sans">Protegida</span>
                   </td>
                   <td className="py-3.5 px-5">
                     <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${ROLE_COLORS[u.role]}`}>
@@ -203,7 +203,7 @@ export function UserManager() {
                       <div className="flex items-center justify-end space-x-2">
                         <span className="text-xs text-rose-400 font-semibold">¿Confirmar?</span>
                         <button
-                          onClick={() => { deleteUser(u.id); setConfirmDelete(null); }}
+                          onClick={async () => { try { await deleteUser(u.id); setConfirmDelete(null); } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo eliminar el usuario.'); } }}
                           className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-400 transition-all"
                         >
                           <Check className="h-3.5 w-3.5" />

@@ -19,7 +19,7 @@ export function collectAllLocalState(): Record<string, any> {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && (key.startsWith('efi_') || key.startsWith('sabana_') || key.startsWith('compras_'))) {
+      if (key && isBusinessKey(key)) {
         try {
           const raw = localStorage.getItem(key);
           if (raw !== null) {
@@ -46,80 +46,70 @@ let isSyncInitialized = false;
 let pendingKeysToSync = new Set<string>();
 let inFlightKeys = new Set<string>();
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-let inFlightPushes: Promise<void>[] = [];
+let pushQueue: Promise<void> = Promise.resolve();
 let syncUserNameGetter: (() => string) | undefined;
+let lastPushError: string | null = null;
+let acknowledgedState: Record<string, any> = {};
+let conflictBlocked = false;
+let confirmedVersion = 0;
 
-// Mapa en memoria para recordar cuándo se editó cada clave localmente en este navegador
-const localKeyEditTimestamps = new Map<string, number>();
-
-export function markKeyModifiedLocally(key: string) {
-  localKeyEditTimestamps.set(key, Date.now());
-  pendingKeysToSync.add(key);
+export function isBusinessKey(key: string) {
+  return /^(efi_|sabana_|compras_)/.test(key) && ![
+    'efi_last_server_version', 'efi_last_server_sync_time', 'efi_current_user', 'efi_users_list'
+  ].includes(key);
 }
 
-function scheduleSync(delayMs: number = 2500) {
+export function markKeyModifiedLocally(key: string) {
+  if (!isBusinessKey(key)) return;
+  pendingKeysToSync.add(key);
+  if (!conflictBlocked) scheduleSync();
+}
+
+function scheduleSync(delayMs = 600) {
   if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
     syncDebounceTimer = null;
-    const keys = Array.from(pendingKeysToSync);
-    if (keys.length > 0) {
-      keys.forEach((k) => inFlightKeys.add(k));
-      pendingKeysToSync.clear();
-      const userName = syncUserNameGetter ? syncUserNameGetter() : 'Usuario';
-      trackPush(pushIncrementalStateToServer(keys, userName).finally(() => {
-        keys.forEach((k) => inFlightKeys.delete(k));
-      }));
-    }
+    void flushPendingSync().catch(() => {});
   }, delayMs);
 }
 
-function trackPush(p: Promise<void>) {
-  inFlightPushes.push(p);
-  p.finally(() => {
-    inFlightPushes = inFlightPushes.filter((x) => x !== p);
-  });
-}
-
-// Envía de inmediato los cambios pendientes y espera a que terminen los envíos en curso
+// Serialize requests so an older response can never overwrite a later edit.
 export async function flushPendingSync(): Promise<void> {
   if (typeof window === 'undefined') return;
-  if (syncDebounceTimer) {
-    clearTimeout(syncDebounceTimer);
-    syncDebounceTimer = null;
-  }
-  const keys = Array.from(pendingKeysToSync);
-  if (keys.length > 0) {
-    keys.forEach((k) => inFlightKeys.add(k));
-    pendingKeysToSync.clear();
-    const userName = syncUserNameGetter ? syncUserNameGetter() : 'Usuario';
-    trackPush(pushIncrementalStateToServer(keys, userName).finally(() => {
-      keys.forEach((k) => inFlightKeys.delete(k));
-    }));
-  }
-  await Promise.all(inFlightPushes.slice());
-}
-
-// Hay cambios locales aún sin confirmar en el servidor
-export function hasUnsyncedChanges(): boolean {
-  return pendingKeysToSync.size > 0 || inFlightKeys.size > 0 || inFlightPushes.length > 0;
-}
-
-// Extraer timestamp numérico de un objeto JSON si existe
-function extractItemTimestamp(item: any): number {
-  if (!item) return 0;
-  if (typeof item === 'object' && item !== null) {
-    if (typeof item.updatedAt === 'string') {
-      const t = Date.parse(item.updatedAt);
-      if (!isNaN(t)) return t;
+  if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = null;
+  const run = pushQueue.catch(() => {}).then(async () => {
+    if (conflictBlocked) throw new Error(lastPushError || 'Conflicto de guardado: descarga los datos del servidor.');
+    while (pendingKeysToSync.size > 0) {
+      const keys = Array.from(pendingKeysToSync);
+      pendingKeysToSync.clear();
+      keys.forEach(k => inFlightKeys.add(k));
+      try {
+        await pushIncrementalStateToServer(keys, syncUserNameGetter?.() || 'Usuario');
+        lastPushError = null;
+      } catch (error) {
+        keys.forEach(k => pendingKeysToSync.add(k));
+        lastPushError = error instanceof Error ? error.message : 'Error de sincronización';
+        window.dispatchEvent(new CustomEvent('efi_sync_error', { detail: lastPushError }));
+        if (!conflictBlocked) scheduleSync(5000);
+        throw error;
+      } finally {
+        keys.forEach(k => inFlightKeys.delete(k));
+      }
     }
-  }
-  return 0;
+  });
+  pushQueue = run;
+  return run;
+}
+
+export function hasUnsyncedChanges(): boolean {
+  return pendingKeysToSync.size > 0 || inFlightKeys.size > 0;
 }
 
 // Guarda la versión del servidor sin retroceder nunca (las respuestas pueden llegar desordenadas)
 function setLocalServerVersion(version: number, updatedAt?: string) {
-  const current = parseInt(localStorage.getItem('efi_last_server_version') || '0', 10);
-  if (version >= current) {
+  if (version >= confirmedVersion) {
+    confirmedVersion = version;
     localStorage.setItem('efi_last_server_version', version.toString());
     if (updatedAt) localStorage.setItem('efi_last_server_sync_time', updatedAt);
   }
@@ -129,53 +119,23 @@ function setLocalServerVersion(version: number, updatedAt?: string) {
 export function applyServerStateToLocal(serverData: Record<string, any>): number {
   if (typeof window === 'undefined' || !serverData) return 0;
   let count = 0;
-  const keysKeptLocal: string[] = [];
-  const now = Date.now();
-
+  acknowledgedState = structuredClone(serverData);
   isApplyingFromServer = true;
   try {
+    for (const key of Object.keys(collectAllLocalState())) {
+      if (!(key in serverData) && !pendingKeysToSync.has(key) && !inFlightKeys.has(key)) localStorage.removeItem(key);
+    }
     Object.entries(serverData).forEach(([key, val]) => {
+      if (!isBusinessKey(key)) return;
       try {
-        // 1. Si la clave está encolada para subir o enviándose actualmente, NUNCA pisarla
-        if (pendingKeysToSync.has(key) || inFlightKeys.has(key)) {
-          return;
-        }
-
-        // 2. Si el usuario guardó o editó esta clave localmente en los últimos 3 minutos, NUNCA pisarla
-        const lastEdit = localKeyEditTimestamps.get(key) || 0;
-        if (now - lastEdit < 180000) {
-          keysKeptLocal.push(key);
-          return;
-        }
-
-        // 3. Comparación de fecha de última actualización (Last-write-wins)
-        const localRaw = localStorage.getItem(key);
-        if (localRaw !== null) {
-          try {
-            let localVal: any = null;
-            try {
-              localVal = JSON.parse(localRaw);
-            } catch {
-              localVal = localRaw;
-            }
-
-            const localTime = extractItemTimestamp(localVal);
-            const serverTime = extractItemTimestamp(val);
-
-            // Si el dato local tiene timestamp y el servidor no, o el dato local es más reciente o igual, CONSERVAR LOCAL
-            if (localTime > 0 && (serverTime === 0 || localTime >= serverTime)) {
-              keysKeptLocal.push(key);
-              return;
-            }
-          } catch {}
-        }
-
+        if (pendingKeysToSync.has(key) || inFlightKeys.has(key)) return;
         const strVal = typeof val === 'string' ? val : JSON.stringify(val);
         localStorage.setItem(key, strVal);
         count++;
       } catch (e) {}
     });
 
+    window.dispatchEvent(new Event('efi_server_state_applied'));
     // Notificar a todos los módulos que los datos cambiaron
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('efi_compras_updated'));
@@ -189,12 +149,6 @@ export function applyServerStateToLocal(serverData: Record<string, any>): number
     console.error('[SyncService] Error al aplicar estado del servidor:', e);
   } finally {
     isApplyingFromServer = false;
-  }
-
-  // Los datos locales que fueron más recientes que el servidor deben subirse para que el servidor se actualice
-  if (keysKeptLocal.length > 0) {
-    keysKeptLocal.forEach((k) => pendingKeysToSync.add(k));
-    scheduleSync(500);
   }
 
   return count;
@@ -220,79 +174,47 @@ export function initClientAutoSync(getUserName?: () => string) {
     window.addEventListener('keydown', recordUserActivity, { passive: true });
     window.addEventListener('pointerdown', recordUserActivity, { passive: true });
 
-    const originalSetItem = localStorage.setItem.bind(localStorage);
-    localStorage.setItem = function (key: string, value: string) {
-      originalSetItem(key, value);
-
-      // Si se está aplicando desde el servidor, no volver a enviarlo
-      if (isApplyingFromServer) return;
-
-      if (key && (key.startsWith('efi_') || key.startsWith('sabana_') || key.startsWith('compras_'))) {
-        // Ignorar metadatos de sincronización
-        if (
-          key === 'efi_last_server_version' ||
-          key === 'efi_last_server_sync_time' ||
-          key === 'efi_current_user' ||
-          key === 'efi_users_list'
-        ) {
-          return;
-        }
-
-        recordUserActivity();
-        localKeyEditTimestamps.set(key, Date.now());
-        pendingKeysToSync.add(key);
-        scheduleSync(2500); // 2.5s debounce para evitar peticiones repetitivas mientras el usuario escribe
+    // Storage instance properties are named storage entries in real browsers.
+    // Wrap the prototype methods and preserve their native receiver instead.
+    const originalSetItem = Storage.prototype.setItem;
+    const originalRemoveItem = Storage.prototype.removeItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      const changed = this.getItem(key) !== String(value);
+      originalSetItem.call(this, key, value);
+      if (this === window.localStorage && changed && !isApplyingFromServer && isBusinessKey(key)) {
+        markKeyModifiedLocally(key);
       }
     };
+    Storage.prototype.removeItem = function (key: string) {
+      const existed = this.getItem(key) !== null;
+      originalRemoveItem.call(this, key);
+      if (this === window.localStorage && existed && !isApplyingFromServer && isBusinessKey(key)) {
+        markKeyModifiedLocally(key);
+      }
+    };
+    window.addEventListener('beforeunload', event => {
+      if (hasUnsyncedChanges()) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    });
+
   } catch (e) {
     console.warn('[SyncService] No se pudo enganchar autoSync en localStorage:', e);
   }
 }
 
-// Subir todos los datos del navegador actual al servidor (Maestro con contraseña)
-export async function pushAllStateToServer(password?: string, userName?: string): Promise<{
-  success: boolean;
-  version?: number;
-  keysCount?: number;
-  error?: string;
+// Manual synchronization uses the same ordered queue and conflict protection.
+export async function pushAllStateToServer(): Promise<{
+  success: boolean; version?: number; keysCount?: number; error?: string;
 }> {
   try {
+    const keys = Object.keys(collectAllLocalState());
+    keys.forEach(markKeyModifiedLocally);
     await flushPendingSync();
-    const data = collectAllLocalState();
-    const totalKeys = Object.keys(data).length;
-
-    if (totalKeys === 0) {
-      return { success: false, error: 'No se encontraron datos locales para enviar.' };
-    }
-
-    const res = await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        password,
-        data,
-        updatedBy: userName || 'Administrador',
-        mode: 'full',
-      }),
-    });
-
-    const json = await res.json();
-    if (!res.ok || !json.success) {
-      return { success: false, error: json.error || 'Error al comunicarse con el servidor' };
-    }
-
-    if (typeof window !== 'undefined') {
-      setLocalServerVersion(json.version, json.updatedAt);
-      window.dispatchEvent(new CustomEvent('efi_server_sync_event', { detail: { type: 'push', version: json.version } }));
-    }
-
-    return {
-      success: true,
-      version: json.version,
-      keysCount: json.keysCount || totalKeys,
-    };
-  } catch (e: any) {
-    return { success: false, error: e.message || 'Error de red al sincronizar' };
+    return { success: true, version: confirmedVersion, keysCount: keys.length };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'No se pudo sincronizar.' };
   }
 }
 
@@ -310,6 +232,8 @@ export async function pushIncrementalStateToServer(keys: string[], userName?: st
         } catch {
           data[key] = raw;
         }
+      } else {
+        data[key] = null;
       }
     });
 
@@ -322,33 +246,42 @@ export async function pushIncrementalStateToServer(keys: string[], userName?: st
         data,
         updatedBy: userName || 'Usuario',
         mode: 'incremental',
+        baseData: Object.fromEntries(keys.filter(key => key in acknowledgedState).map(key => [key, acknowledgedState[key]])),
       }),
     });
 
     const json = await res.json();
-    if (json.success && json.version) {
+    if (res.ok && json.success && json.version) {
+      // Acknowledgement is a complete transaction snapshot, including merged edits.
+      keys.forEach(key => inFlightKeys.delete(key));
+      applyServerStateToLocal(json.data);
       setLocalServerVersion(json.version, json.updatedAt);
+      window.dispatchEvent(new CustomEvent('efi_server_sync_event', { detail: { type: 'push', version: json.version } }));
     } else {
+      if (res.status === 409) conflictBlocked = true;
       throw new Error(json.error || 'Respuesta de sincronización no válida');
     }
   } catch (e) {
-    console.warn('[SyncService] Fallo envío incremental, se reintentará:', e);
-    // No perder los cambios: volver a ponerlos en cola y reintentar
-    keys.forEach((k) => pendingKeysToSync.add(k));
-    scheduleSync(5000);
+    throw e;
+
   }
 }
 
 // Descargar el estado completo desde el servidor y aplicarlo localmente
-export async function pullStateFromServer(): Promise<{
+export async function pullStateFromServer(discardPending = false): Promise<{
   success: boolean;
   version?: number;
   keysCount?: number;
   error?: string;
 }> {
   try {
-    // Antes de descargar, asegurar que los cambios locales ya están en el servidor
-    await flushPendingSync();
+    if (discardPending) {
+      await pushQueue.catch(() => {});
+      pendingKeysToSync.clear();
+      conflictBlocked = false;
+    } else {
+      await flushPendingSync();
+    }
 
     const res = await fetch('/api/sync', {
       method: 'GET',
@@ -365,6 +298,7 @@ export async function pullStateFromServer(): Promise<{
       return { success: false, error: json.error || 'Respuesta vacía del servidor' };
     }
 
+    if (json.version < confirmedVersion) return { success: true, version: confirmedVersion, keysCount: 0 };
     const applied = applyServerStateToLocal(json.data);
 
     if (typeof window !== 'undefined') {
