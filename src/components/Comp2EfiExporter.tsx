@@ -1,20 +1,16 @@
 'use client';
 
+import { getImportStations } from '@/lib/stationsService';
+import { stationIdentity } from '@/lib/livePriceSources';
+import { flushPendingSync } from '@/lib/serverSyncService';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS, PRODUCTS } from '@/lib/dataSeed';
-import {
-  Download, CheckCircle2, FileSpreadsheet, Send, MessageSquare,
-  Copy, Check, Calculator, Fuel, Calendar, FileDown, Layers,
-  Sliders, Search, Filter, Edit3, Trash2, RotateCcw, Plus, ChevronLeft, ChevronRight,
-  Maximize2, Minimize2
-} from 'lucide-react';
+import { CheckCircle2, FileSpreadsheet, Send, MessageSquare, Copy, Check, Calculator, Calendar, FileDown, Sliders, Search, Edit3, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 import {
   downloadImportacionXlsx,
   downloadImportacionCsv,
   buildImportacionTable,
-  IMPORT_STATIONS_56,
   EfiExportRowOverride,
   EfiExportAddedRow
 } from '@/lib/excelExportService';
@@ -29,12 +25,20 @@ interface Comp2Props {
 export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) {
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
-      return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate || '2026-09-05';
+      return workspaceStorage.readJson<{initial: string}>('efi_export_dates_v1')?.initial || workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
     } catch (e) {
       return selectedDate;
     }
   });
-  const [finalDate, setFinalDate] = useState<string>('2026-09-20');
+  const [finalDate, setFinalDate] = useState<string>(() => workspaceStorage.readJson<{final: string}>('efi_export_dates_v1')?.final || selectedDate);
+
+  const [exportError, setExportError] = useState('');
+  useEffect(() => { workspaceStorage.setItem('efi_export_dates_v1', JSON.stringify({ initial: validFromDate, final: finalDate })); }, [validFromDate, finalDate]);
+
+  useEffect(() => workspaceStorage.subscribe((key, _before, after) => {
+    if (key !== 'efi_export_dates_v1' || !after) return;
+    try { const dates = JSON.parse(after); if (typeof dates.initial === 'string') setValidFromDate(dates.initial); if (typeof dates.final === 'string') setFinalDate(dates.final); } catch {}
+  }), []);
 
   const [fixedStationPrices, setFixedStationPrices] = useState<Record<string, number>>({
     'BENAVENTE': 1.1790,
@@ -78,7 +82,7 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
   const [searchTerm, setSearchTerm] = useState('');
   const [tariffFilter, setTariffFilter] = useState('ALL');
   const [productFilter, setProductFilter] = useState('ALL');
-  const [pagoFilter, setPagoFilter] = useState('ALL');
+  const [pagoFilter] = useState('ALL');
   const [rowsPerPage, setRowsPerPage] = useState<number>(100);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isTableExpanded, setIsTableExpanded] = useState(false);
@@ -91,6 +95,7 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
   useEffect(() => {
     const handleUpdate = () => setRefreshTrigger((prev) => prev + 1);
     window.addEventListener('efi_compras_updated', handleUpdate);
+    window.addEventListener('efi_sabana_prices_updated', handleUpdate);
     window.addEventListener('efi_sabana_updated', handleUpdate);
     window.addEventListener('efi_postes_updated', handleUpdate);
     window.addEventListener('efi_valid_date_changed', handleUpdate);
@@ -100,6 +105,7 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
 
     return () => {
       window.removeEventListener('efi_compras_updated', handleUpdate);
+      window.removeEventListener('efi_sabana_prices_updated', handleUpdate);
       window.removeEventListener('efi_sabana_updated', handleUpdate);
       window.removeEventListener('efi_postes_updated', handleUpdate);
       window.removeEventListener('efi_valid_date_changed', handleUpdate);
@@ -188,7 +194,7 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
   const displayEnd = rowsPerPage === -1 ? filteredDataRows.length : Math.min(currentPage * rowsPerPage, filteredDataRows.length);
 
   // Overrides Handlers
-  const handleSaveOverride = (
+  const handleSaveOverride = async (
     key: string,
     override: EfiExportRowOverride,
     scope: 'ROW' | 'TARIFF' | 'STATION' = 'ROW',
@@ -202,18 +208,18 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
       if (scope === 'ROW') {
         currentOverrides[key] = override;
       } else if (scope === 'TARIFF' && targetTariff) {
-        IMPORT_STATIONS_56.forEach((st) => {
-          const k = `${targetTariff}::${st.id}`;
+        getImportStations().filter(st => !st.isZero).forEach((st) => {
+          const k = `${targetTariff}::${st.id}::${override.prod ?? 1}`;
           currentOverrides[k] = { ...override };
         });
       } else if (scope === 'STATION' && targetStation) {
         const cleanSt = targetStation.toUpperCase().replace(/^ES\s+/, '').trim();
-        const stObj = IMPORT_STATIONS_56.find(
-          (s) => s.name.toUpperCase().includes(cleanSt) || cleanSt.includes(s.name.toUpperCase())
+        const stObj = getImportStations().find(
+          (s) => stationIdentity(s.name) === stationIdentity(cleanSt)
         );
         if (stObj) {
           allTariffsList.forEach((t) => {
-            const k = `${t}::${stObj.id}`;
+            const k = `${t}::${stObj.id}::${override.prod ?? 1}`;
             currentOverrides[k] = { ...override };
           });
         }
@@ -222,8 +228,11 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
       workspaceStorage.setItem('efi_export_custom_overrides_v1', JSON.stringify(currentOverrides));
       window.dispatchEvent(new Event('efi_export_updated'));
       setRefreshTrigger((prev) => prev + 1);
+      await flushPendingSync();
+      setExportError('');
     } catch (e) {
-      console.error('Error al guardar sobreescritura EFI:', e);
+      setExportError('Guardado pendiente en PostgreSQL: ' + String((e as Error).message || e));
+      throw e;
     }
   };
 
@@ -245,13 +254,14 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
     codeA: number,
     prod: number,
     pago: string,
-    markup: number
+    markup: number,
+    sourceType?: string
   ) => {
     try {
       const raw = workspaceStorage.getItem('efi_export_added_rows_v1');
       const added: EfiExportAddedRow[] = raw ? JSON.parse(raw) : [];
 
-      IMPORT_STATIONS_56.forEach((st) => {
+      getImportStations().forEach((st) => {
         if (st.isZero) return;
         added.push({
           id: `block_${tariffName}_${st.id}_${Date.now()}`,
@@ -260,7 +270,7 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
           prod,
           initialDate: validFromDate,
           finalDate: finalDate,
-          pvp: Number(((1.480 + markup) * 1.21).toFixed(3)),
+          pvp: 0, priceMode: 'SOURCE', sourceType: sourceType || 'COMPRAS_VENTA_SUGERIDO', markupDiff: Number((markup * 1.21).toFixed(6)),
           stationName: st.name,
           pago,
           tarifa: tariffName,
@@ -319,13 +329,20 @@ export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) 
   };
 
   // Export handlers with exact preview synchronization
+  const validateExport = () => {
+    const missing = previewRows.slice(1).filter(row => typeof row[5] !== 'number' || !Number.isFinite(row[5]));
+    if (missing.length) { setExportError(`No se puede exportar: ${missing.length} filas tienen un origen ausente o una referencia circular. Revisa sus fórmulas.`); return false; }
+    setExportError(''); return true;
+  };
   const handleExportXlsx = () => {
+    if (!validateExport()) return;
     downloadImportacionXlsx(selectedDate, validFromDate, finalDate, previewRows);
     setIsExported(true);
     setTimeout(() => setIsExported(false), 4000);
   };
 
   const handleExportCsv = () => {
+    if (!validateExport()) return;
     downloadImportacionCsv(selectedDate, validFromDate, finalDate, previewRows);
     setIsExported(true);
     setTimeout(() => setIsExported(false), 4000);
@@ -427,6 +444,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
           </div>
         </div>
 
+        {exportError && <p role="alert" className="text-rose-300 p-3">{exportError}</p>}
         {/* Date Selector Row */}
         <div className="mt-5 pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
           <div>
@@ -436,7 +454,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
             </label>
             <input
               type="text"
-              value={validFromDate}
+              aria-label="Fecha inicial de exportación" value={validFromDate}
               onChange={(e) => setValidFromDate(e.target.value)}
               placeholder="DD/MM/YYYY o YYYY-MM-DD"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:border-amber-400 focus:outline-none"
@@ -450,7 +468,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
             </label>
             <input
               type="text"
-              value={finalDate}
+              aria-label="Fecha final de exportación" value={finalDate}
               onChange={(e) => setFinalDate(e.target.value)}
               placeholder="DD/MM/YYYY o YYYY-MM-DD"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
@@ -743,7 +761,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
                   const tarifa = row[8];
 
                   return (
-                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors group">
+                    <tr key={idx} data-testid={`efi-row-${tarifa}-${stationId}-${prod}`} className="hover:bg-slate-800/40 transition-colors group">
                       <td className="py-1.5 px-3 text-center font-bold text-slate-500">{codeA}</td>
                       <td className="py-1.5 px-3 text-white font-bold">{stationId}</td>
                       <td className="py-1.5 px-3 text-center">
@@ -757,7 +775,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
                       <td className="py-1.5 px-3 text-center text-slate-400">{dInit}</td>
                       <td className="py-1.5 px-3 text-center text-slate-400">{dEnd}</td>
                       <td className="py-1.5 px-3 text-right font-bold text-emerald-400 font-mono">
-                        {typeof pvp === 'number' ? pvp.toFixed(3).replace('.', ',') : pvp}
+                        {typeof pvp === 'number' && Number.isFinite(pvp) ? pvp.toFixed(3).replace('.', ',') : 'Sin origen válido'}
                       </td>
                       <td className="py-1.5 px-3 text-slate-200 font-sans font-medium">{stName}</td>
                       <td className="py-1.5 px-3 text-center">
@@ -863,6 +881,8 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
           }}
           selectedDate={selectedDate}
           previewRows={previewRows}
+          columnInitialDate={validFromDate}
+          columnFinalDate={finalDate}
           onSaveOverride={handleSaveOverride}
           onAddRow={handleAddRow}
           onAddTariffBlock={handleAddTariffBlock}
