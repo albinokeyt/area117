@@ -7,6 +7,7 @@ type ChangeListener = (key: string, before: string | null, after: string | null)
 
 export function createWorkspaceStorage(isAvailable: () => boolean = () => true) {
   const values = new Map<string, string>();
+  const parsedValues = new Map<string, unknown>();
   const listeners = new Set<ChangeListener>();
   const storage = {
     get length() { return isAvailable() ? values.size : 0; },
@@ -16,19 +17,30 @@ export function createWorkspaceStorage(isAvailable: () => boolean = () => true) 
     getItem(key: string): string | null {
       return isAvailable() ? values.get(String(key)) ?? null : null;
     },
+    // Shared read-only lookup tables. Callers that edit objects must still parse a copy.
+    readJson<T>(key: string): Readonly<T> | null {
+      const raw = storage.getItem(key);
+      if (raw === null) return null;
+      if (!parsedValues.has(key)) parsedValues.set(key, JSON.parse(raw));
+      return parsedValues.get(key) as Readonly<T>;
+    },
     setItem(key: string, value: string): void {
       if (!isAvailable()) return;
       key = String(key);
       value = String(value);
       const before = storage.getItem(key);
       values.set(key, value);
-      if (before !== value) listeners.forEach(listener => listener(key, before, value));
+      if (before !== value) {
+        parsedValues.delete(key);
+        listeners.forEach(listener => listener(key, before, value));
+      }
     },
     removeItem(key: string): void {
       if (!isAvailable()) return;
       key = String(key);
       const before = storage.getItem(key);
       values.delete(key);
+      parsedValues.delete(key);
       if (before !== null) listeners.forEach(listener => listener(key, before, null));
     },
     clear(): void {

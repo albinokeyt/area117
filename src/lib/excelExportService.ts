@@ -1031,9 +1031,8 @@ export function buildImportacionTable(
     // 0. Copia directa exacta desde la tabla Tarifas Especiales Personalizadas de Sábana de Precios
     if (typeof window !== 'undefined') {
       try {
-        const rawDate = workspaceStorage.getItem(`efi_sabana_custom_special_table_cache_${selectedDate}`);
-        const rawGlobal = workspaceStorage.getItem('efi_sabana_custom_special_table_cache_v1');
-        const liveCache: Record<string, number> = rawDate ? JSON.parse(rawDate) : rawGlobal ? JSON.parse(rawGlobal) : {};
+        const liveCache = workspaceStorage.readJson<Record<string, number>>(`efi_sabana_custom_special_table_cache_${selectedDate}`)
+          ?? workspaceStorage.readJson<Record<string, number>>('efi_sabana_custom_special_table_cache_v1') ?? {};
 
         const directKeys = [
           `${cleanTariff}::${st.name}`,
@@ -1089,9 +1088,8 @@ export function buildImportacionTable(
           }
         }
 
-        const rawFull = workspaceStorage.getItem('efi_sabana_custom_special_table_full_v1');
-        if (rawFull) {
-          const fullLive = JSON.parse(rawFull);
+        const fullLive = workspaceStorage.readJson<Record<string, { conIva: number }>>('efi_sabana_custom_special_table_full_v1');
+        if (fullLive) {
           for (const dk of directKeys) {
             if (fullLive[dk]?.conIva !== undefined && typeof fullLive[dk].conIva === 'number' && fullLive[dk].conIva > 0) {
               return fullLive[dk].conIva;

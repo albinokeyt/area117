@@ -1,10 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getPurchaseItemSalePrice, getProgramVariables, reevaluateAllSabanaFormulas } from '../src/lib/sabanaFormulaEngine';
+import { evaluateFormula, getPurchaseItemSalePrice, getProgramVariables, reevaluateAllSabanaFormulas } from '../src/lib/sabanaFormulaEngine';
 import { getLatestPurchasePayload } from '../src/lib/purchaseState';
 
 import { workspaceStorage } from '../src/lib/workspaceStorage';
 (globalThis as any).window = {};
+
+test('absolute formula references preserve zero, relative aliases, bare tokens and percentages', () => {
+  const variables = { 'COMPRAS:TORREJON:P_VENTA': 1.5, 'COMPRAS:TORREJON:CERO': 0, 'COMPRAS:MADRID:P_VENTA': 1.9, P_VENTA: 99 };
+  const station = { stationName: 'TORREJON' };
+  assert.equal(evaluateFormula('=[COMPRAS:TORREJON:P_VENTA] + 0.012', variables, station).value, 1.512);
+  assert.equal(evaluateFormula('=[compras:torrejon:p_venta] + [COMPRAS:TORREJON:CERO]', variables, station).value, 1.5);
+  assert.equal(evaluateFormula('=[P_VENTA] + [COMPRAS:MADRID:P_VENTA]', variables, station).value, 3.4);
+  assert.equal(evaluateFormula('=P_VENTA + 0,012', variables, station).value, 1.512);
+  assert.equal(evaluateFormula('=[COMPRAS:TORREJON:P_VENTA] + 21%', variables, station).value, 1.815);
+  assert.equal(evaluateFormula('=[COMPRAS:NO_EXISTE:P_VENTA] + 1', variables, station).value, 1);
+  assert.equal(evaluateFormula('=alert(1)', variables, station).success, false);
+});
 
 test('editor and formulas select freshest copy, including empty daily highlights', () => {
   workspaceStorage.clear();

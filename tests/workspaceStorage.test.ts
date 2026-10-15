@@ -36,3 +36,16 @@ test('server rendering never retains a working copy', () => {
   browser = true;
   assert.equal(storage.getItem('efi_price'), null);
 });
+
+test('read-only lookup tables are parsed once and invalidate on replacement or deletion', () => {
+  const storage = createWorkspaceStorage();
+  storage.setItem('efi_table', '{"TORREJON":{"conIva":1.5}}');
+  const first = storage.readJson<Record<string, { conIva: number }>>('efi_table');
+  assert.equal(storage.readJson('efi_table'), first);
+  storage.setItem('efi_table', '{"TORREJON":{"conIva":1.6}}');
+  const next = storage.readJson<Record<string, { conIva: number }>>('efi_table');
+  assert.notEqual(next, first);
+  assert.equal(next?.TORREJON.conIva, 1.6);
+  storage.removeItem('efi_table');
+  assert.equal(storage.readJson('efi_table'), null);
+});

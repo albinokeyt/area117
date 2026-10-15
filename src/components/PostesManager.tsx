@@ -70,10 +70,11 @@ const POSTES_PROPIAS_STATIONS: {
 ];
 
 interface PostesManagerProps {
+  isActive?: boolean;
   selectedDate?: string;
 }
 
-export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
+export function PostesManager({ selectedDate, isActive = true }: PostesManagerProps = {}) {
   const parseNum = (val: string | number | undefined): number => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -1585,6 +1586,9 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
   const MADRID_GROUP = ['VALLECAS', 'GANESHA MADRID', 'GANESHA TORREJON', 'VALDEMORO'];
   const SUR_GROUP = ['BENAMEJI', 'HUMILLADERO'];
+
+  // Keep editor state and data effects mounted; render only the visible table.
+  if (!isActive) return null;
 
   return (
     <div className="space-y-8">
