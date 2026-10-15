@@ -34,9 +34,9 @@ export function pdfTariffSource(tariff: string, published?: SabanaPrices | null)
   return standard ? `SABANA_T${standard[1]}` : null;
 }
 
-function stationKey(name: string) {
+export function stationKey(name: string) {
   const key = normalizePriceName(name).replace(/^(ES|GANESHA)\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-  return ({ ARCOS: 'ARCOS JALON', ALCUBILLAS: 'SORIA ALCUBILLAS', MANISES: 'MANISES EXOIL' } as Record<string, string>)[key] || key;
+  return ({ ARCOS: 'ARCOS JALON', ALCUBILLAS: 'SORIA ALCUBILLAS', MANISES: 'MANISES EXOIL', IRUN: 'IRUN ZAISA III', FIGUERES: 'PETREM FIGUERES', 'PETREM TRUCKS FIGUERES': 'PETREM FIGUERES', 'PUERTO BARCELONA': 'PUERTO DE BARCELONA', 'RIBA RROJA': 'RIBA ROJA' } as Record<string, string>)[key] || key;
 }
 
 export function publishedStationPrice(published: SabanaPrices | null, date: string, source: string | null, station: string): PricePair | null {
@@ -50,5 +50,5 @@ export function publishedStationPrice(published: SabanaPrices | null, date: stri
 export function pdfStationSource(tariff: string, station: string, mapping: Record<string, PdfSourceConfig>, published: SabanaPrices | null) {
   const clean = station.toUpperCase().replace(/^ES\s+/, '').trim();
   const configured = mapping[`${tariff}::${station}`] || mapping[`${tariff}::${clean}`] || mapping[`${tariff}::__DEFAULT__`];
-  return configured?.sourceType?.startsWith('SABANA_') ? configured.sourceType : pdfTariffSource(tariff, published);
+  return configured?.sourceType && configured.sourceType !== 'DEFAULT' ? configured.sourceType : pdfTariffSource(tariff, published);
 }

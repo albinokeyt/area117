@@ -1,5 +1,6 @@
 'use client';
 
+import { liveSpecialPrice } from '@/lib/livePriceSources';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -704,72 +705,14 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   };
 
   // Obtener Precio Actual / Especial de Tarifas Especiales de Compras
-  const getSpecialRateActualPrice = (stName: string): number => {
-    if (specialRates && specialRates.length > 0) {
-      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-      const stCleanId = stName.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
-      const row = specialRates.find((r) => {
-        if (!r || !r.name) return false;
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (rNorm === cleanTarget) return true;
-        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
-        if (rId && stCleanId && rId === stCleanId) return true;
-        return false;
-      }) || specialRates.find((r) => {
-        if (!r || !r.name) return false;
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
-        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
-        if (rId && stCleanId && (rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
-        return false;
-      });
-      if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
-        const p = parseFloat(row.actualPrice.toString().replace(',', '.'));
-        if (Number.isFinite(p) && p >= 0) return p;
-      }
-    }
-    return getStationBasePrice(stName);
+  const specialPriceCache = new Map<string, number>();
+  const specialPrice = (stName: string, reference: boolean) => {
+    const key = `${stName}::${reference}`;
+    if (!specialPriceCache.has(key)) specialPriceCache.set(key, liveSpecialPrice({ purchases: comprasPurchases, specialRates }, stName, reference));
+    return specialPriceCache.get(key)!;
   };
-
-  // Obtener Precio Referencia de Tarifas Especiales de Compras
-  // Por requerimiento directo: Las celdas anaranjadas toman por defecto la columna PRECIO REFERENCIA de Compras
-  const getSpecialRateRefPrice = (stName: string): number => {
-    if (specialRates && specialRates.length > 0) {
-      const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-      const stCleanId = stName.toLowerCase().replace(/^es\s+/, '').replace(/[^a-z0-9]/g, '');
-      const row = specialRates.find((r) => {
-        if (!r || !r.name) return false;
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (rNorm === cleanTarget) return true;
-        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
-        if (rId && stCleanId && rId === stCleanId) return true;
-        return false;
-      }) || specialRates.find((r) => {
-        if (!r || !r.name) return false;
-        const rNorm = r.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (rNorm.includes(cleanTarget) || cleanTarget.includes(rNorm)) return true;
-        const rId = (r.id || '').toLowerCase().replace(/[-_]/g, '');
-        if (rId && stCleanId && (rId.includes(stCleanId) || stCleanId.includes(rId))) return true;
-        return false;
-      });
-      if (row) {
-        // 1. Si el usuario modificó manualmente el Precio de Referencia en Compras
-        if (row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
-          const p = parseFloat(row.refPrice.toString().replace(',', '.'));
-          if (Number.isFinite(p) && p >= 0) return p;
-        }
-        // 2. Si existe un refPrice guardado válido
-        // 3. Si se modificó actualPrice, el refPrice en Compras es actualPrice + 0.0080
-        if (row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
-          const act = parseFloat(row.actualPrice.toString().replace(',', '.'));
-          if (Number.isFinite(act) && act >= 0) return Number((act + 0.0080).toFixed(3));
-        }
-      }
-    }
-    // 4. Por defecto en Compras: Precio Referencia = P. Venta Sugerido GOA + 0.0080
-    const baseSale = getStationBasePrice(stName);
-    return Number((baseSale + 0.0080).toFixed(3));
-  };
+  const getSpecialRateActualPrice = (stName: string): number => specialPrice(stName, false);
+  const getSpecialRateRefPrice = (stName: string): number => specialPrice(stName, true);
 
   // Obtener valor según el origen de datos apuntado
   const resolveCustomSourceValue = (
@@ -1807,6 +1750,11 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
     addSource('SABANA_T27_SUR', ['Tarifa 27 Sur'], getTarifa27SurPrices);
     addSource('SABANA_T15_SUR', ['Tarifa 15 Sur'], getTarifa15SurPrices);
     addSource('SABANA_T75', ['Tarifa 75'], getTarifa75Prices);
+    const pair = (sinIva: number) => ({ sinIva, conIva: Number((sinIva * 1.21).toFixed(3)) });
+    addSource('COMPRAS_ESPECIAL_REF', ['Compras — Precio Referencia (regla guardada)'], name => pair(getSpecialRateRefPrice(name)));
+    addSource('COMPRAS_ESPECIAL_ACTUAL', ['Compras — Precio Actual Especial (regla guardada)'], name => pair(getSpecialRateActualPrice(name)));
+    addSource('COMPRAS_VENTA_SUGERIDO', ['Compras — Venta Sugerida (regla guardada)'], name => pair(getStationBasePrice(name)));
+    addSource('COMPRAS_MEDIO', ['Compras — Compra Hoy (regla guardada)'], (name, own) => pair(resolveCustomSourceValue('COMPRAS_MEDIO', name, own)));
     const raw = JSON.stringify(published);
     if (workspaceStorage.getItem(SABANA_PRICES_KEY) !== raw) {
       workspaceStorage.setItem(SABANA_PRICES_KEY, raw);

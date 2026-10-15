@@ -1997,7 +1997,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={displayActual}
+                            aria-label={`Precio especial actual ${row.name}`} value={displayActual}
                             onChange={(e) => handleSpecialRateChange(row.id, 'actualPrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-black text-center transition-all focus:outline-none ${
                               isActMod
@@ -2014,7 +2014,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={displayRef}
+                            aria-label={`Precio especial referencia ${row.name}`} value={displayRef}
                             onChange={(e) => handleSpecialRateChange(row.id, 'refPrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center transition-all focus:outline-none ${
                               isRefMod
@@ -2031,7 +2031,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={displayBase}
+                            aria-label={`Precio especial base ${row.name}`} value={displayBase}
                             onChange={(e) => handleSpecialRateChange(row.id, 'basePrice', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono text-center transition-all focus:outline-none ${
                               isBaseMod

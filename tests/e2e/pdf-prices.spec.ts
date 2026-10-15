@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 const tariffSources: Record<string, string> = {
   'TARIFA 12': 'T12', 'TARIFA 18': 'T18', 'T18 - PISTA DE SILLA': 'T18', 'TARIFA 24': 'T24',
@@ -6,7 +6,7 @@ const tariffSources: Record<string, string> = {
   'TARIFA 40': 'T40', 'TARIFA 42': 'T42', 'TARIFA 47': 'T47', 'TARIFA 50': 'T50',
   'TARIFA 60': 'T60', 'T60 - PISTA DE SILLA': 'T60', AMAEXO: 'T36', E100: 'T36',
   'TARIFA ECO': 'ECOTRANS', DORADO: 'ESTEBAN', HIQI: 'T36', 'NORPETROL 24': 'T24',
-  ROR: 'ROR', TARJETERA: 'T36', 'TAX MOVING 24': 'T24', TORTUGA: 'T36', VRIO: 'T24',
+  ROR: 'ROR', TARJETERA: 'T36', 'TAX MOVING 24': 'COMPRAS_ESPECIAL_REF', TORTUGA: 'T36', VRIO: 'T24',
 };
 const firstFive = ['TORREJON', 'ARCOS JALON', 'ALFAJARIN', 'TORREMOCHA', 'MADRID'];
 const formula = (rawFormula: string) => ({ rawFormula, evaluatedValue: 0, updatedAt: '2026-10-15T14:00:00.000Z' });
@@ -39,6 +39,8 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
       efi_pdf_station_source_mapping_v1: {
         'TARIFA 12::VALLECAS': { sourceType: 'SABANA_T36' },
         'HIQI::__DEFAULT__': { sourceType: 'SABANA_T36' },
+        'DORADO::ARCOS JALON': { sourceType: 'COMPRAS_ESPECIAL_REF' },
+        'TARIFA ECO::PETREM FIGUERES': { sourceType: 'COMPRAS_ESPECIAL_REF' },
         'TAX MOVING 24::__DEFAULT__': { sourceType: 'COMPRAS_ESPECIAL_REF', manualPriceSinIva: 999 },
       },
     };
@@ -64,10 +66,10 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     for (const [tariff, id] of Object.entries({ ...tariffSources, 'CLIENTE ESPECIAL': 'CUSTOM:client' })) {
       await page.getByRole('button', { name: tariff, exact: true }).click();
       const actual = await page.locator('td[data-testid^="pdf-price-"]').evaluateAll(cells => Object.fromEntries(cells.map(cell => [cell.getAttribute('data-testid'), cell.textContent!.replace('€', '').trim()])));
-      const rows = published.sources[`SABANA_${id}`];
+      const rows = published.sources[id.startsWith('COMPRAS_') ? id : `SABANA_${id}`];
       expect(Object.keys(actual).length).toBe(Object.keys(rows).length * 2);
       for (const [station, price] of Object.entries(rows) as [string, { sinIva: number; conIva: number }][]) {
-        const expected = tariff === 'TARIFA 12' && station === 'VALLECAS' ? published.sources.SABANA_T36.VALLECAS : price;
+        const expected = tariff === 'TARIFA 12' && station === 'VALLECAS' ? published.sources.SABANA_T36.VALLECAS : ((tariff === 'DORADO' && station === 'ARCOS JALON') || (tariff === 'TARIFA ECO' && station === 'PETREM FIGUERES')) ? published.sources.COMPRAS_ESPECIAL_REF[station] : price;
         for (const field of ['sinIva', 'conIva'] as const) {
           expect(actual[`pdf-price-${station}-${field}`], `${tariff}/${station}/${field}`).toBe(format(expected[field]));
           checked++;
@@ -84,11 +86,16 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await expect(page.getByRole('alert').filter({ hasText: 'No se puede generar' })).toContainText('No se puede generar');
     await page.getByRole('button', { name: 'Compras', exact: true }).click();
     await page.getByLabel('TORREJON GOA curr', { exact: true }).fill('1,400');
+    await page.getByRole('button', { name: 'Tarifas Especiales', exact: true }).click();
+    await page.getByLabel('Precio especial referencia TORREJON', { exact: true }).fill('1,510');
     await page.getByRole('button', { name: 'Guardar Precios', exact: true }).click();
     await expect(page.getByRole('button', { name: '¡Guardado!', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Postes', exact: true }).click();
     await page.getByLabel('HVO Alfajarin sin IVA', { exact: true }).fill('1,800');
     await page.getByRole('button', { name: 'PDFs & Clientes', exact: true }).click();
+    await page.getByRole('button', { name: 'TAX MOVING 24', exact: true }).click();
+    await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,510');
+    await expect(page.getByTestId('pdf-price-TORREJON-conIva')).toContainText('1,827');
     await page.getByRole('button', { name: 'TARIFA 12', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,523');
     await expect(page.getByTestId('pdf-price-TORREJON-conIva')).toContainText('1,710');
@@ -108,9 +115,9 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,523');
     await expect(page.getByTestId('pdf-hvo-alfajarinSinIva')).toContainText('1,800');
     await page.getByRole('button', { name: 'Modificar Origen de Datos', exact: true }).click();
-    const origins = page.getByRole('dialog', { name: 'Orígenes de precios en Sábana' });
+    const origins = page.getByRole('dialog', { name: 'Orígenes de precios' });
     await origins.getByLabel('Origen Sábana TORREJON', { exact: true }).selectOption('SABANA_T24');
-    expect(await origins.locator('option[value="MANUAL"], option[value^="COMPRAS_"]').count()).toBe(0);
+    expect(await origins.locator('option[value="MANUAL"]').count()).toBe(0);
     await origins.getByRole('button', { name: 'Cerrar orígenes', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,424');
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_pdf_station_source_mapping_v1?.['TARIFA 12::TORREJON']?.sourceType).toBe('SABANA_T24');

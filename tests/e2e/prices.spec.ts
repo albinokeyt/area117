@@ -1,4 +1,5 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from './fixtures';
+import type { Page } from '@playwright/test';
 import * as XLSX from 'xlsx';
 import { readFile } from 'node:fs/promises';
 import { Client } from 'pg';

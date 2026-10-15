@@ -33,11 +33,14 @@ test('missing or outdated sources never invent a fixed price or VAT', () => {
   assert.equal(publishedStationPrice({ ...prices, sources: { bad: { TORREJON: { sinIva: 1, conIva: NaN } } } }, prices.date, 'bad', 'TORREJON'), null);
 });
 
-test('explicit station and default Sabana origins take precedence; raw/manual legacy values cannot bypass Sabana', () => {
+test('explicit station and default Sabana origins take precedence; saved commercial exceptions are kept as references', () => {
   const mapping = { 'TARIFA 12::TORREJON': { sourceType: 'SABANA_T36' }, 'TARIFA 12::__DEFAULT__': { sourceType: 'SABANA_T24' } };
   assert.equal(pdfStationSource('TARIFA 12', 'TORREJON', mapping, prices), 'SABANA_T36');
   assert.equal(pdfStationSource('TARIFA 12', 'MADRID', mapping, prices), 'SABANA_T24');
-  for (const sourceType of ['MANUAL', 'COMPRAS_ESPECIAL_REF', 'DEFAULT']) {
-    assert.equal(pdfStationSource('TARIFA 12', 'TORREJON', { 'TARIFA 12::TORREJON': { sourceType, manualPriceSinIva: 999 } }, prices), 'SABANA_T12');
+  for (const sourceType of ['MANUAL', 'COMPRAS_ESPECIAL_REF']) {
+    assert.equal(pdfStationSource('TARIFA 12', 'TORREJON', { 'TARIFA 12::TORREJON': { sourceType, manualPriceSinIva: 999 } }, prices), sourceType);
+    // Retaining a mapping never authorizes a missing or fixed publication.
+    assert.equal(publishedStationPrice(prices, prices.date, sourceType, 'TORREJON'), null);
   }
+  assert.equal(pdfStationSource('TARIFA 12', 'TORREJON', { 'TARIFA 12::TORREJON': { sourceType: 'DEFAULT' } }, prices), 'SABANA_T12');
 });

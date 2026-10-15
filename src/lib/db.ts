@@ -101,6 +101,9 @@ export async function ensureTables() {
         password TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS efi_release_reads (
+        user_id TEXT PRIMARY KEY, release_index INTEGER NOT NULL, read_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS efi_sessions (
         token_hash TEXT PRIMARY KEY, user_id TEXT REFERENCES efi_server_users(id) ON DELETE CASCADE,
         environment_fingerprint TEXT, expires_at TIMESTAMPTZ NOT NULL

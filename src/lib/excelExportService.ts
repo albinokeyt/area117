@@ -1,3 +1,5 @@
+import { getLivePriceContext, resolveLivePrice, sabanaSourceForEfiTariff } from './livePriceSources';
+import { publishedStationPrice, normalizePriceName } from './publishedPrices';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 import { collectAllLocalState } from "./serverSyncService";
 import * as XLSX from 'xlsx';
@@ -460,6 +462,7 @@ export interface ImportTariffDef {
 
 export interface EfiExportRowOverride {
   pvp?: number;
+  priceMode?: 'DIRECT' | 'SOURCE';
   initialDate?: string;
   finalDate?: string;
   pago?: string;
@@ -473,7 +476,7 @@ export interface EfiExportRowOverride {
   isCustom?: boolean;
 }
 
-export interface EfiExportAddedRow {
+export interface EfiExportAddedRow extends EfiExportRowOverride {
   id: string;
   codeA: number;
   stationId: number;
@@ -576,7 +579,8 @@ const formatDateToEs = (dateStr: string): string => {
 export function buildImportacionTable(
   selectedDate: string,
   userValidFrom?: string,
-  userFinalDate?: string
+  userFinalDate?: string,
+  withOverrides = true
 ): (string | number | null)[][] {
   // 1. Cargar fuentes de datos locales
   let purchasesData: Record<string, any> = {};
@@ -661,6 +665,8 @@ export function buildImportacionTable(
     specialRates
   );
 
+  const livePrices = getLivePriceContext(selectedDate);
+  const pendingPrices: { row: (string | number | null)[]; config?: EfiExportRowOverride; base: number }[] = [];
   const validFrom = formatDateToEs(userValidFrom || selectedDate || '2025-08-01');
   const validFinal = formatDateToEs(userFinalDate || '2025-08-20');
 
@@ -1386,7 +1392,9 @@ export function buildImportacionTable(
     return round3(defaultSinIva * 1.21);
   };
 
-  const { overrides, addedRows, deletedRows, deletedTariffs } = loadEfiExportOverrides();
+  const savedConfig = loadEfiExportOverrides();
+  const { addedRows, deletedRows, deletedTariffs } = savedConfig;
+  const overrides = withOverrides ? savedConfig.overrides : {};
 
   const rows: (string | number | null)[][] = [];
 
@@ -1428,20 +1436,13 @@ export function buildImportacionTable(
 
     const finalCodeA = ov?.codeA ?? codeA;
     const finalProd = ov?.prod ?? prod;
-    const finalDateInit = ov?.initialDate ? formatDateToEs(ov.initialDate) : defaultDateInit;
-    const finalDateEnd = ov?.finalDate ? formatDateToEs(ov.finalDate) : defaultDateEnd;
-    let finalPvp = ov?.pvp !== undefined ? ov.pvp : defaultPvp;
+    const finalDateInit = validFrom;
+    const finalDateEnd = validFinal;
+    const origin = sabanaSourceForEfiTariff(tarifaName, livePrices.published);
+    const publishedPrice = publishedStationPrice(livePrices.published, selectedDate, origin, resolveSabanaStationName(stationName));
+    const base = publishedPrice?.conIva ?? defaultPvp;
     const finalPago = ov?.pago !== undefined ? ov.pago : defaultPago;
-
-    const isPrepagoTariff =
-      tarifaName.toUpperCase().includes('PREPAGO') ||
-      codeA === 89 || codeA === 91 || codeA === 92;
-
-    // Si para prepago existe un override residual o viejo con 1.802 o 1.770, descartarlo para que rija la copia exacta de Sábana de Precios
-    if (isPrepagoTariff && (finalPvp === 1.802 || finalPvp === 1.770)) {
-      finalPvp = defaultPvp;
-    }
-
+    const finalPvp = base;
     rows.push([
       finalCodeA,
       stationId,
@@ -1453,6 +1454,7 @@ export function buildImportacionTable(
       finalPago,
       tarifaName
     ]);
+    pendingPrices.push({ row: rows[rows.length - 1], config: ov, base });
   };
 
   const effectiveImportStations = typeof window !== 'undefined' ? getImportStations() : IMPORT_STATIONS_56;
@@ -1528,6 +1530,8 @@ export function buildImportacionTable(
         ar.pago,
         ar.tarifa
       );
+      const pending = pendingPrices[pendingPrices.length - 1];
+      if (pending && pending.row[8] === ar.tarifa && pending.row[1] === ar.stationId && !pending.config) pending.config = ar;
     });
   }
 
@@ -1619,6 +1623,28 @@ export function buildImportacionTable(
     }
   } catch (e) {}
 
+  const resolved = new Map<(string | number | null)[], number | null>();
+  const visiting = new Set<(string | number | null)[]>();
+  const calculate = (entry: typeof pendingPrices[number]): number | null => {
+    if (resolved.has(entry.row)) return resolved.get(entry.row)!;
+    if (visiting.has(entry.row)) return null;
+    visiting.add(entry.row);
+    const cfg = entry.config;
+    let result: number | null = entry.base;
+    if (cfg?.priceMode === 'SOURCE' || (cfg?.sourceType && cfg.sourceType !== 'MANUAL')) {
+      if (cfg.sourceType?.startsWith('EFI_')) {
+        const targets = pendingPrices.filter(other => other.row[1] === entry.row[1] && other.row[2] === entry.row[2] && `EFI_${normalizePriceName(String(other.row[8])).replace(/[^a-zA-Z0-9]/g, '_')}` === cfg.sourceType);
+        result = targets.length === 1 ? calculate(targets[0]) : null;
+      } else result = resolveLivePrice(cfg.sourceType || 'DEFAULT', String(entry.row[6]), livePrices, entry.base);
+      if (result !== null) result = round3(result + (cfg.markupDiff ?? 0));
+    } else if (cfg) result = cfg.manualPriceConIva ?? cfg.pvp ?? entry.base;
+    visiting.delete(entry.row);
+    result = result !== null && Number.isFinite(result) ? result : null;
+    resolved.set(entry.row, result);
+    return result;
+  };
+  pendingPrices.forEach(entry => { entry.row[5] = calculate(entry); });
+
   return rows;
 }
 
@@ -1662,15 +1688,11 @@ export function downloadImportacionCsv(
   const rows = customRows && customRows.length > 0
     ? customRows
     : buildImportacionTable(selectedDate, userValidFrom, userFinalDate);
-  const csvLines = rows.map((row) =>
-    row.map((val) => {
-      if (val === null || val === undefined) return '';
-      if (typeof val === 'number') {
-        return val.toFixed(3).replace('.', ',');
-      }
-      return String(val);
-    }).join(';')
-  );
+  const csvLines = rows.map(row => row.map((value, column) => {
+    if (value === null || value === undefined) return '';
+    const text = typeof value === 'number' && column === 5 ? value.toFixed(3).replace('.', ',') : String(value);
+    return /[";\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }).join(';'));
   const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csvLines.join('\n'));
   const link = document.createElement('a');
   link.setAttribute('href', csvContent);

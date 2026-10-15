@@ -397,7 +397,7 @@ export function getProgramVariables(
     const pVentaGoa = getPurchaseItemSalePrice(itemGoa, st.name, costs);
 
     let actualVal = pVentaGoa;
-    let refVal = round3(pVentaGoa + 0.008);
+    let refVal = round3(pVentaGoa > 0 ? pVentaGoa + 0.008 : pVentaGoa);
     let baseVal = round3((totalCostGoa > 50 ? totalCostGoa / 1000 : totalCostGoa) + 0.008);
 
     const normSt = st.name.toUpperCase().replace(/^ES\s+/, '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -426,7 +426,7 @@ export function getProgramVariables(
         if (matchSpecial.isCustomRef && matchSpecial.refPrice !== '') {
           refVal = parseNum(matchSpecial.refPrice);
         } else {
-          refVal = round3(actualVal + 0.008);
+          refVal = round3(actualVal > 0 ? actualVal + 0.008 : actualVal);
         }
         if (matchSpecial.isCustomBase && matchSpecial.basePrice !== '') {
           baseVal = parseNum(matchSpecial.basePrice);

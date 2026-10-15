@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 
 test('editing stays responsive with production-sized formulas and preserves the final price', async ({ page, request }, testInfo) => {

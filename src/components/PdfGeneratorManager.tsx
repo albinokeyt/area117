@@ -914,7 +914,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               Seleccionar Tarifa: <span className="text-amber-400">{selectedTariff}</span>
             </label>
-            <span className="text-xs text-slate-500">Precios vinculados a Sábana</span>
+            <span className="text-xs text-slate-500">Precios vinculados a sus orígenes</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 max-h-64 overflow-y-auto pr-1">
@@ -963,7 +963,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
           <div className="flex items-center space-x-2">
             <span className="text-slate-400 font-medium">Estaciones Activas para <strong className="text-white">{selectedTariff}</strong>:</span>
             <span className="bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
-              {currentActiveStations.length} de {allStations.length} Seleccionadas
+              {allStations.filter(st => isStationActive(st.name)).length} de {allStations.length} Seleccionadas
             </span>
           </div>
 
@@ -1179,10 +1179,10 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
                                   setShowSourcesModal(true);
                                 }}
                                 className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 transition-colors print:hidden"
-                                title={`Origen en Sábana: ${source}. Clic para modificar.`}
+                                title={`Origen guardado: ${source}. Clic para modificar.`}
                               >
                                 <Sliders className="h-2.5 w-2.5 mr-1 text-purple-600" />
-                                Sábana
+                                Origen
                               </button>
                             );
                           }

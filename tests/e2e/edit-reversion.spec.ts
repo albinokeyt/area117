@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('typing each character across background save responses keeps every character', async ({ page }) => {
   await page.goto('/');

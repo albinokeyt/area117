@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { Client } from 'pg';
 
 test('environment admin logs in with a username and can manage users and save data', async ({ page }) => {

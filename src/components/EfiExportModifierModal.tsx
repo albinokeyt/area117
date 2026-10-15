@@ -1,22 +1,19 @@
 'use client';
 
+import { getLivePriceContext, resolveLivePrice } from '@/lib/livePriceSources';
+import { normalizePriceName } from '@/lib/publishedPrices';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import {
-  X, Plus, Sliders, Check, RotateCcw, Trash2, ArrowRight,
-  FileSpreadsheet, Fuel, Layers, Star, Table, MousePointerClick,
-  AlertCircle, Sparkles, CheckCircle2, ChevronRight, Info, Search,
-  Calendar, CreditCard, Hash, Percent, Edit3
-} from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { X, Plus, Sliders, Check, RotateCcw, Trash2, Fuel, Layers, MousePointerClick, CheckCircle2, Edit3 } from 'lucide-react';
 import {
   IMPORT_STATIONS_56,
   EfiExportRowOverride,
   EfiExportAddedRow,
-  resolveSabanaStationName
+  buildImportacionTable,
+  loadEfiExportOverrides,
 } from '@/lib/excelExportService';
 import { getImportStations } from '@/lib/stationsService';
-import { PROPIAS_STATIONS, COLABORADORA_STATIONS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
 import { SabanaTariffDef } from './SabanaTariffManagerModal';
 
 interface EfiExportModifierModalProps {
@@ -24,13 +21,15 @@ interface EfiExportModifierModalProps {
   onClose: () => void;
   selectedDate: string;
   previewRows: (string | number | null)[][];
+  columnInitialDate: string;
+  columnFinalDate: string;
   onSaveOverride: (
     key: string,
     override: EfiExportRowOverride,
     scope?: 'ROW' | 'TARIFF' | 'STATION',
     targetTariff?: string,
     targetStation?: string
-  ) => void;
+  ) => void | Promise<void>;
   onAddRow: (newRow: EfiExportAddedRow) => void;
   onAddTariffBlock: (
     tariffName: string,
@@ -71,189 +70,14 @@ export interface EfiSourceOption {
   isCustom?: boolean;
 }
 
-export const PRESET_EFI_SOURCES = [
-  {
-    id: 'DEFAULT',
-    window: 'Sábana de Precios',
-    label: 'Cálculo Predeterminado de Sábana de Precios',
-    description: 'Toma el precio exacto calculado con IVA desde la ventana Sábana de Precios',
-  },
-  {
-    id: 'SABANA_T12',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 12 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 12',
-  },
-  {
-    id: 'SABANA_T18',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 18 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 18',
-  },
-  {
-    id: 'SABANA_T24',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 24 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 24',
-  },
-  {
-    id: 'SABANA_T36',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 36 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 36',
-  },
-  {
-    id: 'SABANA_T40',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 40 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 40',
-  },
-  {
-    id: 'SABANA_T42',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 42 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 42',
-  },
-  {
-    id: 'SABANA_T47',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 47 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 47',
-  },
-  {
-    id: 'SABANA_T50',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 50 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 50',
-  },
-  {
-    id: 'SABANA_T60',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 60 (Con IVA)',
-    description: 'Copia el precio final Con IVA de Tarifa 60',
-  },
-  {
-    id: 'SABANA_JAVI',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Especial Javi (Con IVA)',
-    description: 'Copia el precio Con IVA de Especial Javi',
-  },
-  {
-    id: 'SABANA_CARRERAS',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Especial Carreras (Con IVA)',
-    description: 'Copia el precio Con IVA de Especial Carreras',
-  },
-  {
-    id: 'SABANA_TRANSFRIRED',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Especial Transfrired (Con IVA)',
-    description: 'Copia el precio Con IVA de Especial Transfrired',
-  },
-  {
-    id: 'SABANA_C0',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Especial General C-0 (Con IVA)',
-    description: 'Copia el precio Con IVA de Especial General C-0',
-  },
-  {
-    id: 'SABANA_ROR',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Especial ROR (Con IVA)',
-    description: 'Copia el precio Con IVA de Especial ROR',
-  },
-  {
-    id: 'SABANA_ESTEBAN',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Especial Esteban (Con IVA)',
-    description: 'Copia el precio Con IVA de Especial Esteban',
-  },
-  {
-    id: 'SABANA_ECOTRANS',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa ECOTRANS (Con IVA)',
-    description: 'Copia el precio Con IVA de Tarifa ECOTRANS',
-  },
-  {
-    id: 'SABANA_T30',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 30 (Con IVA)',
-    description: 'Copia el precio Con IVA de Tarifa 30',
-  },
-  {
-    id: 'SABANA_T27',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 27 Sur (Con IVA)',
-    description: 'Copia el precio Con IVA de Tarifa 27 Sur',
-  },
-  {
-    id: 'SABANA_T15',
-    window: 'Sábana de Precios',
-    label: 'Sábana — Tarifa 15 Sur (Con IVA)',
-    description: 'Copia el precio Con IVA de Tarifa 15 Sur',
-  },
-  {
-    id: 'COMPRAS_VENTA_SUGERIDO',
-    window: 'Compras',
-    label: 'Compras — P. Venta Sugerido GOA (Con IVA * 1.21)',
-    description: 'Precio oficial sugerido de Compras para la estación convertido Con IVA',
-  },
-  {
-    id: 'COMPRAS_BRONCO',
-    window: 'Compras',
-    label: 'Compras — Gasolina Bronco Con IVA',
-    description: 'Precio de venta Con IVA del producto Gasolina Bronco',
-  },
-  {
-    id: 'COMPRAS_PRECIO_COMPRA',
-    window: 'Compras',
-    label: 'Compras — P. Compra Hoy / Medio (Con IVA * 1.21)',
-    description: 'Precio de coste/compra promedio en terminales convertido Con IVA',
-  },
-  {
-    id: 'ESPECIAL_REF',
-    window: 'Tarifas Especiales',
-    label: 'Tarifas Especiales — Precio Referencia (B50:F82) Con IVA',
-    description: 'Precio de referencia (celdas anaranjadas) convertido Con IVA',
-  },
-  {
-    id: 'ESPECIAL_ACTUAL',
-    window: 'Tarifas Especiales',
-    label: 'Tarifas Especiales — Precio Actual Especial Con IVA',
-    description: 'Precio actual especial negociado convertido Con IVA',
-  },
-  {
-    id: 'POSTES_GOA',
-    window: 'Postes',
-    label: 'Postes — Precio Poste Gasóleo A (PVP Con IVA)',
-    description: 'PVP de cartelera física para Gasóleo A',
-  },
-  {
-    id: 'POSTES_GAS95',
-    window: 'Postes',
-    label: 'Postes — Precio Poste Gasolina 95 (PVP Con IVA)',
-    description: 'PVP de cartelera física para Gasolina 95',
-  },
-  {
-    id: 'POSTES_GOB',
-    window: 'Postes',
-    label: 'Postes — Precio Poste Gasóleo B (PVP Con IVA)',
-    description: 'Precio transfer de cartelera para Gasóleo B Agrícola',
-  },
-  {
-    id: 'MANUAL',
-    window: 'Manual',
-    label: 'Precio Fijo / Manual',
-    description: 'Fijar un precio numérico manual específico',
-  },
-];
-
 export function EfiExportModifierModal({
   isOpen,
   onClose,
   selectedDate,
   previewRows,
   onSaveOverride,
+  columnInitialDate,
+  columnFinalDate,
   onAddRow,
   onAddTariffBlock,
   onDeleteRow,
@@ -274,10 +98,16 @@ export function EfiExportModifierModal({
     const handleSabanaUpdate = () => {
       setSabanaVersion((v) => v + 1);
     };
+    window.addEventListener('efi_sabana_prices_updated', handleSabanaUpdate);
+    window.addEventListener('efi_compras_updated', handleSabanaUpdate);
+    window.addEventListener('efi_postes_updated', handleSabanaUpdate);
     window.addEventListener('efi_sabana_updated', handleSabanaUpdate);
     window.addEventListener('efi_export_updated', handleSabanaUpdate);
     window.addEventListener('storage', handleSabanaUpdate);
     return () => {
+      window.removeEventListener('efi_sabana_prices_updated', handleSabanaUpdate);
+      window.removeEventListener('efi_compras_updated', handleSabanaUpdate);
+      window.removeEventListener('efi_postes_updated', handleSabanaUpdate);
       window.removeEventListener('efi_sabana_updated', handleSabanaUpdate);
       window.removeEventListener('efi_export_updated', handleSabanaUpdate);
       window.removeEventListener('storage', handleSabanaUpdate);
@@ -292,7 +122,7 @@ export function EfiExportModifierModal({
       const cSpecRaw = workspaceStorage.getItem('efi_sabana_custom_special_tariffs_v1');
       const modRaw = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
       const cStd: SabanaTariffDef[] = cStdRaw ? JSON.parse(cStdRaw) : [];
-      const cSpec: SabanaTariffDef[] = cSpecRaw ? JSON.parse(cSpecRaw) : [];
+      const cSpec: SabanaTariffDef[] = [...(cSpecRaw ? JSON.parse(cSpecRaw) : []), ...(workspaceStorage.readJson<SabanaTariffDef[]>('efi_sabana_custom_block_tariffs_v1') || [])];
       const modConfig: Record<string, any> = modRaw ? JSON.parse(modRaw) : {};
       return { cStd, cSpec, modConfig };
     } catch (e) {
@@ -344,7 +174,7 @@ export function EfiExportModifierModal({
       const mod = sabanaTariffsData.modConfig[c.id] || sabanaTariffsData.modConfig[c.name];
       const rawName = mod?.name || c.name;
       const displayName = rawName.toUpperCase().startsWith('TARIFA') ? rawName : `Tarifa ${rawName}`;
-      const sid = `SABANA_CUSTOM_STD_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
+      const sid = `SABANA_T${c.id}`;
       const effectiveMarkup = mod?.markup !== undefined ? mod.markup : (c.markup ?? 0.024);
       list.push({
         id: sid,
@@ -394,7 +224,7 @@ export function EfiExportModifierModal({
       const displayName = rawName.toUpperCase().startsWith('TARIFA') || rawName.toUpperCase().startsWith('ESPECIAL')
         ? rawName
         : `Tarifa Especial ${rawName}`;
-      const sid = `SABANA_CUSTOM_SPEC_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
+      const sid = `SABANA_CUSTOM:${c.id}`;
       const effectiveMarkup = mod?.markup !== undefined ? mod.markup : (c.markup ?? 0.024);
       list.push({
         id: sid,
@@ -484,18 +314,10 @@ export function EfiExportModifierModal({
       {
         id: 'POSTES_GOB',
         window: 'Postes',
-        label: 'Postes — Precio Poste Gasóleo B (PVP Con IVA)',
+        label: 'Postes — Transfrired Gasóleo B (Con IVA)',
         description: 'Precio transfer de cartelera para Gasóleo B Agrícola',
       }
     );
-
-    // 10. Manual
-    list.push({
-      id: 'MANUAL',
-      window: 'Manual',
-      label: 'Precio Fijo / Manual',
-      description: 'Fijar un precio numérico manual específico',
-    });
 
     return list;
   }, [sabanaTariffsData, previewRows]);
@@ -532,12 +354,10 @@ export function EfiExportModifierModal({
   const [selectedProd, setSelectedProd] = useState<number>(1);
 
   // Edit fields
-  const [editPriceMode, setEditPriceMode] = useState<'DIRECT' | 'SOURCE'>('DIRECT');
+  const [editPriceMode, setEditPriceMode] = useState<'DIRECT' | 'SOURCE'>('SOURCE');
   const [manualPriceConIva, setManualPriceConIva] = useState<string>('1.807');
   const [sourceType, setSourceType] = useState<string>('DEFAULT');
   const [markupDiff, setMarkupDiff] = useState<string>('0.000');
-  const [initialDate, setInitialDate] = useState<string>('01/08/2025');
-  const [finalDate, setFinalDate] = useState<string>('20/08/2025');
   const [pagoType, setPagoType] = useState<string>('MENSUAL');
   const [codeAValue, setCodeAValue] = useState<string>('6');
 
@@ -567,6 +387,8 @@ export function EfiExportModifierModal({
   const [pickerSubTab, setPickerSubTab] = useState<'sabana' | 'compras' | 'special' | 'postes'>('sabana');
 
   // Success Toast
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Sync with initialSelectedRow if provided
@@ -577,8 +399,6 @@ export function EfiExportModifierModal({
       setSelectedStationId(initialSelectedRow.stationId);
       setSelectedProd(initialSelectedRow.prod);
       setManualPriceConIva(initialSelectedRow.pvp.toFixed(3).replace('.', ','));
-      setInitialDate(initialSelectedRow.initialDate);
-      setFinalDate(initialSelectedRow.finalDate);
       setPagoType(initialSelectedRow.pago);
       setCodeAValue(String(initialSelectedRow.codeA));
     }
@@ -593,189 +413,70 @@ export function EfiExportModifierModal({
     return importStations.find((s) => s.id === selectedStationId) || importStations[0];
   }, [selectedStationId, importStations]);
 
-  // Helper para obtener el precio base de compras de cualquier estación
-  const getStationBasePrice = (stName: string): number => {
-    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-    let p = comprasPurchases[`${stName}_GOA`]?.sale;
-    if (!p) {
-      const matchK = Object.keys(comprasPurchases).find((k) => {
-        if (!k.endsWith('_GOA')) return false;
-        const b = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
-        return b === cleanTarget || b.includes(cleanTarget) || cleanTarget.includes(b);
-      });
-      if (matchK) p = comprasPurchases[matchK]?.sale;
+  const pendingSourcePick = useRef<string | null>(null);
+  const liveContext = useMemo(() => getLivePriceContext(selectedDate), [selectedDate, sabanaVersion, comprasPurchases, specialRates, postesData]);
+  const baseRows = useMemo(() => buildImportacionTable(selectedDate, columnInitialDate, columnFinalDate, false), [liveContext, columnInitialDate, columnFinalDate]);
+  const currentDefaultRow = baseRows.find(r => r[8] === selectedTariff && r[1] === selectedStationId && r[2] === selectedProd);
+  const resolveSourceValue = (type: string, station: string): number => {
+    if (type.startsWith('EFI_')) {
+      const matches = previewRows.filter(r => r[1] === selectedStationId && r[2] === selectedProd && r[8] !== selectedTariff && `EFI_${normalizePriceName(String(r[8])).replace(/[^a-zA-Z0-9]/g, '_')}` === type);
+      return matches.length === 1 && typeof matches[0][5] === 'number' ? matches[0][5] : NaN;
     }
-    if (p) {
-      const num = parseFloat(String(p).replace(',', '.'));
-      if (!isNaN(num) && num > 0) return num;
-    }
-    if (OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget] !== undefined) {
-      return OFFICIAL_SUGGESTED_SALE_PRICES[cleanTarget];
-    }
-    if (OFFICIAL_SUGGESTED_SALE_PRICES[stName] !== undefined) {
-      return OFFICIAL_SUGGESTED_SALE_PRICES[stName];
-    }
-    return 1.480;
+    return resolveLivePrice(type, station, liveContext, typeof currentDefaultRow?.[5] === 'number' ? currentDefaultRow[5] : null) ?? NaN;
   };
 
-  // Helper to calculate sample source value
-  const resolveSourceValue = (type: string, stName: string): number => {
-    const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
-    const sabanaStation = resolveSabanaStationName(stName);
+  useEffect(() => {
+    const configs = loadEfiExportOverrides().overrides;
+    const short = selectedTariff.replace(/^TARIFA\s+/, '').trim();
+    const cfg = configs[`${selectedTariff}::${selectedStationId}::${selectedProd}`] || configs[`${selectedTariff}::${selectedStationId}`] || configs[`${short}::${selectedStationId}::${selectedProd}`] || configs[`${short}::${selectedStationId}`];
+    const row = previewRows.find(r => r[8] === selectedTariff && r[1] === selectedStationId && r[2] === selectedProd);
+    const picked = pendingSourcePick.current;
+    pendingSourcePick.current = null;
+    const linked = cfg?.priceMode === 'SOURCE' || (cfg?.sourceType && cfg.sourceType !== 'MANUAL');
+    setEditPriceMode(picked || linked || !cfg ? 'SOURCE' : 'DIRECT');
+    setSourceType(picked || (linked ? cfg?.sourceType || 'DEFAULT' : 'DEFAULT'));
+    setMarkupDiff(String(cfg?.markupDiff ?? 0).replace('.', ','));
+    setManualPriceConIva(String(linked ? row?.[5] ?? '' : cfg?.manualPriceConIva ?? cfg?.pvp ?? row?.[5] ?? '').replace('.', ','));
+    setPagoType(cfg?.pago ?? String(row?.[7] ?? 'MENSUAL'));
+    setCodeAValue(String(cfg?.codeA ?? row?.[0] ?? 6));
+    // Only changing the target reloads its saved rule. Live source updates must not reset an unfinished edit.
+  }, [selectedTariff, selectedStationId, selectedProd, isOpen]);
 
-    if (type.startsWith('SABANA_') || type.startsWith('EFI_') || type === 'DEFAULT') {
-      const sourceOpt = allAvailableSources.find((s) => s.id === type);
-      const targetTariffName = sourceOpt?.tariffName || (type === 'DEFAULT' ? selectedTariff : '');
-
-      // 1. Try finding in previewRows
-      if (targetTariffName) {
-        const cleanT = targetTariffName.toUpperCase().replace(/^TARIFA\s+/, '').trim();
-        const matchedRow = previewRows.find((r) => {
-          const rTariff = String(r[8] || '').toUpperCase().trim();
-          const rCleanT = rTariff.replace(/^TARIFA\s+/, '').trim();
-          const rSt = String(r[6] || '').toUpperCase().trim();
-          const rStId = r[1];
-
-          const stationMatches =
-            rStId === selectedStationId ||
-            rSt === cleanTarget ||
-            rSt === sabanaStation.toUpperCase() ||
-            rSt.includes(cleanTarget) ||
-            cleanTarget.includes(rSt);
-
-          const tariffMatches =
-            rTariff === targetTariffName.toUpperCase().trim() ||
-            rCleanT === cleanT ||
-            rTariff.includes(cleanT) ||
-            cleanT.includes(rCleanT);
-
-          return stationMatches && tariffMatches;
-        });
-
-        if (matchedRow && typeof matchedRow[5] === 'number' && matchedRow[5] > 0) {
-          return matchedRow[5];
-        }
-      }
-
-      // Also search previewRows with suffix if legacy SABANA_TX
-      const tariffSuffix = type.replace(/^SABANA_/, '').toUpperCase();
-      const matchedRowBySuffix = previewRows.find((r) => {
-        const rTariff = String(r[8] || '').toUpperCase().trim();
-        const rSt = String(r[6] || '').toUpperCase().trim();
-        return rTariff.includes(tariffSuffix) && (rSt.includes(cleanTarget) || cleanTarget.includes(rSt));
-      });
-      if (matchedRowBySuffix && typeof matchedRowBySuffix[5] === 'number') {
-        return matchedRowBySuffix[5];
-      }
-
-      // 2. Direct calculation fallback
-      const base = getStationBasePrice(stName);
-      const markup = sourceOpt?.markup ?? 0.024;
-      return Number(((base + markup) * 1.21).toFixed(3));
-    }
-
-    if (type === 'COMPRAS_VENTA_SUGERIDO') {
-      const base = getStationBasePrice(stName);
-      return Number((base * 1.21).toFixed(3));
-    }
-
-    if (type === 'COMPRAS_BRONCO') {
-      try {
-        const b = workspaceStorage.getItem('efi_compras_gasolina_bronco') || workspaceStorage.getItem('efi_purchases_bronco_' + selectedDate);
-        if (b) {
-          const parsed = JSON.parse(b);
-          const p = parseFloat(String(parsed.conIva || '').replace(',', '.'));
-          if (!isNaN(p) && p > 0) return p;
-        }
-      } catch (e) {}
-      return 1.690;
-    }
-
-    if (type === 'COMPRAS_PRECIO_COMPRA') {
-      let p = comprasPurchases[`${stName}_GOA`]?.curr;
-      if (!p) {
-        const matchK = Object.keys(comprasPurchases).find((k) => {
-          if (!k.endsWith('_GOA')) return false;
-          const b = k.replace(/_GOA$/, '').toUpperCase().replace(/^ES\s+/, '').trim();
-          return b === cleanTarget || b.includes(cleanTarget) || cleanTarget.includes(b);
-        });
-        if (matchK) p = comprasPurchases[matchK]?.curr;
-      }
-      const num = parseFloat(String(p || '').replace(',', '.'));
-      if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
-      return 1.450;
-    }
-
-    if (type === 'ESPECIAL_REF') {
-      const r = specialRates.find((s) => s.name?.toUpperCase().includes(cleanTarget) || cleanTarget.includes(s.name?.toUpperCase() || ''));
-      if (r?.refPrice) {
-        const num = parseFloat(String(r.refPrice).replace(',', '.'));
-        if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
-      }
-      return 1.780;
-    }
-
-    if (type === 'ESPECIAL_ACTUAL') {
-      const r = specialRates.find((s) => s.name?.toUpperCase().includes(cleanTarget) || cleanTarget.includes(s.name?.toUpperCase() || ''));
-      if (r?.actualPrice) {
-        const num = parseFloat(String(r.actualPrice).replace(',', '.'));
-        if (!isNaN(num) && num > 0) return Number((num * 1.21).toFixed(3));
-      }
-      return 1.760;
-    }
-
-    if (type === 'POSTES_GOA') {
-      const p = postesData?.postes?.[stName]?.goa || postesData?.postes?.[cleanTarget]?.goa || postesData?.propiasPvpRows?.[stName]?.gasoleoA || postesData?.propiasPvpRows?.[cleanTarget]?.gasoleoA;
-      if (p) {
-        const num = parseFloat(String(p).replace(',', '.'));
-        if (!isNaN(num) && num > 0) return num;
-      }
-      return 1.799;
-    }
-
-    if (type === 'POSTES_GAS95') {
-      const p = postesData?.postes?.[stName]?.gasolina || postesData?.postes?.[cleanTarget]?.gasolina || postesData?.propiasPvpRows?.[stName]?.gasolina95 || postesData?.propiasPvpRows?.[cleanTarget]?.gasolina95;
-      if (p) {
-        const num = parseFloat(String(p).replace(',', '.'));
-        if (!isNaN(num) && num > 0) return num;
-      }
-      return 1.689;
-    }
-
-    if (type === 'POSTES_GOB') {
-      const p = postesData?.gasoleoBRows?.[cleanTarget]?.compra;
-      if (p) {
-        const num = parseFloat(String(p).replace(',', '.'));
-        if (!isNaN(num) && num > 0) return Number(((num + 0.017) * 1.21).toFixed(3));
-      }
-      return 1.439;
-    }
-
-    return 1.800;
+  const selectLinkedSource = (source: string, stationId: number) => {
+    pendingSourcePick.current = stationId !== selectedStationId ? source : null;
+    setSelectedStationId(stationId);
+    setSourceType(source);
+    setEditPriceMode('SOURCE');
+    setMarkupDiff('0,000');
+    setActiveTab('modify');
+    setSuccessMsg('Origen enlazado: el precio se actualizará cuando cambie su fuente.');
   };
+  const formatSourcePrice = (price: number) => Number.isFinite(price) ? price.toFixed(3).replace('.', ',') : 'Sin origen';
 
   // Preview computed PVP
   const previewComputedPvp = useMemo(() => {
     if (editPriceMode === 'DIRECT') {
-      return parseFloat(manualPriceConIva.replace(',', '.')) || 0;
+      const value = Number(manualPriceConIva.replace(',', '.'));
+      return manualPriceConIva.trim() && Number.isFinite(value) ? value : NaN;
     }
     const baseVal = resolveSourceValue(sourceType, currentStation.name);
     const diff = parseFloat(markupDiff.replace(',', '.')) || 0;
     return Number((baseVal + diff).toFixed(3));
-  }, [editPriceMode, manualPriceConIva, sourceType, markupDiff, currentStation]);
+  }, [editPriceMode, manualPriceConIva, sourceType, markupDiff, currentStation, liveContext, previewRows, selectedTariff, selectedProd]);
 
-  const handleSaveModification = () => {
+  const handleSaveModification = async () => {
     const finalPvp = previewComputedPvp;
+    if (!Number.isFinite(finalPvp)) return;
     const finalCodeA = parseInt(codeAValue) || 6;
     const finalProdNum = selectedProd;
     const finalDiff = parseFloat(markupDiff.replace(',', '.')) || 0;
 
     const override: EfiExportRowOverride = {
-      pvp: finalPvp,
+      priceMode: editPriceMode,
+      pvp: editPriceMode === 'DIRECT' ? finalPvp : undefined,
       codeA: finalCodeA,
       prod: finalProdNum,
-      initialDate,
-      finalDate,
+
       pago: pagoType,
       sourceType: editPriceMode === 'SOURCE' ? sourceType : undefined,
       markupDiff: editPriceMode === 'SOURCE' ? finalDiff : undefined,
@@ -785,7 +486,9 @@ export function EfiExportModifierModal({
 
     const targetKey = `${selectedTariff}::${selectedStationId}::${finalProdNum}`;
 
-    onSaveOverride(
+    setIsSaving(true); setSaveError(''); setSuccessMsg(null);
+    try {
+    await onSaveOverride(
       targetKey,
       override,
       modifyScope,
@@ -801,6 +504,8 @@ export function EfiExportModifierModal({
         : `Modificación aplicada a todas las tarifas de ${currentStation.name}`
     );
     setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (error) { setSaveError('No se pudo confirmar el guardado en PostgreSQL. Los cambios siguen pendientes: ' + (error as Error).message); }
+    finally { setIsSaving(false); }
   };
 
   const handleCreateNewRow = () => {
@@ -856,7 +561,7 @@ export function EfiExportModifierModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div role="dialog" aria-modal="true" aria-label="Modificar exportación EFI" className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/50">
@@ -880,6 +585,7 @@ export function EfiExportModifierModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Cerrar modificación EFI"
             className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors"
           >
             <X className="h-5 w-5" />
@@ -940,6 +646,7 @@ export function EfiExportModifierModal({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
+          {saveError && <p role="alert" className="text-rose-300 text-sm">{saveError}</p>}
           {/* Toast Notification */}
           {successMsg && (
             <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
@@ -979,7 +686,7 @@ export function EfiExportModifierModal({
                     }`}
                   >
                     <div className="text-xs font-black">Por Tarifa Completa</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Aplica a todas las 56 estaciones de la tarifa</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Aplica a todas las estaciones de la tarifa</div>
                   </button>
 
                   <button
@@ -1003,7 +710,7 @@ export function EfiExportModifierModal({
                     Tarifa a Modificar:
                   </label>
                   <select
-                    value={selectedTariff}
+                    aria-label="Tarifa a modificar" value={selectedTariff}
                     onChange={(e) => setSelectedTariff(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                   >
@@ -1018,7 +725,7 @@ export function EfiExportModifierModal({
                     Estación de Servicio:
                   </label>
                   <select
-                    value={selectedStationId}
+                    aria-label="Estación de servicio a modificar" value={selectedStationId}
                     onChange={(e) => setSelectedStationId(parseInt(e.target.value))}
                     disabled={modifyScope === 'TARIFF'}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none disabled:opacity-50"
@@ -1036,7 +743,7 @@ export function EfiExportModifierModal({
                     Código de Producto:
                   </label>
                   <select
-                    value={selectedProd}
+                    aria-label="Código de producto a modificar" value={selectedProd}
                     onChange={(e) => setSelectedProd(parseInt(e.target.value))}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                   >
@@ -1085,7 +792,7 @@ export function EfiExportModifierModal({
                     </label>
                     <input
                       type="text"
-                      value={manualPriceConIva}
+                      aria-label="Precio manual con IVA" value={manualPriceConIva}
                       onChange={(e) => setManualPriceConIva(e.target.value.replace('.', ','))}
                       placeholder="1,807"
                       className="w-full max-w-xs bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-emerald-300 font-bold font-mono focus:border-emerald-400 focus:outline-none"
@@ -1098,7 +805,7 @@ export function EfiExportModifierModal({
                         Origen de Datos Base:
                       </label>
                       <select
-                        value={sourceType}
+                        aria-label="Origen de datos base" value={sourceType}
                         onChange={(e) => setSourceType(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-purple-400 focus:outline-none"
                       >
@@ -1119,7 +826,7 @@ export function EfiExportModifierModal({
                       </label>
                       <input
                         type="text"
-                        value={markupDiff}
+                        aria-label="Diferencial de precio" value={markupDiff}
                         onChange={(e) => setMarkupDiff(e.target.value.replace('.', ','))}
                         placeholder="0,000"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-purple-400 focus:outline-none"
@@ -1136,15 +843,16 @@ export function EfiExportModifierModal({
                   <span className="text-xs text-slate-400">PVP Con IVA Resultante:</span>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-mono font-black text-emerald-400">
-                      {previewComputedPvp.toFixed(3).replace('.', ',')} €
+                      {Number.isFinite(previewComputedPvp) ? previewComputedPvp.toFixed(3).replace('.', ',') + ' €' : 'Sin origen válido'}
                     </span>
                     <span className="text-[10px] text-slate-500 font-mono">
-                      (Sin IVA: {(previewComputedPvp / 1.21).toFixed(3).replace('.', ',')} €)
+                      (Sin IVA: {Number.isFinite(previewComputedPvp) ? (previewComputedPvp / 1.21).toFixed(3).replace('.', ',') : '—'} €)
                     </span>
                   </div>
                 </div>
               </div>
 
+              <p className="text-xs text-slate-400">La fórmula queda guardada y el precio sigue su origen. Las fechas siguen las columnas INICIAL y FINAL de EFI Export.</p>
               {/* Other Metadata: Dates, Payment, Col A */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
@@ -1153,8 +861,8 @@ export function EfiExportModifierModal({
                   </label>
                   <input
                     type="text"
-                    value={initialDate}
-                    onChange={(e) => setInitialDate(e.target.value)}
+                    value={columnInitialDate}
+                    readOnly
                     placeholder="01/08/2025"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                   />
@@ -1166,8 +874,8 @@ export function EfiExportModifierModal({
                   </label>
                   <input
                     type="text"
-                    value={finalDate}
-                    onChange={(e) => setFinalDate(e.target.value)}
+                    value={columnFinalDate}
+                    readOnly
                     placeholder="20/08/2025"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                   />
@@ -1178,7 +886,7 @@ export function EfiExportModifierModal({
                     Tipo de Pago (PAGO):
                   </label>
                   <select
-                    value={pagoType}
+                    aria-label="Tipo de pago" value={pagoType}
                     onChange={(e) => setPagoType(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                   >
@@ -1195,7 +903,7 @@ export function EfiExportModifierModal({
                   </label>
                   <input
                     type="number"
-                    value={codeAValue}
+                    aria-label="Código columna A" value={codeAValue}
                     onChange={(e) => setCodeAValue(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
                   />
@@ -1206,10 +914,11 @@ export function EfiExportModifierModal({
               <div className="flex justify-end pt-2">
                 <button
                   onClick={handleSaveModification}
+                  disabled={isSaving || !Number.isFinite(previewComputedPvp)}
                   className="flex items-center space-x-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black shadow-lg transition-all active:scale-95"
                 >
                   <Check className="h-4 w-4" />
-                  <span>Aplicar y Guardar Modificación</span>
+                  <span>{isSaving ? 'Guardando en PostgreSQL…' : 'Aplicar y Guardar Modificación'}</span>
                 </button>
               </div>
             </div>
@@ -1512,11 +1221,12 @@ export function EfiExportModifierModal({
               <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex items-center space-x-2">
                 <MousePointerClick className="h-4 w-4 text-purple-400 shrink-0" />
                 <span>
-                  Haz clic en cualquier valor para capturarlo automáticamente como precio para la estación{' '}
+                  Haz clic en un valor para enlazar su origen a la estación seleccionada. El enlace seguirá los cambios de precio en{' '}
                   <strong className="text-white">{currentStation.name}</strong> en <strong className="text-white">{selectedTariff}</strong>.
                 </span>
               </div>
 
+              <input aria-label="Buscar estación en orígenes" value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Buscar estación" className="w-full p-2 bg-slate-950 border border-slate-700 rounded-lg text-sm" />
               {/* Sub-tabs */}
               <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
                 <button
@@ -1578,7 +1288,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {importStations.slice(0, 30).map((st) => {
+                      {importStations.filter(st => st.name.toLowerCase().includes(pickerSearch.toLowerCase())).map((st) => {
                         const v12 = resolveSourceValue('SABANA_T12', st.name);
                         const v18 = resolveSourceValue('SABANA_T18', st.name);
                         const v24 = resolveSourceValue('SABANA_T24', st.name);
@@ -1586,39 +1296,37 @@ export function EfiExportModifierModal({
                         const v60 = resolveSourceValue('SABANA_T60', st.name);
 
                         const customStdValues = sabanaTariffsData.cStd.map((c) => {
-                          const sid = `SABANA_CUSTOM_STD_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
-                          return { name: c.name, val: resolveSourceValue(sid, st.name) };
+                          const sid = `SABANA_T${c.id}`;
+                          return { name: c.name, source: sid, val: resolveSourceValue(sid, st.name) };
                         });
 
                         const customSpecValues = sabanaTariffsData.cSpec.map((c) => {
-                          const sid = `SABANA_CUSTOM_SPEC_${(c.id || c.name).replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
-                          return { name: c.name, val: resolveSourceValue(sid, st.name) };
+                          const sid = `SABANA_CUSTOM:${c.id}`;
+                          return { name: c.name, source: sid, val: resolveSourceValue(sid, st.name) };
                         });
 
                         return (
                           <tr key={st.id} className="hover:bg-slate-800/40">
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
                             {[
-                              { label: 'T12', val: v12 },
-                              { label: 'T18', val: v18 },
-                              { label: 'T24', val: v24 },
-                              { label: 'T36', val: v36 },
-                              { label: 'T60', val: v60 },
-                              ...customStdValues.map((c) => ({ label: c.name, val: c.val })),
-                              ...customSpecValues.map((c) => ({ label: c.name, val: c.val })),
+                              { label: 'T12', source: 'SABANA_T12', val: v12 },
+                              { label: 'T18', source: 'SABANA_T18', val: v18 },
+                              { label: 'T24', source: 'SABANA_T24', val: v24 },
+                              { label: 'T36', source: 'SABANA_T36', val: v36 },
+                              { label: 'T60', source: 'SABANA_T60', val: v60 },
+                              ...customStdValues.map((c) => ({ label: c.name, source: c.source, val: c.val })),
+                              ...customSpecValues.map((c) => ({ label: c.name, source: c.source, val: c.val })),
                             ].map((col, idx) => (
                               <td
                                 key={idx}
                                 onClick={() => {
-                                  setManualPriceConIva(col.val.toFixed(3).replace('.', ','));
-                                  setEditPriceMode('DIRECT');
-                                  setActiveTab('modify');
-                                  setSuccessMsg(`Precio de ${col.label} capturado: ${col.val.toFixed(3).replace('.', ',')} €`);
+                                  selectLinkedSource(col.source, st.id);
+                                  setSuccessMsg(`Precio de ${col.label} enlazado: ${formatSourcePrice(col.val)} €`);
                                   setTimeout(() => setSuccessMsg(null), 2500);
                                 }}
                                 className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 hover:scale-105 transition-all font-bold whitespace-nowrap"
                               >
-                                {col.val.toFixed(3).replace('.', ',')} €
+                                {formatSourcePrice(col.val)} €
                               </td>
                             ))}
                           </tr>
@@ -1641,7 +1349,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {importStations.slice(0, 30).map((st) => {
+                      {importStations.filter(st => st.name.toLowerCase().includes(pickerSearch.toLowerCase())).map((st) => {
                         const vs = resolveSourceValue('COMPRAS_VENTA_SUGERIDO', st.name);
                         const vc = resolveSourceValue('COMPRAS_PRECIO_COMPRA', st.name);
                         return (
@@ -1649,27 +1357,23 @@ export function EfiExportModifierModal({
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vs.toFixed(3).replace('.', ','));
-                                setEditPriceMode('DIRECT');
-                                setActiveTab('modify');
-                                setSuccessMsg(`P. Venta Sugerido capturado: ${vs.toFixed(3).replace('.', ',')} €`);
+                                selectLinkedSource('COMPRAS_VENTA_SUGERIDO', st.id);
+                                setSuccessMsg(`P. Venta Sugerido enlazado: ${formatSourcePrice(vs)} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vs.toFixed(3).replace('.', ',')} €
+                              {formatSourcePrice(vs)} €
                             </td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vc.toFixed(3).replace('.', ','));
-                                setEditPriceMode('DIRECT');
-                                setActiveTab('modify');
-                                setSuccessMsg(`P. Compra capturado: ${vc.toFixed(3).replace('.', ',')} €`);
+                                selectLinkedSource('COMPRAS_PRECIO_COMPRA', st.id);
+                                setSuccessMsg(`P. Compra enlazado: ${formatSourcePrice(vc)} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-blue-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vc.toFixed(3).replace('.', ',')} €
+                              {formatSourcePrice(vc)} €
                             </td>
                           </tr>
                         );
@@ -1691,7 +1395,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {importStations.slice(0, 30).map((st) => {
+                      {importStations.filter(st => st.name.toLowerCase().includes(pickerSearch.toLowerCase())).map((st) => {
                         const vr = resolveSourceValue('ESPECIAL_REF', st.name);
                         const va = resolveSourceValue('ESPECIAL_ACTUAL', st.name);
                         return (
@@ -1699,27 +1403,23 @@ export function EfiExportModifierModal({
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vr.toFixed(3).replace('.', ','));
-                                setEditPriceMode('DIRECT');
-                                setActiveTab('modify');
-                                setSuccessMsg(`Precio Referencia capturado: ${vr.toFixed(3).replace('.', ',')} €`);
+                                selectLinkedSource('ESPECIAL_REF', st.id);
+                                setSuccessMsg(`Precio Referencia enlazado: ${formatSourcePrice(vr)} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-amber-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vr.toFixed(3).replace('.', ',')} €
+                              {formatSourcePrice(vr)} €
                             </td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(va.toFixed(3).replace('.', ','));
-                                setEditPriceMode('DIRECT');
-                                setActiveTab('modify');
-                                setSuccessMsg(`Precio Actual capturado: ${va.toFixed(3).replace('.', ',')} €`);
+                                selectLinkedSource('ESPECIAL_ACTUAL', st.id);
+                                setSuccessMsg(`Precio Actual enlazado: ${formatSourcePrice(va)} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-cyan-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {va.toFixed(3).replace('.', ',')} €
+                              {formatSourcePrice(va)} €
                             </td>
                           </tr>
                         );
@@ -1741,7 +1441,7 @@ export function EfiExportModifierModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
-                      {importStations.slice(0, 30).map((st) => {
+                      {importStations.filter(st => st.name.toLowerCase().includes(pickerSearch.toLowerCase())).map((st) => {
                         const vpGoa = resolveSourceValue('POSTES_GOA', st.name);
                         const vpGas = resolveSourceValue('POSTES_GAS95', st.name);
                         return (
@@ -1749,27 +1449,23 @@ export function EfiExportModifierModal({
                             <td className="py-1.5 px-3 font-bold text-slate-300 font-sans">{st.name}</td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vpGoa.toFixed(3).replace('.', ','));
-                                setEditPriceMode('DIRECT');
-                                setActiveTab('modify');
-                                setSuccessMsg(`PVP Poste GOA capturado: ${vpGoa.toFixed(3).replace('.', ',')} €`);
+                                selectLinkedSource('POSTES_GOA', st.id);
+                                setSuccessMsg(`PVP Poste GOA enlazado: ${formatSourcePrice(vpGoa)} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-emerald-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vpGoa.toFixed(3).replace('.', ',')} €
+                              {formatSourcePrice(vpGoa)} €
                             </td>
                             <td
                               onClick={() => {
-                                setManualPriceConIva(vpGas.toFixed(3).replace('.', ','));
-                                setEditPriceMode('DIRECT');
-                                setActiveTab('modify');
-                                setSuccessMsg(`PVP Poste Gasolina 95 capturado: ${vpGas.toFixed(3).replace('.', ',')} €`);
+                                selectLinkedSource('POSTES_GAS95', st.id);
+                                setSuccessMsg(`PVP Poste Gasolina 95 enlazado: ${formatSourcePrice(vpGas)} €`);
                                 setTimeout(() => setSuccessMsg(null), 2500);
                               }}
                               className="py-1.5 px-2 text-right text-amber-400 cursor-pointer hover:bg-purple-500/20 font-bold"
                             >
-                              {vpGas.toFixed(3).replace('.', ',')} €
+                              {formatSourcePrice(vpGas)} €
                             </td>
                           </tr>
                         );
