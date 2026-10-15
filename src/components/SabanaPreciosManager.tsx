@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { jsonValuesEqual } from '@/lib/jsonEquality';
 import {
   PROPIAS_STATIONS as STATIC_PROPIAS,
   COLABORADORA_STATIONS as STATIC_COLABORADORAS,
@@ -944,7 +945,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const before = JSON.stringify(['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => localStorage.getItem(k)));
+      const cacheSnapshot = () => ['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => JSON.parse(localStorage.getItem(k) || 'null'));
+      const before = cacheSnapshot();
       const cache: Record<string, number> = {};
       const fullCache: Record<string, { sinIva: number; conIva: number }> = {};
 
@@ -1105,8 +1107,8 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       localStorage.setItem('efi_sabana_standard_table_full_v1', JSON.stringify(stdFullCache));
       localStorage.setItem(`efi_sabana_standard_table_full_${selectedDate}`, JSON.stringify(stdFullCache));
 
-      const after = JSON.stringify(['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => localStorage.getItem(k)));
-      if (before !== after) window.dispatchEvent(new Event('efi_export_updated'));
+      const after = cacheSnapshot();
+      if (!jsonValuesEqual(before, after)) window.dispatchEvent(new Event('efi_export_updated'));
     } catch (e) {}
   }, [
     customSpecialTariffs,

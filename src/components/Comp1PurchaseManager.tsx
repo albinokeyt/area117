@@ -1,6 +1,7 @@
 'use client';
 
 import { getLatestPurchasePayload, closePurchaseDay } from '@/lib/purchaseState';
+import { jsonValuesEqual } from '@/lib/jsonEquality';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   PROPIAS_STATIONS,
@@ -354,7 +355,10 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const reloadPurchases = () => {
+    const reloadPurchases = (event?: Event) => {
+    const keys = (event as CustomEvent<{ keys?: string[] }> | undefined)?.detail?.keys;
+    if (keys && !keys.some(key => key.startsWith('efi_purchases_') || key.startsWith('efi_compras_') ||
+      key.startsWith('efi_special_rates_') || key === 'efi_global_valid_from_date')) return;
     try {
       const effValid = localStorage.getItem('efi_compras_valid_from');
       const savedSpecial = localStorage.getItem('efi_special_rates_b50_f82_v4');
@@ -541,8 +545,8 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
 
   useEffect(() => {
     const saved = getLatestPurchasePayload(selectedDate);
-    if (JSON.stringify(saved?.data) !== JSON.stringify(purchases) ||
-      JSON.stringify(saved?.modified) !== JSON.stringify(Array.from(modifiedKeys))) {
+    if (!jsonValuesEqual(saved?.data, purchases) ||
+      !jsonValuesEqual(saved?.modified, Array.from(modifiedKeys))) {
       persistPurchasesNow(purchases, modifiedKeys);
     }
   }, [purchases, modifiedKeys, selectedDate, persistPurchasesNow]);

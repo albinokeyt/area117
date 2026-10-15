@@ -1,3 +1,5 @@
+import { storedValuesEqual } from './jsonEquality';
+
 /**
  * Servicio Central de Sincronización en Tiempo Real
  * Sincroniza el almacenamiento local del navegador con el servidor persistente
@@ -119,30 +121,38 @@ function setLocalServerVersion(version: number, updatedAt?: string) {
 export function applyServerStateToLocal(serverData: Record<string, any>): number {
   if (typeof window === 'undefined' || !serverData) return 0;
   let count = 0;
+  const changedKeys: string[] = [];
   acknowledgedState = structuredClone(serverData);
   isApplyingFromServer = true;
   try {
     for (const key of Object.keys(collectAllLocalState())) {
-      if (!(key in serverData) && !pendingKeysToSync.has(key) && !inFlightKeys.has(key)) localStorage.removeItem(key);
+      if (!(key in serverData) && !pendingKeysToSync.has(key) && !inFlightKeys.has(key)) {
+        localStorage.removeItem(key);
+        changedKeys.push(key);
+      }
     }
     Object.entries(serverData).forEach(([key, val]) => {
       if (!isBusinessKey(key)) return;
       try {
         if (pendingKeysToSync.has(key) || inFlightKeys.has(key)) return;
         const strVal = typeof val === 'string' ? val : JSON.stringify(val);
+        if (storedValuesEqual(localStorage.getItem(key), strVal)) return;
         localStorage.setItem(key, strVal);
+        changedKeys.push(key);
         count++;
       } catch (e) {}
     });
 
-    window.dispatchEvent(new Event('efi_server_state_applied'));
+    // Acknowledging our own unchanged save must not reset controlled inputs.
+    if (changedKeys.length === 0) return 0;
+    window.dispatchEvent(new CustomEvent('efi_server_state_applied', { detail: { keys: changedKeys } }));
     // Notificar a todos los módulos que los datos cambiaron
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('efi_compras_updated'));
     window.dispatchEvent(new Event('efi_postes_updated'));
     window.dispatchEvent(new Event('efi_sabana_updated'));
     window.dispatchEvent(new Event('efi_valid_date_changed'));
-    window.dispatchEvent(new Event('efi_stations_updated'));
+    if (changedKeys.includes('efi_stations_catalog_v1')) window.dispatchEvent(new Event('efi_stations_updated'));
     window.dispatchEvent(new Event('efi_export_updated'));
     window.dispatchEvent(new Event('efi_users_updated'));
   } catch (e) {
@@ -179,7 +189,7 @@ export function initClientAutoSync(getUserName?: () => string) {
     const originalSetItem = Storage.prototype.setItem;
     const originalRemoveItem = Storage.prototype.removeItem;
     Storage.prototype.setItem = function (key: string, value: string) {
-      const changed = this.getItem(key) !== String(value);
+      const changed = !storedValuesEqual(this.getItem(key), String(value));
       originalSetItem.call(this, key, value);
       if (this === window.localStorage && changed && !isApplyingFromServer && isBusinessKey(key)) {
         markKeyModifiedLocally(key);

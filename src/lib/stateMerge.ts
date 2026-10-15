@@ -1,4 +1,4 @@
-const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+import { jsonValuesEqual as equal } from './jsonEquality';
 const object = (v: any): v is Record<string, any> => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 export class StateConflictError extends Error {
