@@ -4,6 +4,7 @@ import { workspaceStorage } from '@/lib/workspaceStorage';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { jsonValuesEqual } from '@/lib/jsonEquality';
+import { SABANA_PRICES_KEY, SABANA_PRICES_EVENT, normalizePriceName, PricePair, SabanaPrices } from '@/lib/publishedPrices';
 import {
   PROPIAS_STATIONS as STATIC_PROPIAS,
   COLABORADORA_STATIONS as STATIC_COLABORADORAS,
@@ -647,10 +648,14 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   }, [selectedDate]);
 
   // Obtener P. Venta Sugerido de Compras para cada estación con resolución dinámica y fallback
+  const basePriceCache = new Map<string, number>();
   const getStationBasePrice = (stName: string, isPropia?: boolean): number => {
+    if (basePriceCache.has(stName)) return basePriceCache.get(stName)!;
     const item = findPurchaseItem(comprasPurchases, stName, 'GOA');
     const costs = STATION_EXCEL_COSTS[stName] || STATION_EXCEL_COSTS[stName.toUpperCase().replace(/^ES\s+/, '').trim()];
-    return getPurchaseItemSalePrice(item, stName, costs);
+    const price = getPurchaseItemSalePrice(item, stName, costs);
+    basePriceCache.set(stName, price);
+    return price;
   };
 
   // Helper para identificar estaciones con celda Naranja en Los Javi (copian Precio Actual / Especial de Tarifas Especiales de Compras)
@@ -845,7 +850,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
     }
   };
 
-  const getTariffPricesForStation = (tariffName: string, markup: number, stName: string, isPropia: boolean) => {
+  const calculateTariffPricesForStation = (tariffName: string, markup: number, stName: string, isPropia: boolean) => {
     const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').trim();
     const cleanTariff = tariffName.toUpperCase().trim();
 
@@ -944,11 +949,20 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
     };
   };
 
+  // One calculation per cell pair and render, shared by UI and all export consumers.
+  // Recreated on every render so edits, formulas and origins cannot leave stale values.
+  const tariffPriceCache = new Map<string, ReturnType<typeof calculateTariffPricesForStation>>();
+  const getTariffPricesForStation = (tariffName: string, markup: number, stName: string, isPropia: boolean) => {
+    const key = JSON.stringify([tariffName, markup, stName, isPropia]);
+    if (!tariffPriceCache.has(key)) tariffPriceCache.set(key, calculateTariffPricesForStation(tariffName, markup, stName, isPropia));
+    return tariffPriceCache.get(key)!;
+  };
+
   // Publicar copia exacta de los datos calculados de Tarifas Especiales y Tarifas Estándar (Tarifa 60 para Postes)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const cacheSnapshot = () => ['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => JSON.parse(workspaceStorage.getItem(k) || 'null'));
+      const cacheSnapshot = () => ['efi_sabana_custom_special_table_full_v1', 'efi_sabana_standard_table_full_v1'].map(k => workspaceStorage.readJson(k));
       const before = cacheSnapshot();
       const cache: Record<string, number> = {};
       const fullCache: Record<string, { sinIva: number; conIva: number }> = {};
@@ -1764,6 +1778,42 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
       defaultConIva,
     };
   };
+
+  // Publish the same final cells used by the tables, including independent VAT formulas.
+  // Consumers never rebuild these prices from a PDF-specific markup or a seed value.
+  useEffect(() => {
+    if (Object.keys(comprasPurchases).length === 0) return;
+    const published: SabanaPrices = { date: selectedDate, sources: {}, tariffs: {} };
+    const addSource = (id: string, names: string[], getPrice: (name: string, own: boolean) => PricePair) => {
+      published.sources[id] = Object.fromEntries(allStations.map(st => {
+        const price = getPrice(st.name, st.type === 'PROPIA');
+        return [st.name, { sinIva: price.sinIva, conIva: price.conIva }];
+      }));
+      names.forEach(name => { published.tariffs[normalizePriceName(name)] = id; });
+    };
+    effectiveStandardTariffs.forEach(t => addSource(`SABANA_T${t.id}`, [t.name, `TARIFA ${t.name}`],
+      (name, own) => getTariffPricesForStation(t.name, t.markup, name, own)));
+    [...customSpecialTariffs, ...customBlockGroups.flatMap(group => group.tariffs)].forEach(t => addSource(`SABANA_CUSTOM:${t.id}`, [t.name],
+      (name, own) => getTariffPricesForStation(t.name, t.markup, name, own)));
+    addSource('SABANA_C0', ['Especial General C-0'], getC0Prices);
+    addSource('SABANA_JAVI', ['Especial Javi'], getJaviPrices);
+    addSource('SABANA_CARRERAS', ['Especial Carreras'], getCarrerasPrices);
+    addSource('SABANA_TRANSFRIRED', ['Especial Transfrired'], getTransfriredPrices);
+    addSource('SABANA_ROR', ['Especial ROR'], getRorPrices);
+    addSource('SABANA_ESTEBAN', ['Especial Esteban'], getEstebanPrices);
+    addSource('SABANA_MIKI', ['Tarifa 90 Miki'], getMikiPrices);
+    addSource('SABANA_ECOTRANS', ['Tarifa ECOTRANS', 'Tarifa ECO'], getEcotransPrices);
+    addSource('SABANA_T30', ['Tarifa 30'], getTarifa30Prices);
+    addSource('SABANA_T27_SUR', ['Tarifa 27 Sur'], getTarifa27SurPrices);
+    addSource('SABANA_T15_SUR', ['Tarifa 15 Sur'], getTarifa15SurPrices);
+    addSource('SABANA_T75', ['Tarifa 75'], getTarifa75Prices);
+    const raw = JSON.stringify(published);
+    if (workspaceStorage.getItem(SABANA_PRICES_KEY) !== raw) {
+      workspaceStorage.setItem(SABANA_PRICES_KEY, raw);
+      window.dispatchEvent(new Event(SABANA_PRICES_EVENT));
+    }
+  }, [selectedDate, allStations, effectiveStandardTariffs, customSpecialTariffs, customBlockTariffs,
+    resolvedFormulas, comprasPurchases, specialRates, postesData, tariffSourcesMapping, modifiedTariffsConfig, customBlockGroups]);
 
   // allStations memoizado reactivamente desde stationsService
 
@@ -3075,6 +3125,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
                         <React.Fragment key={`${st.name}_${tariff.id}`}>
                           {/* SIN IVA */}
                           <td
+                            data-testid={`sabana-price-${st.name}-${tariff.id}-sinIva`}
                             onClick={() => {
                               if (!isFormulaMode) return;
                               setActiveModalCell({
@@ -3122,6 +3173,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
                           {/* CON IVA */}
                           <td
+                            data-testid={`sabana-price-${st.name}-${tariff.id}-conIva`}
                             onClick={() => {
                               if (!isFormulaMode) return;
                               setActiveModalCell({

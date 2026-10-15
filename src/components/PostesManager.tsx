@@ -1,6 +1,7 @@
 'use client';
 
 import { workspaceStorage } from '@/lib/workspaceStorage';
+import { HVO_PRICES_KEY, HVO_PRICES_EVENT, HvoPrices } from '@/lib/publishedPrices';
 
 import { flushPendingSync } from '@/lib/serverSyncService';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -785,6 +786,21 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
   const computedHvoValdemoroConIva = resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA']?.evaluatedValue ?? Number((goaValdemoroPrice + hvoValAddVal).toFixed(4));
   const computedHvoValdemoroSinIva = resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA']?.evaluatedValue ?? Number((computedHvoValdemoroConIva / 1.21).toFixed(4));
 
+
+  // Publish the displayed HVO cells after applying every Postes formula.
+  useEffect(() => {
+    const published: HvoPrices = {
+      date: selectedDate || validFromDate,
+      alfajarin: { sinIva: computedHvoAlfajarinSinIva, conIva: computedHvoAlfajarinConIva },
+      valdemoro: { sinIva: computedHvoValdemoroSinIva, conIva: computedHvoValdemoroConIva },
+    };
+    const raw = JSON.stringify(published);
+    if (workspaceStorage.getItem(HVO_PRICES_KEY) !== raw) {
+      workspaceStorage.setItem(HVO_PRICES_KEY, raw);
+      window.dispatchEvent(new Event(HVO_PRICES_EVENT));
+    }
+  }, [selectedDate, validFromDate, computedHvoAlfajarinSinIva, computedHvoAlfajarinConIva,
+    computedHvoValdemoroSinIva, computedHvoValdemoroConIva]);
 
   // Helper centralizado para persistir Postes y HVO y emitir eventos reactivos al instante
   const executePersistPostesData = (
@@ -2495,6 +2511,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                       <input
                         type="text"
                         inputMode="decimal"
+                        aria-label="HVO Alfajarin sin IVA"
                         value={resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] ? formatNum(computedHvoAlfajarinSinIva, 3) : hvoAlfajarinSinIva}
                         onChange={(e) => {
                           const val = e.target.value.replace('.', ',');
@@ -2538,7 +2555,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                       )}
                       <span>Precio Final Sin IVA:</span>
                     </span>
-                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] || isHvoAlfaMod ? 'text-amber-300 font-black' : 'text-white'}`}>
+                    <span data-testid="postes-hvo-alfajarinSinIva" className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_SIN_IVA'] || isHvoAlfaMod ? 'text-amber-300 font-black' : 'text-white'}`}>
                       {formatNum(computedHvoAlfajarinSinIva, 3)} €/L
                     </span>
                   </div>
@@ -2564,7 +2581,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                       )}
                       <span>Precio Con IVA (21%):</span>
                     </span>
-                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA'] || isHvoAlfaMod ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
+                    <span data-testid="postes-hvo-alfajarinConIva" className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_ALFAJARIN_CON_IVA'] || isHvoAlfaMod ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
                       {formatNum(computedHvoAlfajarinConIva, 3)} €/L
                     </span>
                   </div>
@@ -2650,6 +2667,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                       <input
                         type="text"
                         inputMode="decimal"
+                        aria-label="HVO Valdemoro suplemento"
                         value={resolvedPostesFormulas['POSTE_HVO_VALDEMORO_ADD'] ? formatNum(hvoValAddVal, 3) : hvoValdemoroAddition}
                         onChange={(e) => {
                           const val = e.target.value.replace('.', ',');
@@ -2693,7 +2711,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                       )}
                       <span>Precio Final Sin IVA:</span>
                     </span>
-                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA'] || isHvoValTotalMod ? 'text-amber-300 font-black' : 'text-white'}`}>
+                    <span data-testid="postes-hvo-valdemoroSinIva" className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA'] || isHvoValTotalMod ? 'text-amber-300 font-black' : 'text-white'}`}>
                       {formatNum(computedHvoValdemoroSinIva, 3)} €/L
                     </span>
                   </div>
@@ -2719,7 +2737,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                       )}
                       <span>Precio Con IVA (21%):</span>
                     </span>
-                    <span className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA'] || isHvoValTotalMod ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
+                    <span data-testid="postes-hvo-valdemoroConIva" className={`font-bold ${resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA'] || isHvoValTotalMod ? 'text-amber-300 font-black' : 'text-emerald-400'}`}>
                       {formatNum(computedHvoValdemoroConIva, 3)} €/L
                     </span>
                   </div>
