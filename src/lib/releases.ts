@@ -1,6 +1,12 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.5.7', date: '15/10/2026', title: 'Validación de todas las tarifas PDF', changes: [
+    'Nuevo botón Validar tarifas PDF en PDFs y Clientes. Revisa todas las tarifas y estaciones, incluidas las desactivadas, comparando por separado los precios sin IVA y con IVA con el cálculo actual de Sábana.',
+    'El informe distingue coincidencias, diferencias y datos por revisar. Muestra tarifa, estación, origen, fórmula personalizada y ambos precios. Respeta las excepciones comerciales guardadas, incluido Precio Referencia de Compras.',
+    'Se detectan orígenes ausentes, datos de otra fecha y fórmulas que no se pueden evaluar o cuyo resultado está desactualizado. Los filtros permiten revisar una tarifa, estación o solo las incidencias.',
+    'Si los datos cambian después de validar, el informe avisa de que debe repetirse la comprobación con Volver a validar. La validación no modifica precios ni reglas y se aplica a los PDF generados con los datos actuales.'
+  ] },
   { version: 'v1.5.6', date: '15/10/2026', title: 'Tarifas enlazadas, exportación EFI y novedades', changes: [
     'PDF y Clientes conserva las excepciones guardadas por estación y tarifa: DORADO, ROR, ECO y TAX MOVING 24 vuelven a seguir sus orígenes configurados, incluido Precio Referencia. Se mantienen los enlaces de AMAEXO, E100, HIQI, NORPETROL, TARJETERA, TORTUGA, VRIO y variantes Pista de Silla.',
     'EFI Export guarda la fórmula y vuelve a consultar su origen cada vez que cambian Compras, Sábana o Postes. TALAEXPRESS puede seguir Precio Referencia con IVA sin quedarse con el precio del día anterior.',

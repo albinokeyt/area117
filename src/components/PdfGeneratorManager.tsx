@@ -3,10 +3,12 @@
 import { workspaceStorage } from '@/lib/workspaceStorage';
 import { SABANA_PRICES_KEY, HVO_PRICES_KEY, SABANA_PRICES_EVENT, HVO_PRICES_EVENT, SabanaPrices, HvoPrices, pdfStationSource, publishedStationPrice } from '@/lib/publishedPrices';
 import { PdfPriceSourcesModal } from './PdfPriceSourcesModal';
+import { PdfPriceValidationModal } from './PdfPriceValidationModal';
+import { captureSabanaForValidation, validatePdfPrices } from '@/lib/pdfPriceValidation';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { getAllStations } from '@/lib/stationsService';
-import { Printer, FileText, Search, Check, Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert, RotateCcw, Sliders, Tag } from 'lucide-react';
+import { Printer, FileText, Search, Check, Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert, RotateCcw, Sliders, Tag, CheckCircle2 } from 'lucide-react';
 
 interface PdfGeneratorProps {
   isActive?: boolean;
@@ -698,6 +700,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
     }
   }), []);
 
+  const [showValidation, setShowValidation] = useState(false);
   const [showSourcesModal, setShowSourcesModal] = useState(false);
   const [sourcesModalTariff, setSourcesModalTariff] = useState(selectedTariff);
 
@@ -849,6 +852,15 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
             >
               <Sliders className="h-4 w-4 text-purple-400" />
               <span>Modificar Origen de Datos</span>
+            </button>
+
+            <button
+              onClick={() => setShowValidation(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 rounded-xl text-xs font-bold border border-teal-500/40 shadow-md"
+              title="Cruzar todas las tarifas PDF y estaciones con sus precios y fórmulas actuales"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Validar tarifas PDF</span>
             </button>
 
             <button
@@ -1591,6 +1603,12 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
       )}
 
       {showSourcesModal && <PdfPriceSourcesModal initialTariff={sourcesModalTariff} tariffs={tariffsList} stations={allStations} mapping={stationSourcesMapping} published={published} date={selectedDate} onSave={saveStationSourcesMapping} onClose={() => setShowSourcesModal(false)} />}
+
+      {showValidation && <PdfPriceValidationModal date={selectedDate} onClose={() => setShowValidation(false)} runValidation={() => validatePdfPrices({
+        date: selectedDate, tariffs: tariffsList, stations: allStations, mapping: stationSourcesMapping,
+        published: workspaceStorage.readJson<SabanaPrices>(SABANA_PRICES_KEY), live: captureSabanaForValidation(),
+        isActive: (tariff, station) => activeStationsMap[tariff] === undefined || activeStationsMap[tariff].includes(station),
+      })} />}
 
       {/* Toast Notice */}
       {downloadNotice && (
