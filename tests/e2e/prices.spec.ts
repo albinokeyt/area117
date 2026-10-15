@@ -29,12 +29,12 @@ test('prices persist in PostgreSQL, propagate to formulas and survive close + re
   await page.reload();
   await expect(purchase).toHaveValue('1,555');
   await page.getByRole('button', { name: 'Sábana de Precios', exact: true }).click();
-  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('efi_sabana_standard_table_full_v1') || '{}')['12::TORREJON']?.sinIva)).toBe(1.567);
+  await expect.poll(async () => (await (await page.request.get('/api/sync')).json()).data.efi_sabana_standard_table_full_v1?.['12::TORREJON']?.sinIva).toBe(1.567);
   await page.getByRole('button', { name: 'Compras', exact: true }).click();
   await expect(purchase).toHaveValue('1,555');
   // Formula updates immediately without a reload or remount.
   await purchase.fill('1,556');
-  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('efi_sabana_standard_table_full_v1') || '{}')['12::TORREJON']?.sinIva)).toBe(1.568);
+  await expect.poll(async () => (await (await page.request.get('/api/sync')).json()).data.efi_sabana_standard_table_full_v1?.['12::TORREJON']?.sinIva).toBe(1.568);
   await purchase.fill('1,555');
   await page.getByLabel('TORREJON GOA sale', { exact: true }).fill('1,900');
   await page.getByRole('button', { name: 'Guardar Precios', exact: true }).click();

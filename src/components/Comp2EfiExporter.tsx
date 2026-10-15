@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, PRODUCTS } from '@/lib/dataSeed';
 import {
@@ -26,7 +28,7 @@ interface Comp2Props {
 export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
-      return localStorage.getItem('efi_compras_valid_from') || selectedDate || '2026-09-05';
+      return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate || '2026-09-05';
     } catch (e) {
       return selectedDate;
     }
@@ -113,10 +115,10 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
         setComprasPurchases(freshest);
       }
 
-      const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
+      const sp = workspaceStorage.getItem('efi_special_rates_b50_f82_v4') || workspaceStorage.getItem('efi_special_rates_b50_f82_v3');
       if (sp) setSpecialRates(JSON.parse(sp));
 
-      const pData = localStorage.getItem('efi_postes_data_v2');
+      const pData = workspaceStorage.getItem('efi_postes_data_v2');
       if (pData) setPostesData(JSON.parse(pData));
     } catch (e) {}
   }, [selectedDate, refreshTrigger]);
@@ -192,7 +194,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
     targetStation?: string
   ) => {
     try {
-      const raw = localStorage.getItem('efi_export_custom_overrides_v1');
+      const raw = workspaceStorage.getItem('efi_export_custom_overrides_v1');
       const currentOverrides: Record<string, EfiExportRowOverride> = raw ? JSON.parse(raw) : {};
 
       if (scope === 'ROW') {
@@ -215,7 +217,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
         }
       }
 
-      localStorage.setItem('efi_export_custom_overrides_v1', JSON.stringify(currentOverrides));
+      workspaceStorage.setItem('efi_export_custom_overrides_v1', JSON.stringify(currentOverrides));
       window.dispatchEvent(new Event('efi_export_updated'));
       setRefreshTrigger((prev) => prev + 1);
     } catch (e) {
@@ -225,10 +227,10 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
 
   const handleAddRow = (newRow: EfiExportAddedRow) => {
     try {
-      const raw = localStorage.getItem('efi_export_added_rows_v1');
+      const raw = workspaceStorage.getItem('efi_export_added_rows_v1');
       const added: EfiExportAddedRow[] = raw ? JSON.parse(raw) : [];
       added.push(newRow);
-      localStorage.setItem('efi_export_added_rows_v1', JSON.stringify(added));
+      workspaceStorage.setItem('efi_export_added_rows_v1', JSON.stringify(added));
       window.dispatchEvent(new Event('efi_export_updated'));
       setRefreshTrigger((prev) => prev + 1);
     } catch (e) {
@@ -244,7 +246,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
     markup: number
   ) => {
     try {
-      const raw = localStorage.getItem('efi_export_added_rows_v1');
+      const raw = workspaceStorage.getItem('efi_export_added_rows_v1');
       const added: EfiExportAddedRow[] = raw ? JSON.parse(raw) : [];
 
       IMPORT_STATIONS_56.forEach((st) => {
@@ -263,7 +265,7 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
         });
       });
 
-      localStorage.setItem('efi_export_added_rows_v1', JSON.stringify(added));
+      workspaceStorage.setItem('efi_export_added_rows_v1', JSON.stringify(added));
       window.dispatchEvent(new Event('efi_export_updated'));
       setRefreshTrigger((prev) => prev + 1);
     } catch (e) {
@@ -273,12 +275,12 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
 
   const handleDeleteRow = (rowKey: string) => {
     try {
-      const raw = localStorage.getItem('efi_export_deleted_rows_v1');
+      const raw = workspaceStorage.getItem('efi_export_deleted_rows_v1');
       const deleted: string[] = raw ? JSON.parse(raw) : [];
       if (!deleted.includes(rowKey)) {
         deleted.push(rowKey);
       }
-      localStorage.setItem('efi_export_deleted_rows_v1', JSON.stringify(deleted));
+      workspaceStorage.setItem('efi_export_deleted_rows_v1', JSON.stringify(deleted));
       window.dispatchEvent(new Event('efi_export_updated'));
       setRefreshTrigger((prev) => prev + 1);
     } catch (e) {
@@ -288,12 +290,12 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
 
   const handleDeleteTariffBlock = (tariffName: string) => {
     try {
-      const raw = localStorage.getItem('efi_export_deleted_tariffs_v1');
+      const raw = workspaceStorage.getItem('efi_export_deleted_tariffs_v1');
       const deleted: string[] = raw ? JSON.parse(raw) : [];
       if (!deleted.includes(tariffName)) {
         deleted.push(tariffName);
       }
-      localStorage.setItem('efi_export_deleted_tariffs_v1', JSON.stringify(deleted));
+      workspaceStorage.setItem('efi_export_deleted_tariffs_v1', JSON.stringify(deleted));
       window.dispatchEvent(new Event('efi_export_updated'));
       setRefreshTrigger((prev) => prev + 1);
     } catch (e) {
@@ -303,10 +305,10 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
 
   const handleResetAll = () => {
     try {
-      localStorage.removeItem('efi_export_custom_overrides_v1');
-      localStorage.removeItem('efi_export_added_rows_v1');
-      localStorage.removeItem('efi_export_deleted_rows_v1');
-      localStorage.removeItem('efi_export_deleted_tariffs_v1');
+      workspaceStorage.removeItem('efi_export_custom_overrides_v1');
+      workspaceStorage.removeItem('efi_export_added_rows_v1');
+      workspaceStorage.removeItem('efi_export_deleted_rows_v1');
+      workspaceStorage.removeItem('efi_export_deleted_tariffs_v1');
       window.dispatchEvent(new Event('efi_export_updated'));
       setRefreshTrigger((prev) => prev + 1);
     } catch (e) {

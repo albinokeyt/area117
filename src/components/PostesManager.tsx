@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import { flushPendingSync } from '@/lib/serverSyncService';
 import React, { useState, useEffect, useMemo } from 'react';
 import { STATION_EXCEL_COSTS } from '@/lib/dataSeed';
@@ -91,7 +93,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   useEffect(() => {
     const handleStationsUpdated = () => {
       setStationsVersion((v) => v + 1);
-      const saved = localStorage.getItem('efi_postes_data_v2');
+      const saved = workspaceStorage.getItem('efi_postes_data_v2');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
@@ -115,7 +117,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
   const [postes, setPostes] = useState<Record<string, { goa: string; gasolina: string; gasolinaGain: string }>>(() => {
     try {
-      const saved = localStorage.getItem('efi_postes_data_v2');
+      const saved = workspaceStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.postes && Object.keys(parsed.postes).length > 0) {
@@ -142,28 +144,28 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     return init;
   });
 
-  // HVO Configuration con carga directa de localStorage y sanitización a coma decimal
+  // HVO Configuration con carga directa de workspaceStorage y sanitización a coma decimal
   const [hvoGeneralBase, setHvoGeneralBase] = useState(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       return s ? (JSON.parse(s).hvoGeneralBase || '1,285').replace('.', ',') : '1,285';
     } catch (e) { return '1,285'; }
   });
   const [hvoGeneralAddition, setHvoGeneralAddition] = useState(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       return s ? (JSON.parse(s).hvoGeneralAddition || '0,243').replace('.', ',') : '0,243';
     } catch (e) { return '0,243'; }
   });
   const [hvoAlfajarinSinIva, setHvoAlfajarinSinIva] = useState(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       return s ? (JSON.parse(s).hvoAlfajarinSinIva || '1,528').replace('.', ',') : '1,528';
     } catch (e) { return '1,528'; }
   });
   const [hvoValdemoroAddition, setHvoValdemoroAddition] = useState(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       return s ? (JSON.parse(s).hvoValdemoroAddition || '0,070').replace('.', ',') : '0,070';
     } catch (e) { return '0,070'; }
   });
@@ -171,13 +173,13 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   // Gasóleo B Configuration con carga síncrona y sanitización a coma decimal
   const [gasoleoBPosteGlobal, setGasoleoBPosteGlobal] = useState(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       return s ? (JSON.parse(s).gasoleoBPosteGlobal || '1,350').replace('.', ',') : '1,350';
     } catch (e) { return '1,350'; }
   });
   const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string; poste: string }>>(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       if (s && JSON.parse(s).gasoleoBRows) {
         const raw = JSON.parse(s).gasoleoBRows;
         const sanitized: Record<string, { compra: string; transfer: string; gob: string; poste: string }> = {};
@@ -201,7 +203,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
   const [adblueRows, setAdblueRows] = useState<Record<string, { compra: string; poste: string }>>(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       if (s && JSON.parse(s).adblue) {
         const raw = JSON.parse(s).adblue;
         const sanitized: Record<string, { compra: string; poste: string }> = {};
@@ -237,7 +239,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     fecha: string;
   }>(() => {
     try {
-      const s = localStorage.getItem('efi_postes_data_v2');
+      const s = workspaceStorage.getItem('efi_postes_data_v2');
       if (s && JSON.parse(s).bronco) {
         const raw = JSON.parse(s).bronco;
         return {
@@ -267,7 +269,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
 
   const [modifiedKeys, setModifiedKeys] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('efi_postes_data_v2');
+      const saved = workspaceStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed.modified)) {
@@ -281,7 +283,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   const [imageToast, setImageToast] = useState<string | null>(null);
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
-      return selectedDate || localStorage.getItem('efi_compras_valid_from') || new Date().toISOString().split('T')[0];
+      return selectedDate || workspaceStorage.getItem('efi_compras_valid_from') || new Date().toISOString().split('T')[0];
     } catch (e) {
       return selectedDate || new Date().toISOString().split('T')[0];
     }
@@ -309,7 +311,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     return reevaluateAllPostesFormulas(customPostesFormulas, selectedDate || validFromDate);
   }, [customPostesFormulas, selectedDate, validFromDate, comprasUpdateTick, postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, gasoleoBRows, adblueRows, broncoRow, gasesRows]);
 
-  // Sincronizar fórmulas recalculadas a localStorage si cambiaron
+  // Sincronizar fórmulas recalculadas a workspaceStorage si cambiaron
   useEffect(() => {
     let hasDiff = false;
     for (const [key, item] of Object.entries(resolvedPostesFormulas)) {
@@ -321,8 +323,8 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     if (hasDiff) {
       try {
         const effDate = selectedDate || validFromDate;
-        localStorage.setItem(`efi_postes_custom_formulas_${effDate}`, JSON.stringify(resolvedPostesFormulas));
-        localStorage.setItem('efi_postes_custom_formulas_global', JSON.stringify(resolvedPostesFormulas));
+        workspaceStorage.setItem(`efi_postes_custom_formulas_${effDate}`, JSON.stringify(resolvedPostesFormulas));
+        workspaceStorage.setItem('efi_postes_custom_formulas_global', JSON.stringify(resolvedPostesFormulas));
         window.dispatchEvent(new Event('efi_postes_updated'));
       } catch (e) {}
     }
@@ -340,7 +342,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   useEffect(() => {
     const handleUpdates = () => {
       try {
-        const saved = selectedDate || localStorage.getItem('efi_compras_valid_from');
+        const saved = selectedDate || workspaceStorage.getItem('efi_compras_valid_from');
         if (saved) {
           setValidFromDate(saved);
           setCustomPostesFormulas(loadPostesFormulas(saved));
@@ -351,7 +353,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
         setCustomPostesFormulas(loadPostesFormulas(validFromDate));
       }
       try {
-        const savedPostes = localStorage.getItem('efi_postes_data_v2');
+        const savedPostes = workspaceStorage.getItem('efi_postes_data_v2');
         if (savedPostes) {
           const parsed = JSON.parse(savedPostes);
           if (Array.isArray(parsed.modified)) {
@@ -811,7 +813,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
         modified: Array.from(currentModified),
         updatedAt: new Date().toISOString(),
       };
-      localStorage.setItem('efi_postes_data_v2', JSON.stringify(dataToSave));
+      workspaceStorage.setItem('efi_postes_data_v2', JSON.stringify(dataToSave));
       markKeyModifiedLocally('efi_postes_data_v2');
       window.dispatchEvent(new Event('efi_postes_updated'));
       window.dispatchEvent(new Event('storage'));
@@ -840,7 +842,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   useEffect(() => {
     const reloadPostes = () => {
     try {
-      const saved = localStorage.getItem('efi_postes_data_v2');
+      const saved = workspaceStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.postes) {
@@ -919,11 +921,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     const handleCierreDia = () => {
       setModifiedKeys(new Set());
       try {
-        const saved = localStorage.getItem('efi_postes_data_v2');
+        const saved = workspaceStorage.getItem('efi_postes_data_v2');
         if (saved) {
           const parsed = JSON.parse(saved);
           parsed.modified = [];
-          localStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
+          workspaceStorage.setItem('efi_postes_data_v2', JSON.stringify(parsed));
           markKeyModifiedLocally('efi_postes_data_v2');
         }
       } catch (e) {}

@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from '@/lib/dataSeed';
 import { getAllStations } from '@/lib/stationsService';
@@ -622,7 +624,7 @@ export function evaluatePriceBySource(
     else if (u.includes('ARCOS')) gbKey = 'ARCOS';
     else if (u.includes('UCLES')) gbKey = 'UCLES';
     try {
-      const savedPostes = localStorage.getItem('efi_postes_data_v2');
+      const savedPostes = workspaceStorage.getItem('efi_postes_data_v2');
       if (savedPostes) {
         const parsed = JSON.parse(savedPostes);
         const row = gbKey ? parsed.gasoleoBRows?.[gbKey] : null;
@@ -901,10 +903,10 @@ export const COMPRAS_ESPECIALES_PICKER_COLUMNS = [
 export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
-      const savedDeleted = localStorage.getItem('efi_deleted_tariffs_list');
+      const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
       const deletedList: string[] = savedDeleted ? JSON.parse(savedDeleted) : [];
 
-      const saved = localStorage.getItem('efi_custom_tariffs_catalog_v5');
+      const saved = workspaceStorage.getItem('efi_custom_tariffs_catalog_v5');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -918,9 +920,9 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         }
       }
       const initial = INITIAL_TARIFFS_LIST.filter((t) => !deletedList.includes(t.name));
-      localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(initial));
-      localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(initial));
-      localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(initial));
+      workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(initial));
+      workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(initial));
+      workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(initial));
       return initial;
     } catch (e) {}
     return INITIAL_TARIFFS_LIST;
@@ -939,7 +941,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
   const [targetDate, setTargetDate] = useState<string>(() => {
     try {
-      return localStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
+      return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
     } catch (e) {
       return selectedDate;
     }
@@ -948,7 +950,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   useEffect(() => {
     const updateValidDate = () => {
       try {
-        const saved = localStorage.getItem('efi_compras_valid_from');
+        const saved = workspaceStorage.getItem('efi_compras_valid_from');
         if (saved) setTargetDate(saved);
       } catch (e) {}
     };
@@ -985,16 +987,16 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   // Sincronizar catálogo inicial si no existe, respetando permanentemente las tarifas eliminadas
   useEffect(() => {
     try {
-      const savedDeleted = localStorage.getItem('efi_deleted_tariffs_list');
+      const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
       const deletedList: string[] = savedDeleted ? JSON.parse(savedDeleted) : [];
 
-      const saved = localStorage.getItem('efi_custom_tariffs_catalog_v5');
+      const saved = workspaceStorage.getItem('efi_custom_tariffs_catalog_v5');
       if (!saved) {
         const initial = INITIAL_TARIFFS_LIST.filter((t) => !deletedList.includes(t.name));
         setTariffsList(initial);
-        localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(initial));
-        localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(initial));
-        localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(initial));
+        workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(initial));
+        workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(initial));
+        workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(initial));
       } else {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
@@ -1006,9 +1008,9 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
               return t;
             });
           setTariffsList(filtered);
-          localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
-          localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
-          localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
+          workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
+          workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
+          workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
         }
       }
     } catch (e) {}
@@ -1018,14 +1020,14 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   useEffect(() => {
     const handleCierreDia = () => {
       try {
-        const savedDeleted = localStorage.getItem('efi_deleted_tariffs_list');
+        const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
         const deletedList: string[] = savedDeleted ? JSON.parse(savedDeleted) : [];
 
         setTariffsList((prev) => {
           const filtered = prev.filter((t) => !deletedList.includes(t.name));
-          localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
-          localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
-          localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
+          workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
+          workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
+          workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
           return filtered;
         });
       } catch (e) {}
@@ -1040,10 +1042,10 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const handleRestoreAllTariffs = () => {
     setTariffsList(INITIAL_TARIFFS_LIST);
     try {
-      localStorage.removeItem('efi_deleted_tariffs_list');
-      localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(INITIAL_TARIFFS_LIST));
-      localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(INITIAL_TARIFFS_LIST));
-      localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(INITIAL_TARIFFS_LIST));
+      workspaceStorage.removeItem('efi_deleted_tariffs_list');
+      workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(INITIAL_TARIFFS_LIST));
+      workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(INITIAL_TARIFFS_LIST));
+      workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(INITIAL_TARIFFS_LIST));
     } catch (e) {}
     setDownloadNotice(`Catálogo completo oficial restaurado (${INITIAL_TARIFFS_LIST.length} Tarifas)`);
     setTimeout(() => setDownloadNotice(null), 3500);
@@ -1069,7 +1071,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   // Gestión de etiquetas de estaciones (rectángulos anaranjados y filas en amarillo claro)
   const [stationLabels, setStationLabels] = useState<Record<string, string[]>>(() => {
     try {
-      const saved = localStorage.getItem('efi_pdf_station_labels_v1');
+      const saved = workspaceStorage.getItem('efi_pdf_station_labels_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (typeof parsed === 'object' && parsed !== null) {
@@ -1096,7 +1098,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   useEffect(() => {
     const handleLabelsUpdate = () => {
       try {
-        const saved = localStorage.getItem('efi_pdf_station_labels_v1');
+        const saved = workspaceStorage.getItem('efi_pdf_station_labels_v1');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (typeof parsed === 'object' && parsed !== null) {
@@ -1189,7 +1191,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
     setStationLabels(updated);
     try {
-      localStorage.setItem('efi_pdf_station_labels_v1', JSON.stringify(updated));
+      workspaceStorage.setItem('efi_pdf_station_labels_v1', JSON.stringify(updated));
       window.dispatchEvent(new Event('efi_station_labels_updated'));
       window.dispatchEvent(new Event('storage'));
     } catch (err) {
@@ -1213,7 +1215,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
     setStationLabels(updated);
     try {
-      localStorage.setItem('efi_pdf_station_labels_v1', JSON.stringify(updated));
+      workspaceStorage.setItem('efi_pdf_station_labels_v1', JSON.stringify(updated));
       window.dispatchEvent(new Event('efi_station_labels_updated'));
       window.dispatchEvent(new Event('storage'));
     } catch (err) {
@@ -1228,7 +1230,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     if (window.confirm('¿Seguro que deseas eliminar todas las etiquetas asignadas a las estaciones?')) {
       setStationLabels({});
       try {
-        localStorage.removeItem('efi_pdf_station_labels_v1');
+        workspaceStorage.removeItem('efi_pdf_station_labels_v1');
         window.dispatchEvent(new Event('efi_station_labels_updated'));
         window.dispatchEvent(new Event('storage'));
       } catch (err) {}
@@ -1239,7 +1241,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     // Mapa para Incluir/Quitar información de HVO por Tarifa (TariffName -> boolean)
   const [includeHvoMap, setIncludeHvoMap] = useState<Record<string, boolean>>(() => {
     try {
-      const saved = localStorage.getItem('efi_pdf_include_hvo_map');
+      const saved = workspaceStorage.getItem('efi_pdf_include_hvo_map');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return {};
@@ -1258,7 +1260,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
       const nextVal = !isHvoIncluded;
       const updated = { ...prev, [selectedTariff]: nextVal };
       try {
-        localStorage.setItem('efi_pdf_include_hvo_map', JSON.stringify(updated));
+        workspaceStorage.setItem('efi_pdf_include_hvo_map', JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });
@@ -1266,7 +1268,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
   const [activeStationsMap, setActiveStationsMap] = useState<Record<string, string[]>>(() => {
     try {
-      const saved = localStorage.getItem('efi_tariff_active_stations_map');
+      const saved = workspaceStorage.getItem('efi_tariff_active_stations_map');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     // Por defecto todas las estaciones activas
@@ -1295,7 +1297,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     setActiveStationsMap((prev) => {
       const updated = { ...prev, [selectedTariff]: nextList };
       try {
-        localStorage.setItem('efi_tariff_active_stations_map', JSON.stringify(updated));
+        workspaceStorage.setItem('efi_tariff_active_stations_map', JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });
@@ -1306,7 +1308,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     setActiveStationsMap((prev) => {
       const updated = { ...prev, [selectedTariff]: allNames };
       try {
-        localStorage.setItem('efi_tariff_active_stations_map', JSON.stringify(updated));
+        workspaceStorage.setItem('efi_tariff_active_stations_map', JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });
@@ -1316,7 +1318,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     setActiveStationsMap((prev) => {
       const updated = { ...prev, [selectedTariff]: [] };
       try {
-        localStorage.setItem('efi_tariff_active_stations_map', JSON.stringify(updated));
+        workspaceStorage.setItem('efi_tariff_active_stations_map', JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });
@@ -1325,7 +1327,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   // Mapeo Personalizado de Origen de Datos por Estación y Tarifa
   const [stationSourcesMapping, setStationSourcesMapping] = useState<Record<string, CustomSourceConfig>>(() => {
     try {
-      const saved = localStorage.getItem('efi_pdf_station_source_mapping_v1');
+      const saved = workspaceStorage.getItem('efi_pdf_station_source_mapping_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return {};
@@ -1334,7 +1336,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   const saveStationSourcesMapping = (updated: Record<string, CustomSourceConfig>) => {
     setStationSourcesMapping(updated);
     try {
-      localStorage.setItem('efi_pdf_station_source_mapping_v1', JSON.stringify(updated));
+      workspaceStorage.setItem('efi_pdf_station_source_mapping_v1', JSON.stringify(updated));
     } catch (e) {}
   };
 
@@ -1410,15 +1412,15 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     setSelectedTariff(formattedName);
 
     try {
-      const savedDeleted = localStorage.getItem('efi_deleted_tariffs_list');
+      const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
       if (savedDeleted) {
         const deletedList: string[] = JSON.parse(savedDeleted);
         const updatedDeleted = deletedList.filter((n) => n !== formattedName);
-        localStorage.setItem('efi_deleted_tariffs_list', JSON.stringify(updatedDeleted));
+        workspaceStorage.setItem('efi_deleted_tariffs_list', JSON.stringify(updatedDeleted));
       }
-      localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(nextList));
-      localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(nextList));
-      localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(nextList));
+      workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(nextList));
+      workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(nextList));
+      workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(nextList));
     } catch (e) {}
 
     setShowAddTariffModal(false);
@@ -1439,7 +1441,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     if (typeof window !== 'undefined') {
       try {
         purchasesData = getFreshestPurchasesData(targetDate || selectedDate);
-        const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
+        const sp = workspaceStorage.getItem('efi_special_rates_b50_f82_v4') || workspaceStorage.getItem('efi_special_rates_b50_f82_v3');
         if (sp) specialRates = JSON.parse(sp);
       } catch (e) {}
     }
@@ -1573,7 +1575,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
 
       if (gbKey) {
         try {
-          const savedPostes = localStorage.getItem('efi_postes_data_v2');
+          const savedPostes = workspaceStorage.getItem('efi_postes_data_v2');
           if (savedPostes) {
             const parsed = JSON.parse(savedPostes);
             const row = parsed.gasoleoBRows?.[gbKey];
@@ -1944,7 +1946,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
   // Precios dinámicos de HVO desde Postes sincronizados al momento
   const hvoPrices = useMemo(() => {
     try {
-      const saved = localStorage.getItem('efi_postes_data_v2');
+      const saved = workspaceStorage.getItem('efi_postes_data_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         const base = parseNum(parsed.hvoGeneralBase ?? '1.285');
@@ -2800,15 +2802,15 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
                       const newTariffs = tariffsList.filter((t) => t.name !== tariffToDelete);
                       setTariffsList(newTariffs);
                       try {
-                        const savedDeleted = localStorage.getItem('efi_deleted_tariffs_list');
+                        const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
                         const deletedList: string[] = savedDeleted ? JSON.parse(savedDeleted) : [];
                         if (!deletedList.includes(tariffToDelete)) {
                           deletedList.push(tariffToDelete);
-                          localStorage.setItem('efi_deleted_tariffs_list', JSON.stringify(deletedList));
+                          workspaceStorage.setItem('efi_deleted_tariffs_list', JSON.stringify(deletedList));
                         }
-                        localStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(newTariffs));
-                        localStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(newTariffs));
-                        localStorage.setItem('efi_custom_tariffs_list', JSON.stringify(newTariffs));
+                        workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(newTariffs));
+                        workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(newTariffs));
+                        workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(newTariffs));
                       } catch (e) {}
                       if (selectedTariff === tariffToDelete && newTariffs.length > 0) {
                         setSelectedTariff(newTariffs[0].name);

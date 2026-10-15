@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import React, { useEffect, useState } from 'react';
 import { getFreshestPurchasesData } from '@/lib/sabanaFormulaEngine';
 
@@ -13,11 +15,11 @@ export function ExecutiveDashboard({ onNavigateTab }: { onNavigateTab?: (tab: st
     const refresh = () => {
       setRows(getFreshestPurchasesData());
       const closes: { date: string; count: number }[] = [];
-      for (let index = 0; index < localStorage.length; index++) {
-        const key = localStorage.key(index);
+      for (let index = 0; index < workspaceStorage.length; index++) {
+        const key = workspaceStorage.key(index);
         if (!key?.startsWith('efi_cierre_completo_')) continue;
         try {
-          const close = JSON.parse(localStorage.getItem(key) || '{}');
+          const close = JSON.parse(workspaceStorage.getItem(key) || '{}');
           closes.push({ date: key.slice('efi_cierre_completo_'.length), count: Object.keys(close.purchases || {}).length });
         } catch { /* Ignore malformed legacy history. */ }
       }

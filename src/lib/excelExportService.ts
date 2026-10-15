@@ -1,3 +1,4 @@
+import { workspaceStorage } from '@/lib/workspaceStorage';
 import { collectAllLocalState } from "./serverSyncService";
 import * as XLSX from 'xlsx';
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from './dataSeed';
@@ -338,7 +339,7 @@ export function buildCierreWorkbook(
   // Exact calculated values published by Sábana, including custom formulas/tariffs.
   const liveSabana = [['TARIFA Y ESTACION', 'SIN IVA', 'CON IVA']];
   for (const key of ['efi_sabana_standard_table_full_v1', 'efi_sabana_custom_special_table_full_v1']) {
-    const values = JSON.parse(localStorage.getItem(key) || '{}');
+    const values = JSON.parse(workspaceStorage.getItem(key) || '{}');
     for (const [name, price] of Object.entries(values) as [string, any][]) liveSabana.push([name, price.sinIva, price.conIva]);
   }
   wb.Sheets['SABANA DE PRECIOS'] = XLSX.utils.aoa_to_sheet(liveSabana);
@@ -496,10 +497,10 @@ export function loadEfiExportOverrides(): {
     return { overrides: {}, addedRows: [], deletedRows: [], deletedTariffs: [] };
   }
   try {
-    const ov = localStorage.getItem('efi_export_custom_overrides_v1');
-    const ad = localStorage.getItem('efi_export_added_rows_v1');
-    const del = localStorage.getItem('efi_export_deleted_rows_v1');
-    const delT = localStorage.getItem('efi_export_deleted_tariffs_v1');
+    const ov = workspaceStorage.getItem('efi_export_custom_overrides_v1');
+    const ad = workspaceStorage.getItem('efi_export_added_rows_v1');
+    const del = workspaceStorage.getItem('efi_export_deleted_rows_v1');
+    const delT = workspaceStorage.getItem('efi_export_deleted_tariffs_v1');
     return {
       overrides: ov ? JSON.parse(ov) : {},
       addedRows: ad ? JSON.parse(ad) : [],
@@ -591,32 +592,32 @@ export function buildImportacionTable(
     try {
       purchasesData = getFreshestPurchasesData(selectedDate);
 
-      const sp = localStorage.getItem('efi_special_rates_b50_f82_v4') || localStorage.getItem('efi_special_rates_b50_f82_v3');
+      const sp = workspaceStorage.getItem('efi_special_rates_b50_f82_v4') || workspaceStorage.getItem('efi_special_rates_b50_f82_v3');
       if (sp) specialRates = JSON.parse(sp);
 
-      const bDate = localStorage.getItem('efi_purchases_bronco_' + selectedDate);
-      const bGlob = localStorage.getItem('efi_compras_gasolina_bronco');
+      const bDate = workspaceStorage.getItem('efi_purchases_bronco_' + selectedDate);
+      const bGlob = workspaceStorage.getItem('efi_compras_gasolina_bronco');
       if (bDate) broncoData = JSON.parse(bDate);
       else if (bGlob) broncoData = JSON.parse(bGlob);
 
-      const pData = localStorage.getItem('efi_postes_data_v2');
+      const pData = workspaceStorage.getItem('efi_postes_data_v2');
       if (pData) postesData = JSON.parse(pData);
 
-      const cSpecRaw = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const cSpecRaw = workspaceStorage.getItem('efi_sabana_custom_special_tariffs_v1');
       if (cSpecRaw) {
         try {
           customSpecialTariffs = JSON.parse(cSpecRaw);
         } catch (e) {}
       }
 
-      const cStdRaw = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      const cStdRaw = workspaceStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
       if (cStdRaw) {
         try {
           customStandardTariffs = JSON.parse(cStdRaw);
         } catch (e) {}
       }
 
-      const cBlockRaw = localStorage.getItem('efi_sabana_custom_block_tariffs_v1');
+      const cBlockRaw = workspaceStorage.getItem('efi_sabana_custom_block_tariffs_v1');
       if (cBlockRaw) {
         try {
           const parsed = JSON.parse(cBlockRaw);
@@ -626,14 +627,14 @@ export function buildImportacionTable(
         } catch (e) {}
       }
 
-      const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      const modRaw = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
       if (modRaw) {
         try {
           modifiedTariffsConfig = JSON.parse(modRaw);
         } catch (e) {}
       }
 
-      const smRaw = localStorage.getItem('efi_sabana_tariff_source_mapping_v1');
+      const smRaw = workspaceStorage.getItem('efi_sabana_tariff_source_mapping_v1');
       if (smRaw) {
         try {
           tariffSourcesMapping = JSON.parse(smRaw);
@@ -1030,8 +1031,8 @@ export function buildImportacionTable(
     // 0. Copia directa exacta desde la tabla Tarifas Especiales Personalizadas de Sábana de Precios
     if (typeof window !== 'undefined') {
       try {
-        const rawDate = localStorage.getItem(`efi_sabana_custom_special_table_cache_${selectedDate}`);
-        const rawGlobal = localStorage.getItem('efi_sabana_custom_special_table_cache_v1');
+        const rawDate = workspaceStorage.getItem(`efi_sabana_custom_special_table_cache_${selectedDate}`);
+        const rawGlobal = workspaceStorage.getItem('efi_sabana_custom_special_table_cache_v1');
         const liveCache: Record<string, number> = rawDate ? JSON.parse(rawDate) : rawGlobal ? JSON.parse(rawGlobal) : {};
 
         const directKeys = [
@@ -1088,7 +1089,7 @@ export function buildImportacionTable(
           }
         }
 
-        const rawFull = localStorage.getItem('efi_sabana_custom_special_table_full_v1');
+        const rawFull = workspaceStorage.getItem('efi_sabana_custom_special_table_full_v1');
         if (rawFull) {
           const fullLive = JSON.parse(rawFull);
           for (const dk of directKeys) {
@@ -1255,7 +1256,7 @@ export function buildImportacionTable(
       let effectiveMarkup = tDef.markup ?? 0.024;
       try {
         if (typeof window !== 'undefined') {
-          const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+          const modRaw = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
           if (modRaw) {
             const modMap = JSON.parse(modRaw);
             const mod = modMap[tDef.key] || modMap[tDef.name];
@@ -1535,14 +1536,14 @@ export function buildImportacionTable(
   // Integración dinámica de tarifas creadas en Sábana de Precios
   try {
     if (typeof window !== 'undefined') {
-      const cStdRaw = localStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
-      const cSpecRaw = localStorage.getItem('efi_sabana_custom_special_tariffs_v1');
-      const modRaw = localStorage.getItem('efi_sabana_modified_tariffs_config_v1');
-      const smRaw = localStorage.getItem('efi_sabana_tariff_source_mapping_v1');
+      const cStdRaw = workspaceStorage.getItem('efi_sabana_custom_standard_tariffs_v1');
+      const cSpecRaw = workspaceStorage.getItem('efi_sabana_custom_special_tariffs_v1');
+      const modRaw = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+      const smRaw = workspaceStorage.getItem('efi_sabana_tariff_source_mapping_v1');
 
       const cStd: any[] = cStdRaw ? JSON.parse(cStdRaw) : [];
       const cSpec: any[] = cSpecRaw ? JSON.parse(cSpecRaw) : [];
-      const cBlockRaw = localStorage.getItem('efi_sabana_custom_block_tariffs_v1');
+      const cBlockRaw = workspaceStorage.getItem('efi_sabana_custom_block_tariffs_v1');
       const cBlock: any[] = cBlockRaw ? JSON.parse(cBlockRaw) : [];
       const modConfig: Record<string, any> = modRaw ? JSON.parse(modRaw) : {};
       const sourceMap: Record<string, any> = smRaw ? JSON.parse(smRaw) : {};

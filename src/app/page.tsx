@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceStorage } from '@/lib/workspaceStorage';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { APP_VERSION } from '@/lib/version';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -31,8 +33,8 @@ function AppContent() {
     if (typeof window !== 'undefined') {
       try {
         return (
-          localStorage.getItem('efi_compras_valid_from') ||
-          localStorage.getItem('efi_global_valid_from_date') ||
+          workspaceStorage.getItem('efi_compras_valid_from') ||
+          workspaceStorage.getItem('efi_global_valid_from_date') ||
           new Date().toISOString().split('T')[0]
         );
       } catch (e) {}
@@ -54,7 +56,7 @@ function AppContent() {
       if (cancelled) return;
       if (!result.success) { setLoadError(result.error || 'No se pudo conectar con PostgreSQL.'); return; }
       initClientAutoSync(() => currentUser.name);
-      const date = localStorage.getItem('efi_compras_valid_from');
+      const date = workspaceStorage.getItem('efi_compras_valid_from');
       if (date) setSelectedDate(date);
       setLoadError('');
       setSyncReady(true);
@@ -95,7 +97,7 @@ function AppContent() {
 
     // 3. Escuchar cambios de fecha global
     const handleDateChange = () => {
-      const updated = localStorage.getItem('efi_compras_valid_from');
+      const updated = workspaceStorage.getItem('efi_compras_valid_from');
       if (updated) setSelectedDate(updated);
     };
     window.addEventListener('efi_valid_date_changed', handleDateChange);
