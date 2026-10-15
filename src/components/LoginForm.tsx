@@ -15,7 +15,7 @@ export function LoginForm() {
     setError('');
     const success = await login(email, password).catch(() => false);
     if (!success) {
-      setError('Credenciales inválidas. Comprueba el email y la contraseña.');
+      setError('Credenciales inválidas. Comprueba el usuario o correo y la contraseña.');
     }
   };
 
@@ -50,17 +50,17 @@ export function LoginForm() {
 
           <div>
             <label className="block text-xs font-bold text-slate-400 mb-1.5">
-              Correo Electrónico
+              Usuario o correo electrónico
             </label>
             <div className="relative">
               <Mail className="h-4 w-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="email" aria-label="Correo Electrónico"
+                type="text" aria-label="Usuario o correo electrónico" autoComplete="username" autoCapitalize="none"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none transition-colors"
-                placeholder="usuario@efidataoil.com"
+                placeholder="Usuario o correo electrónico"
               />
             </div>
           </div>
@@ -72,7 +72,7 @@ export function LoginForm() {
             <div className="relative">
               <Lock className="h-4 w-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="password" aria-label="Contraseña"
+                type="password" aria-label="Contraseña" autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -1,4 +1,5 @@
 import { sessionUser, publicUser } from "@/lib/auth";
+import { ENVIRONMENT_ADMIN_ID } from '@/lib/environmentAdmin';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerUsers, upsertServerUser, deleteServerUser, isPostgresConfigured, ServerUser } from '@/lib/db';
 
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
     if (actor?.role !== 'ADMIN') return NextResponse.json({ error: 'Se requiere administrador.' }, { status: 403 });
     const body = await req.json();
     const { name, email, role, password, id } = body;
+    if (id === ENVIRONMENT_ADMIN_ID) return NextResponse.json({ error: 'Este administrador se configura mediante variables de entorno.' }, { status: 400 });
 
     if (!name || !email) {
       return NextResponse.json(
@@ -88,6 +90,7 @@ export async function DELETE(req: NextRequest) {
     if (actor?.role !== 'ADMIN') return NextResponse.json({ error: 'Se requiere administrador.' }, { status: 403 });
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    if (id === ENVIRONMENT_ADMIN_ID) return NextResponse.json({ error: 'Este administrador se configura mediante variables de entorno.' }, { status: 400 });
 
     if (!id) {
       return NextResponse.json(

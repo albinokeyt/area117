@@ -14,6 +14,14 @@ Plataforma integral web para la gestión diaria de compras, formulación de prec
 
 ---
 
+## Administrador de emergencia mediante variables de entorno
+
+En el servicio de la aplicación en Easypanel, configura `ADMIN_USERNAME` (el nombre de usuario o correo que elijas) y `ADMIN_PASSWORD` (tu contraseña) y redespliega. Entra desde el formulario habitual con esos dos valores.
+
+Este acceso tiene todos los permisos de administrador y es independiente de los usuarios registrados: no se crea una cuenta editable o eliminable desde la aplicación. Las credenciales solo se consultan en el servidor; las sesiones se guardan en PostgreSQL. Configura ambas variables sin prefijo `NEXT_PUBLIC_`. Si falta una, este acceso permanece deshabilitado. Al cambiar cualquiera de las credenciales o quitarla y redesplegar, sus sesiones anteriores dejan de ser válidas. Los usuarios registrados siguen funcionando con sus contraseñas habituales.
+
+La base PostgreSQL debe estar operativa, igual que para el resto del sistema. No guardes las credenciales reales en el repositorio.
+
 ## 📋 Módulos del Sistema
 
 1. **📊 Vista Ejecutiva (Dashboard):**
