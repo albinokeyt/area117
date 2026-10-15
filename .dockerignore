@@ -1,6 +1,9 @@
 node_modules
 .next
 .git
-.env*.local
+.env*
+!.env.example
+test-results
+playwright-report
 temp_excel
 .tools

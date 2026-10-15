@@ -1,3 +1,5 @@
+import { hashPassword } from "./passwords";
+import { mergeState } from "./stateMerge";
 import { Pool } from 'pg';
 
 export interface ServerStatePayload {
@@ -51,7 +53,7 @@ export function isPostgresConfigured(): boolean {
   return !!url && (url.startsWith('postgres://') || url.startsWith('postgresql://'));
 }
 
-function getPool(): Pool | null {
+export function getDatabasePool(): Pool | null {
   if (!isPostgresConfigured()) return null;
   if (!pool) {
     const connectionString = process.env.DATABASE_URL;
@@ -70,16 +72,18 @@ function getPool(): Pool | null {
   return pool;
 }
 
-async function ensureTables() {
+export async function ensureTables() {
   if (isDbInitialized) return;
-  const p = getPool();
+  const p = getDatabasePool();
   if (!p) {
-    console.warn('[PostgreSQL] Advertencia: DATABASE_URL no está configurada.');
-    return;
+    throw new Error('PostgreSQL no está configurado.');
   }
 
+  const client = await p.connect();
   try {
-    await p.query(`
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(1170001)');
+    await client.query(`
       CREATE TABLE IF NOT EXISTS efi_server_state (
         id INTEGER PRIMARY KEY DEFAULT 1,
         version INTEGER NOT NULL DEFAULT 1,
@@ -96,48 +100,47 @@ async function ensureTables() {
         password TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS efi_sessions (
+        token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES efi_server_users(id) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL
+      );
     `);
 
     // Inicializar fila de estado si está vacía
-    await p.query(`
+    await client.query(`
       INSERT INTO efi_server_state (id, version, updated_at, updated_by, data)
       VALUES (1, 1, NOW(), 'Inicial', '{}'::jsonb)
       ON CONFLICT (id) DO NOTHING;
     `);
 
     // Inicializar usuarios si la tabla está vacía
-    const userRes = await p.query('SELECT COUNT(*) FROM efi_server_users');
+    const userRes = await client.query('SELECT COUNT(*) FROM efi_server_users');
     if (parseInt(userRes.rows[0].count, 10) === 0) {
       for (const u of DEFAULT_USERS) {
-        await p.query(
+        await client.query(
           `INSERT INTO efi_server_users (id, name, email, role, password, created_at)
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (id) DO NOTHING`,
-          [u.id, u.name, u.email, u.role, u.password || '', u.createdAt]
+          [u.id, u.name, u.email, u.role, u.password?.startsWith('scrypt:') ? u.password : hashPassword(u.password || ''), u.createdAt]
         );
       }
       console.log(`[PostgreSQL] ${DEFAULT_USERS.length} usuarios iniciales creados en PostgreSQL.`);
     }
 
+    await client.query('COMMIT');
     isDbInitialized = true;
     console.log('[PostgreSQL] Tablas efi_server_state y efi_server_users verificadas en PostgreSQL.');
   } catch (err) {
-    console.error('[PostgreSQL] Error al inicializar tablas en PostgreSQL:', err);
-  }
+    await client.query('ROLLBACK');
+    throw err;
+  } finally { client.release(); }
 }
 
 // ---------------- Funciones Públicas Exclusivamente PostgreSQL ----------------
 
 export async function getServerState(): Promise<ServerStatePayload> {
-  const p = getPool();
+  const p = getDatabasePool();
   if (!p) {
-    console.warn('[PostgreSQL] DATABASE_URL no configurada.');
-    return {
-      version: 0,
-      updatedAt: new Date().toISOString(),
-      updatedBy: 'Inicial',
-      data: {},
-    };
+    throw new Error('PostgreSQL no está configurado: falta DATABASE_URL.');
   }
 
   try {
@@ -145,17 +148,10 @@ export async function getServerState(): Promise<ServerStatePayload> {
     const res = await p.query('SELECT version, updated_at, updated_by, data FROM efi_server_state WHERE id = 1');
     if (res.rows.length > 0) {
       const row = res.rows[0];
-      let dataObj: Record<string, any> = {};
-      if (typeof row.data === 'string') {
-        try {
-          dataObj = JSON.parse(row.data);
-        } catch {
-          dataObj = {};
-        }
-      } else if (row.data && typeof row.data === 'object' && !Array.isArray(row.data)) {
-        dataObj = row.data;
-      }
+      const dataObj = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+      if (!dataObj || typeof dataObj !== 'object' || Array.isArray(dataObj)) throw new Error('Estado PostgreSQL no válido.');
 
+      for (const key of ['efi_current_user', 'efi_users_list', 'efi_last_server_version', 'efi_last_server_sync_time']) delete dataObj[key];
       return {
         version: typeof row.version === 'number' ? row.version : 1,
         updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
@@ -164,48 +160,16 @@ export async function getServerState(): Promise<ServerStatePayload> {
       };
     }
   } catch (err) {
-    console.error('[PostgreSQL] Error al leer estado de PostgreSQL:', err);
+    throw new Error('No se pudo leer PostgreSQL. No se cargarán datos iniciales sobre los datos existentes.');
   }
 
-  return {
-    version: 0,
-    updatedAt: new Date().toISOString(),
-    updatedBy: 'Inicial',
-    data: {},
-  };
-}
-
-export async function saveServerState(payload: ServerStatePayload): Promise<boolean> {
-  const p = getPool();
-  if (!p) {
-    console.error('[PostgreSQL] Error: DATABASE_URL no está configurada para guardar.');
-    return false;
-  }
-
-  try {
-    await ensureTables();
-    const jsonStr = typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data);
-    await p.query(
-      `INSERT INTO efi_server_state (id, version, updated_at, updated_by, data)
-       VALUES (1, $1, $2, $3, $4::jsonb)
-       ON CONFLICT (id) DO UPDATE SET
-         version = EXCLUDED.version,
-         updated_at = EXCLUDED.updated_at,
-         updated_by = EXCLUDED.updated_by,
-         data = EXCLUDED.data`,
-      [payload.version, payload.updatedAt, payload.updatedBy || 'Usuario', jsonStr]
-    );
-    return true;
-  } catch (err) {
-    console.error('[PostgreSQL] Error al guardar estado en PostgreSQL:', err);
-    return false;
-  }
+  throw new Error('No se encontró el estado en PostgreSQL.');
 }
 
 export async function getServerUsers(): Promise<ServerUser[]> {
-  const p = getPool();
+  const p = getDatabasePool();
   if (!p) {
-    return DEFAULT_USERS;
+    throw new Error('PostgreSQL no está configurado.');
   }
 
   try {
@@ -222,48 +186,14 @@ export async function getServerUsers(): Promise<ServerUser[]> {
       }));
     }
   } catch (err) {
-    console.error('[PostgreSQL] Error al leer usuarios de PostgreSQL:', err);
+    throw new Error('No se pudieron leer usuarios de PostgreSQL.');
   }
 
-  return DEFAULT_USERS;
-}
-
-export async function saveServerUsers(users: ServerUser[]): Promise<boolean> {
-  const p = getPool();
-  if (!p) {
-    console.error('[PostgreSQL] Error: DATABASE_URL no configurada para guardar usuarios.');
-    return false;
-  }
-
-  try {
-    await ensureTables();
-    const client = await p.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('DELETE FROM efi_server_users');
-      for (const u of users) {
-        await client.query(
-          `INSERT INTO efi_server_users (id, name, email, role, password, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [u.id, u.name, u.email, u.role, u.password || '', u.createdAt]
-        );
-      }
-      await client.query('COMMIT');
-      return true;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error('[PostgreSQL] Error al guardar lista de usuarios en PostgreSQL:', err);
-    return false;
-  }
+  return [];
 }
 
 export async function upsertServerUser(user: ServerUser): Promise<boolean> {
-  const p = getPool();
+  const p = getDatabasePool();
   if (!p) {
     console.error('[PostgreSQL] Error: DATABASE_URL no configurada para upsert usuario.');
     return false;
@@ -279,7 +209,7 @@ export async function upsertServerUser(user: ServerUser): Promise<boolean> {
          email = EXCLUDED.email,
          role = EXCLUDED.role,
          password = EXCLUDED.password`,
-      [user.id, user.name, user.email, user.role, user.password || '', user.createdAt]
+      [user.id, user.name, user.email, user.role, user.password?.startsWith('scrypt:') ? user.password : hashPassword(user.password || ''), user.createdAt]
     );
     return true;
   } catch (err) {
@@ -289,7 +219,7 @@ export async function upsertServerUser(user: ServerUser): Promise<boolean> {
 }
 
 export async function deleteServerUser(id: string): Promise<boolean> {
-  const p = getPool();
+  const p = getDatabasePool();
   if (!p) {
     console.error('[PostgreSQL] Error: DATABASE_URL no configurada para borrar usuario.');
     return false;
@@ -303,4 +233,33 @@ export async function deleteServerUser(id: string): Promise<boolean> {
     console.error('[PostgreSQL] Error al borrar usuario de PostgreSQL:', err);
     return false;
   }
+}
+
+// Row lock works across processes/containers, unlike a JavaScript write queue.
+export async function patchServerState(data: Record<string, any>, base: Record<string, any>, updatedBy: string): Promise<ServerStatePayload> {
+  const p = getDatabasePool();
+  if (!p) throw new Error('PostgreSQL no está configurado.');
+  await ensureTables();
+  const client = await p.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM efi_server_state WHERE id = 1 FOR UPDATE');
+    const current = rows[0];
+    if (!current) throw new Error('No se encontró el estado en PostgreSQL.');
+    const next = { ...current.data };
+    for (const key of ['efi_current_user', 'efi_users_list', 'efi_last_server_version', 'efi_last_server_sync_time']) delete next[key];
+    for (const key of Object.keys(data)) {
+      const value = mergeState(base[key], data[key] === null ? undefined : data[key], current.data[key], key);
+      if (value === undefined) delete next[key]; else next[key] = value;
+    }
+    const result = await client.query(`UPDATE efi_server_state SET data = $1::jsonb,
+      version = version + 1, updated_at = NOW(), updated_by = $2 WHERE id = 1
+      RETURNING version, updated_at, updated_by, data`, [JSON.stringify(next), updatedBy]);
+    await client.query('COMMIT');
+    const row = result.rows[0];
+    return { version: row.version, updatedAt: row.updated_at.toISOString(), updatedBy: row.updated_by, data: row.data };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
 }

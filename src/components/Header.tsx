@@ -8,7 +8,7 @@ import {
   TrendingUp, Building2, Store, CheckCircle2, DollarSign, Printer, FileText,
   CloudUpload, RefreshCw, Lock, AlertCircle, Check
 } from 'lucide-react';
-import { pushAllStateToServer, pullStateFromServer, checkServerVersion } from '@/lib/serverSyncService';
+import { pushAllStateToServer, pullStateFromServer, checkServerVersion, hasUnsyncedChanges } from '@/lib/serverSyncService';
 import { APP_VERSION, APP_BUILD_DATE } from '@/lib/version';
 
 interface HeaderProps {
@@ -42,7 +42,6 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
   
   // Estados para sincronización con el servidor
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [syncPassword, setSyncPassword] = useState('admin123');
   const [isUploading, setIsUploading] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -71,16 +70,11 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
 
   const handleMasterUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!syncPassword.trim()) {
-      setUploadResult({ success: false, message: 'Ingresa la contraseña para confirmar la subida.' });
-      return;
-    }
-
     setIsUploading(true);
     setUploadResult(null);
 
     try {
-      const res = await pushAllStateToServer(syncPassword.trim(), currentUser?.name);
+      const res = await pushAllStateToServer();
       if (res.success) {
         setUploadResult({
           success: true,
@@ -108,12 +102,14 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
   };
 
   const handleManualPull = async () => {
+    const discard = hasUnsyncedChanges();
+    if (discard && !window.confirm('Hay cambios pendientes. ¿Descartar esos cambios y recuperar los datos confirmados en PostgreSQL?')) return;
     setIsPulling(true);
     try {
-      const res = await pullStateFromServer();
+      const res = await pullStateFromServer(discard);
       if (res.success) {
         if (res.version) setServerVersion(res.version.toString());
-      }
+      } else { window.alert(res.error); }
     } catch (e) {
       console.error(e);
     } finally {
@@ -411,24 +407,6 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
                     </p>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                  <Lock className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Contraseña de confirmación simple:</span>
-                </label>
-                <input
-                  type="password"
-                  value={syncPassword}
-                  onChange={(e) => setSyncPassword(e.target.value)}
-                  placeholder="admin123 / 117 / 1234 / admin"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 font-mono"
-                  required
-                />
-                <p className="text-[11px] text-slate-400">
-                  Claves autorizadas aceptadas: <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">admin123</code>, <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">117</code>, <code className="bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded font-mono">admin</code>
-                </p>
               </div>
 
               {uploadResult && (

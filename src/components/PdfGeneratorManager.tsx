@@ -557,20 +557,14 @@ export function getSpecialRateValuesForStation(
   let actualVal = baseSugPrice;
   if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
     const p = parseNum(row.actualPrice);
-    if (p > 0) actualVal = p;
-  } else if (row && row.actualPrice && row.actualPrice.trim() !== '') {
-    const p = parseNum(row.actualPrice);
-    if (p > 0) actualVal = p;
+    if (Number.isFinite(p) && p >= 0) actualVal = p;
   }
 
   // 2. Precio Referencia: Editable o actual + 0.0080
   let refVal = Number((actualVal + 0.008).toFixed(3));
   if (row && row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
     const p = parseNum(row.refPrice);
-    if (p > 0) refVal = p;
-  } else if (row && row.refPrice && row.refPrice.trim() !== '') {
-    const p = parseNum(row.refPrice);
-    if (p > 0) refVal = p;
+    if (Number.isFinite(p) && p >= 0) refVal = p;
   }
 
   // 3. Precio Base / Coste: Costo Total GOA / 1000 + 0.0080 (o Costo Total + 0.008)
@@ -589,16 +583,13 @@ export function getSpecialRateValuesForStation(
     const finNum = parseNum(pData.fin);
     totalCostNum = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
   }
-  if (totalCostNum === 0) {
+  if (!pData) {
     totalCostNum = Number((costs.defaultCurr + costs.porte + costs.pase + costs.fin).toFixed(3));
   }
   let baseVal = totalCostNum > 50 ? Number(((totalCostNum / 1000) + 0.008).toFixed(3)) : Number((totalCostNum + 0.008).toFixed(3));
   if (row && row.isCustomBase && row.basePrice && row.basePrice.trim() !== '') {
     const p = parseNum(row.basePrice);
-    if (p > 0) baseVal = p;
-  } else if (row && row.basePrice && row.basePrice.trim() !== '') {
-    const p = parseNum(row.basePrice);
-    if (p > 0) baseVal = p;
+    if (Number.isFinite(p) && p >= 0) baseVal = p;
   }
 
   return {
@@ -1485,15 +1476,11 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         if (row) {
           if (row.isCustomRef && row.refPrice && row.refPrice.trim() !== '') {
             const p = parseFloat(row.refPrice.toString().replace(',', '.'));
-            if (!isNaN(p) && p > 0) return p;
-          }
-          if (row.refPrice && row.refPrice.trim() !== '') {
-            const p = parseFloat(row.refPrice.toString().replace(',', '.'));
-            if (!isNaN(p) && p > 0) return p;
+            if (Number.isFinite(p) && p >= 0) return p;
           }
           if (row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
             const act = parseFloat(row.actualPrice.toString().replace(',', '.'));
-            if (!isNaN(act) && act > 0) return Number((act + 0.0080).toFixed(3));
+            if (Number.isFinite(act) && act >= 0) return Number((act + 0.0080).toFixed(3));
           }
         }
       }
@@ -1515,7 +1502,7 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
         });
         if (row && row.isCustomActual && row.actualPrice && row.actualPrice.trim() !== '') {
           const p = parseFloat(row.actualPrice.toString().replace(',', '.'));
-          if (!isNaN(p) && p > 0) return p;
+          if (Number.isFinite(p) && p >= 0) return p;
         }
       }
       return getStationBasePrice(stName);

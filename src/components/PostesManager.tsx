@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { flushPendingSync } from '@/lib/serverSyncService';
+import React, { useState, useEffect, useMemo } from 'react';
 import { STATION_EXCEL_COSTS } from '@/lib/dataSeed';
 import { getPostesStations } from '@/lib/stationsService';
 import {
@@ -17,6 +18,8 @@ import {
   clearAllPostesFormulas,
   reevaluateAllPostesFormulas,
   getProgramVariables,
+  getFreshestPurchasesData,
+  findPurchaseItem,
   evaluateFormula
 } from '@/lib/sabanaFormulaEngine';
 import { SabanaFormulaModal } from '@/components/SabanaFormulaModal';
@@ -320,6 +323,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
         const effDate = selectedDate || validFromDate;
         localStorage.setItem(`efi_postes_custom_formulas_${effDate}`, JSON.stringify(resolvedPostesFormulas));
         localStorage.setItem('efi_postes_custom_formulas_global', JSON.stringify(resolvedPostesFormulas));
+        window.dispatchEvent(new Event('efi_postes_updated'));
       } catch (e) {}
     }
   }, [resolvedPostesFormulas, selectedDate, validFromDate, customPostesFormulas]);
@@ -750,27 +754,12 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     let porte = conf.porte;
     let pase = conf.pase;
 
-    try {
-      const savedGlobal = localStorage.getItem('efi_compras_data');
-      if (savedGlobal) {
-        const p = JSON.parse(savedGlobal).data;
-        const cleanTarget = stName.toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
-        const matchedKey = Object.keys(p).find((k) => {
-          if (!k.endsWith('_GASOLINA')) return false;
-          const baseK = k.replace(/_GASOLINA$/, '').toUpperCase().replace(/^ES\s+/, '').replace(/^GANESHA\s+/, '').trim();
-          return baseK === cleanTarget || baseK.includes(cleanTarget) || cleanTarget.includes(baseK);
-        });
-        const gasItem = p[`${stName}_GASOLINA`] || (matchedKey ? p[matchedKey] : null);
-        if (gasItem) {
-          const cNum = parseNum(gasItem.curr);
-          if (cNum > 0) buy = cNum;
-          const portN = parseNum(gasItem.porte);
-          if (portN > 0) porte = portN;
-          const pasN = parseNum(gasItem.pase);
-          if (pasN > 0) pase = pasN;
-        }
-      }
-    } catch (e) {}
+    const gasItem = findPurchaseItem(getFreshestPurchasesData(selectedDate || validFromDate), stName, 'GASOLINA');
+    if (gasItem) {
+      buy = parseNum(gasItem.curr);
+      porte = parseNum(gasItem.porte);
+      pase = parseNum(gasItem.pase);
+    }
 
     const costConIva = Number(((buy + porte + pase) * 1.21).toFixed(4));
     return Number((gasPostePrice - costConIva).toFixed(3));
@@ -793,7 +782,6 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
   const computedHvoValdemoroConIva = resolvedPostesFormulas['POSTE_HVO_VALDEMORO_CON_IVA']?.evaluatedValue ?? Number((goaValdemoroPrice + hvoValAddVal).toFixed(4));
   const computedHvoValdemoroSinIva = resolvedPostesFormulas['POSTE_HVO_VALDEMORO_SIN_IVA']?.evaluatedValue ?? Number((computedHvoValdemoroConIva / 1.21).toFixed(4));
 
-  const postesDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Helper centralizado para persistir Postes y HVO y emitir eventos reactivos al instante
   const executePersistPostesData = (
@@ -843,51 +831,14 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     currentAdblue = adblueRows,
     currentGases = gasesRows,
     currentBronco = broncoRow,
-    immediate = false
+    _immediate = false
   ) => {
-    if (postesDebounceTimerRef.current) {
-      clearTimeout(postesDebounceTimerRef.current);
-    }
-    if (immediate) {
-      executePersistPostesData(
-        currentPostes,
-        currentGenBase,
-        currentGenAdd,
-        currentAlfajarin,
-        currentValdemoro,
-        currentModified,
-        currentGasoleoB,
-        currentAdblue,
-        currentGases,
-        currentBronco
-      );
-      return;
-    }
-    postesDebounceTimerRef.current = setTimeout(() => {
-      executePersistPostesData(
-        currentPostes,
-        currentGenBase,
-        currentGenAdd,
-        currentAlfajarin,
-        currentValdemoro,
-        currentModified,
-        currentGasoleoB,
-        currentAdblue,
-        currentGases,
-        currentBronco
-      );
-    }, 250);
+    executePersistPostesData(currentPostes, currentGenBase, currentGenAdd, currentAlfajarin,
+      currentValdemoro, currentModified, currentGasoleoB, currentAdblue, currentGases, currentBronco);
   };
 
   useEffect(() => {
-    return () => {
-      if (postesDebounceTimerRef.current) {
-        clearTimeout(postesDebounceTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
+    const reloadPostes = () => {
     try {
       const saved = localStorage.getItem('efi_postes_data_v2');
       if (saved) {
@@ -961,10 +912,11 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
       console.error(e);
     }
 
+    };
+    reloadPostes();
+    window.addEventListener('efi_server_state_applied', reloadPostes);
+
     const handleCierreDia = () => {
-      if (postesDebounceTimerRef.current) {
-        clearTimeout(postesDebounceTimerRef.current);
-      }
       setModifiedKeys(new Set());
       try {
         const saved = localStorage.getItem('efi_postes_data_v2');
@@ -980,6 +932,7 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     window.addEventListener('efi_cierre_dia', handleCierreDia);
     return () => {
       window.removeEventListener('efi_cierre_dia', handleCierreDia);
+      window.removeEventListener('efi_server_state_applied', reloadPostes);
     };
   }, []);
 
@@ -1009,8 +962,10 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
     persistPostesData(updatedPostes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, updatedMods);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     executePersistPostesData();
+    try { await flushPendingSync(); }
+    catch { window.alert('No se pudo guardar en PostgreSQL. Los cambios siguen pendientes.'); return; }
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3500);
   };
@@ -1898,7 +1853,8 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                             type="text"
                             inputMode="decimal"
                             value={goaDisplay}
-                            onChange={(e) => handlePosteChange(st.name, 'goa', e.target.value)}
+                            aria-label={`Poste ${st.name} goa`}
+                          onChange={(e) => handlePosteChange(st.name, 'goa', e.target.value)}
                             className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                               customGoa
                                 ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
@@ -2068,7 +2024,8 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                               type="text"
                               inputMode="decimal"
                               value={gasDisplay}
-                              onChange={(e) => handlePosteChange(st.name, 'gasolina', e.target.value)}
+                              aria-label={`Poste ${st.name} gasolina`}
+                          onChange={(e) => handlePosteChange(st.name, 'gasolina', e.target.value)}
                               className={`w-28 rounded-lg px-2.5 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                                 customGas
                                   ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'
@@ -2142,7 +2099,8 @@ export function PostesManager({ selectedDate }: PostesManagerProps = {}) {
                               type="text"
                               inputMode="decimal"
                               value={displayMargenGas}
-                              onChange={(e) => handlePosteChange(st.name, 'gasolinaGain', e.target.value)}
+                              aria-label={`Poste ${st.name} gasolinaGain`}
+                          onChange={(e) => handlePosteChange(st.name, 'gasolinaGain', e.target.value)}
                               className={`w-24 rounded-lg px-2 py-1 text-xs font-mono font-bold transition-all focus:outline-none ${
                                 customMargenGas
                                   ? 'bg-amber-400/25 border-2 border-amber-400 text-amber-200 font-black'

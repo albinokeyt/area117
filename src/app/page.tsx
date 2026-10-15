@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { APP_VERSION } from '@/lib/version';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { LoginForm } from '@/components/LoginForm';
@@ -23,7 +24,9 @@ import {
 function AppContent() {
   const { currentUser } = useAuth();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [syncReady, setSyncReady] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [activeTab, setActiveTab] = useState('comp1');
   const [selectedDate, setSelectedDate] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -42,36 +45,21 @@ function AppContent() {
   useEffect(() => {
     setMounted(true);
 
-    // Iniciar interceptor de auto-sincronización en segundo plano con debounce optimizado
-    initClientAutoSync(() => currentUser?.name || 'Usuario');
-
-    try {
-      const savedDate = localStorage.getItem('efi_compras_valid_from') || new Date().toISOString().split('T')[0];
-      setSelectedDate(savedDate);
-    } catch (e) {}
-
-    // 1. Auto-hidratación inicial desde el servidor
+    if (!currentUser) { setSyncReady(false); return; }
+    let cancelled = false;
+    setSyncReady(false);
+    // Hydrate before mounting any editor: defaults must never overwrite PostgreSQL.
     const initialSync = async () => {
-      try {
-        const status = await checkServerVersion();
-        if (status.hasData) {
-          const localVerStr = localStorage.getItem('efi_last_server_version') || '0';
-          const localVer = parseInt(localVerStr, 10);
-          const hasLocalPurchases = localStorage.getItem('efi_compras_data');
-
-          // Si el servidor tiene datos y hay versión más reciente, o este navegador está vacío, descargar de inmediato
-          if (status.serverVersion > localVer || !hasLocalPurchases) {
-            console.log('[AutoSync] Hidratando navegador desde servidor central...');
-            await pullStateFromServer();
-            const syncedDate = localStorage.getItem('efi_compras_valid_from');
-            if (syncedDate) setSelectedDate(syncedDate);
-          }
-        }
-      } catch (err) {
-        console.warn('[AutoSync] Error en hidratación inicial:', err);
-      }
+      const result = await pullStateFromServer();
+      if (cancelled) return;
+      if (!result.success) { setLoadError(result.error || 'No se pudo conectar con PostgreSQL.'); return; }
+      initClientAutoSync(() => currentUser.name);
+      const date = localStorage.getItem('efi_compras_valid_from');
+      if (date) setSelectedDate(date);
+      setLoadError('');
+      setSyncReady(true);
     };
-    initialSync();
+    void initialSync();
 
     // 2. Comprobación periódica no invasiva: cada 25s o al volver a la pestaña (focus)
     const checkServerUpdates = async () => {
@@ -111,11 +99,15 @@ function AppContent() {
       if (updated) setSelectedDate(updated);
     };
     window.addEventListener('efi_valid_date_changed', handleDateChange);
+    const onSyncError = (event: Event) => setSyncNotification('Guardado pendiente: ' + (event as CustomEvent).detail);
+    window.addEventListener('efi_sync_error', onSyncError);
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
       window.removeEventListener('focus', checkServerUpdates);
       window.removeEventListener('efi_valid_date_changed', handleDateChange);
+      window.removeEventListener('efi_sync_error', onSyncError);
     };
   }, [currentUser]);
 
@@ -131,6 +123,11 @@ function AppContent() {
   if (!currentUser) {
     return <LoginForm />;
   }
+
+  if (!syncReady) return <div className="p-10 text-slate-200 bg-slate-950 min-h-screen">
+    <p>{loadError || 'Cargando datos de PostgreSQL...'}</p>
+    {loadError && <button className="mt-4 p-3 bg-amber-600 rounded" onClick={() => window.location.reload()}>Reintentar conexión</button>}
+  </div>;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950">
@@ -173,7 +170,7 @@ function AppContent() {
           <span><strong className="text-slate-400">EFI DATA OIL App</strong> &bull; Sistema de Gestión de Compras y Precios</span>
           <div className="flex items-center space-x-4">
             <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-mono border border-emerald-500/20">Docker Ready (Easypanel)</span>
-            <span>v1.2.0</span>
+            <span>{APP_VERSION}</span>
           </div>
         </div>
       </footer>

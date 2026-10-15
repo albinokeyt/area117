@@ -6,14 +6,14 @@ import { Fuel, Lock, Mail, ArrowRight, ShieldCheck, KeyRound } from 'lucide-reac
 
 export function LoginForm() {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@efidataoil.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const success = login(email, password);
+    const success = await login(email, password).catch(() => false);
     if (!success) {
       setError('Credenciales inválidas. Comprueba el email y la contraseña.');
     }
@@ -40,20 +40,6 @@ export function LoginForm() {
           </p>
         </div>
 
-        {/* Credentials Box Info */}
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-xs space-y-1">
-          <div className="flex items-center space-x-1.5 text-amber-400 font-bold">
-            <KeyRound className="h-4 w-4" />
-            <span>Credenciales por Defecto:</span>
-          </div>
-          <p className="text-slate-300 font-mono text-[11px]">
-            Email: <strong className="text-white">admin@efidataoil.com</strong>
-          </p>
-          <p className="text-slate-300 font-mono text-[11px]">
-            Contraseña: <strong className="text-white">admin123</strong>
-          </p>
-        </div>
-
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -69,7 +55,7 @@ export function LoginForm() {
             <div className="relative">
               <Mail className="h-4 w-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="email"
+                type="email" aria-label="Correo Electrónico"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -86,7 +72,7 @@ export function LoginForm() {
             <div className="relative">
               <Lock className="h-4 w-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="password"
+                type="password" aria-label="Contraseña"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

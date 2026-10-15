@@ -1,3 +1,4 @@
+import { getLatestPurchasePayload } from "./purchaseState";
 /**
  * Servicio Central de Catálogo Dinámico de Estaciones de Servicio
  * Permite Crear, Modificar y Eliminar estaciones con propagación en cascada en todo el programa:
@@ -376,37 +377,23 @@ export function createStation(params: CreateStationParams): { success: boolean; 
     const buyPrice = params.initialBuyPrice !== undefined && params.initialBuyPrice > 0 ? params.initialBuyPrice : defaultCurr;
     const today = new Date().toISOString().split('T')[0];
     const sKey = 'efi_purchases_' + today;
-    const raw = localStorage.getItem(sKey) || localStorage.getItem('efi_compras_data');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const data = parsed.data || parsed;
-      const initialEntry = {
-        buyPrice: buyPrice,
-        manualTotalCost: 0,
-        manualMargin: 0,
-        manualSalePrice: catalog.suggestedPrices[cleanName],
-        prevBuyPrice: defaultPrev,
-        prevSalePrice: catalog.suggestedPrices[cleanName],
-      };
-      data[`${cleanName}_GOA`] = { ...initialEntry };
-      data[`${cleanName}_GASOLINA`] = {
-        ...initialEntry,
-        buyPrice: Number((buyPrice + 0.12).toFixed(4)),
-        manualSalePrice: Number((catalog.suggestedPrices[cleanName] + 0.15).toFixed(4)),
-      };
-      if (params.hasAdblue) {
-        data[`${cleanName}_ADBLUE`] = {
-          buyPrice: params.adblueBuyPrice || 0.4000,
-          manualTotalCost: 0,
-          manualMargin: 0,
-          manualSalePrice: params.adblueSalePrice || 0.7990,
-          prevBuyPrice: params.adblueBuyPrice || 0.4000,
-          prevSalePrice: params.adblueSalePrice || 0.7990,
-        };
-      }
-      localStorage.setItem(sKey, JSON.stringify({ validFrom: today, data }));
-      localStorage.setItem('efi_compras_data', JSON.stringify({ validFrom: today, data }));
-    }
+    const parsed = getLatestPurchasePayload(today) || { data: {}, modified: [] };
+    const data = { ...parsed.data };
+    const entry = (buy: number, sale: number) => ({ prev: String(buy), curr: String(buy),
+      porte: String(catalog.costs[cleanName]?.porte ?? 0), pase: String(catalog.costs[cleanName]?.pase ?? 0),
+      fin: String(catalog.costs[cleanName]?.fin ?? 0), clh: params.clhName || 'TORREJON',
+      sale: String(sale), prevSale: String(sale), isCustomSale: false });
+    data[`${cleanName}_GOA`] = entry(buyPrice, catalog.suggestedPrices[cleanName]);
+    const gasBuy = buyPrice + 0.12;
+    const cost = catalog.costs[cleanName];
+    data[`${cleanName}_GASOLINA`] = entry(gasBuy, Number((gasBuy + cost.porte + cost.pase + cost.fin).toFixed(3)));
+    if (params.hasAdblue) data[`${cleanName}_ADBLUE`] = {
+      ...entry(params.adblueBuyPrice ?? 0.4, params.adblueSalePrice ?? 0.799), porte: '0', pase: '0', fin: '0', clh: '-'
+    };
+    const payload = JSON.stringify({ ...parsed, data, updatedAt: new Date().toISOString() });
+    localStorage.setItem(sKey, payload);
+    localStorage.setItem('efi_compras_data', payload);
+
   } catch (e) {
     console.warn('No se pudo inicializar compra previa para la nueva estación:', e);
   }

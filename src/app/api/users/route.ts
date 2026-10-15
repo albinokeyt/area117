@@ -1,17 +1,21 @@
+import { sessionUser, publicUser } from "@/lib/auth";
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerUsers, upsertServerUser, deleteServerUser, isPostgresConfigured, ServerUser } from '@/lib/db';
 
-export async function GET() {
-  const users = await getServerUsers();
-  return NextResponse.json({
-    success: true,
-    users,
-    isPostgres: isPostgresConfigured(),
-  });
+export const dynamic = 'force-dynamic';
+export async function GET(req: NextRequest) {
+  try {
+    const user = await sessionUser(req);
+    if (!user) return NextResponse.json({ error: 'Inicia sesión.' }, { status: 401 });
+    const users = user.role === 'ADMIN' ? await getServerUsers() : [user];
+    return NextResponse.json({ success: true, users: users.map(publicUser), isPostgres: true });
+  } catch { return NextResponse.json({ error: 'No se pudieron leer usuarios.' }, { status: 503 }); }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const actor = await sessionUser(req);
+    if (actor?.role !== 'ADMIN') return NextResponse.json({ error: 'Se requiere administrador.' }, { status: 403 });
     const body = await req.json();
     const { name, email, role, password, id } = body;
 
@@ -22,6 +26,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const roles = ['ADMIN', 'COMPANERO_1', 'COMPANERO_2_3', 'VISITOR'];
+    if (role && !roles.includes(role)) return NextResponse.json({ error: 'Rol no válido.' }, { status: 400 });
     const currentUsers = await getServerUsers();
 
     if (id) {
@@ -36,7 +42,8 @@ export async function POST(req: NextRequest) {
         createdAt: existing ? existing.createdAt : new Date().toISOString().split('T')[0],
       };
 
-      await upsertServerUser(userToSave);
+      if (existing?.role === 'ADMIN' && userToSave.role !== 'ADMIN' && currentUsers.filter(u => u.role === 'ADMIN').length <= 1) return NextResponse.json({ error: 'Debe quedar un administrador.' }, { status: 400 });
+      if (!await upsertServerUser(userToSave)) throw new Error('No se pudo guardar el usuario.');
     } else {
       // Crear nuevo usuario
       const exists = currentUsers.some((u) => u.email.toLowerCase() === email.toLowerCase());
@@ -56,14 +63,14 @@ export async function POST(req: NextRequest) {
         createdAt: new Date().toISOString().split('T')[0],
       };
 
-      await upsertServerUser(newUser);
+      if (!await upsertServerUser(newUser)) throw new Error('No se pudo guardar el usuario.');
     }
 
     const updatedUsers = await getServerUsers();
 
     return NextResponse.json({
       success: true,
-      users: updatedUsers,
+      users: updatedUsers.map(publicUser),
       isPostgres: isPostgresConfigured(),
       message: 'Usuario guardado exitosamente en el servidor.',
     });
@@ -77,6 +84,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const actor = await sessionUser(req);
+    if (actor?.role !== 'ADMIN') return NextResponse.json({ error: 'Se requiere administrador.' }, { status: 403 });
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
 
@@ -95,12 +104,13 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    await deleteServerUser(id);
+    if (currentUsers.find(u => u.id === id)?.role === 'ADMIN' && currentUsers.filter(u => u.role === 'ADMIN').length <= 1) return NextResponse.json({ error: 'No puedes eliminar el último administrador.' }, { status: 400 });
+    if (!await deleteServerUser(id)) throw new Error('No se pudo eliminar el usuario.');
     const updated = await getServerUsers();
 
     return NextResponse.json({
       success: true,
-      users: updated,
+      users: updated.map(publicUser),
       isPostgres: isPostgresConfigured(),
       message: 'Usuario eliminado exitosamente del servidor.',
     });
