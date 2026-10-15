@@ -140,25 +140,25 @@ function AppContent() {
         setSelectedDate={setSelectedDate}
       />
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Pestañas persistentes en DOM: NUNCA se desmontan al cambiar de pestaña.
+        {/* Los gestores permanecen montados; las tablas ocultas no se renderizan.
             Garantiza que al pasar a Postes y regresar a Compras todos los valores, marcas amarillas y cálculos permanezcan 100% intactos */}
         <div className={activeTab === 'dashboard' ? 'block' : 'hidden'}>
           <ExecutiveDashboard onNavigateTab={setActiveTab} />
         </div>
         <div className={activeTab === 'comp1' ? 'block' : 'hidden'}>
-          <Comp1PurchaseManager selectedDate={selectedDate} />
+          <Comp1PurchaseManager selectedDate={selectedDate} isActive={activeTab === 'comp1'} />
         </div>
         <div className={activeTab === 'postes' ? 'block' : 'hidden'}>
-          <PostesManager selectedDate={selectedDate} />
+          <PostesManager selectedDate={selectedDate} isActive={activeTab === 'postes'} />
         </div>
         <div className={activeTab === 'sabana' ? 'block' : 'hidden'}>
-          <SabanaPreciosManager selectedDate={selectedDate} />
+          <SabanaPreciosManager selectedDate={selectedDate} isActive={activeTab === 'sabana'} />
         </div>
         <div className={activeTab === 'pdf' ? 'block' : 'hidden'}>
-          <PdfGeneratorManager selectedDate={selectedDate} />
+          <PdfGeneratorManager selectedDate={selectedDate} isActive={activeTab === 'pdf'} />
         </div>
         <div className={activeTab === 'comp2' ? 'block' : 'hidden'}>
-          <Comp2EfiExporter selectedDate={selectedDate} />
+          <Comp2EfiExporter selectedDate={selectedDate} isActive={activeTab === 'comp2'} />
         </div>
         <div className={activeTab === 'users' ? 'block' : 'hidden'}>
           <UserManager />

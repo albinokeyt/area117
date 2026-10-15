@@ -48,6 +48,7 @@ const DEFAULT_GASOLINA_BRONCO: GasolinaBroncoRow = {
 };
 
 interface Comp1Props {
+  isActive?: boolean;
   selectedDate: string;
 }
 
@@ -144,7 +145,7 @@ interface PurchaseRowValues {
   isCustomSale?: boolean;
 }
 
-export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
+export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Props) {
   const [activeProductTab, setActiveProductTab] = useState<ProductSubTab>('GOA');
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
@@ -1555,6 +1556,9 @@ export function Comp1PurchaseManager({ selectedDate }: Comp1Props) {
       </div>
     );
   };
+
+  // Keep editor state and data effects mounted; render only the visible table.
+  if (!isActive) return null;
 
   return (
     <div className="space-y-8">

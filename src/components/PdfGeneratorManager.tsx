@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 interface PdfGeneratorProps {
+  isActive?: boolean;
   selectedDate: string;
 }
 
@@ -900,7 +901,7 @@ export const COMPRAS_ESPECIALES_PICKER_COLUMNS = [
   { id: 'COMPRAS_ESPECIAL_BASE', field: 'base' as const, name: 'Precio Base / Coste', fullTitle: 'Tarifas Especiales - Precio Base / Coste', badge: 'Base / Coste' },
 ];
 
-export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
+export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGeneratorProps) {
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
       const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
@@ -2030,6 +2031,9 @@ export function PdfGeneratorManager({ selectedDate }: PdfGeneratorProps) {
     setDownloadNotice(fileName);
     setTimeout(() => setDownloadNotice(null), 4000);
   };
+
+  // Keep editor state and data effects mounted; render only the visible table.
+  if (!isActive) return null;
 
   return (
     <div className="space-y-6">

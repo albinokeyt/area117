@@ -44,6 +44,7 @@ import {
 } from '@/lib/sabanaFormulaEngine';
 
 interface SabanaProps {
+  isActive?: boolean;
   selectedDate: string;
 }
 
@@ -181,7 +182,7 @@ const isBlueSpecialStation = (stName: string): boolean => {
   );
 };
 
-export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
+export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaProps) {
   const [searchFilter, setSearchFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
   const [comprasPurchases, setComprasPurchases] = useState<Record<string, { sale: string }>>({});
@@ -2784,6 +2785,9 @@ export function SabanaPreciosManager({ selectedDate }: SabanaProps) {
       </div>
     );
   };
+
+  // Keep editor state and data effects mounted; render only the visible table.
+  if (!isActive) return null;
 
   return (
     <div className="space-y-8">

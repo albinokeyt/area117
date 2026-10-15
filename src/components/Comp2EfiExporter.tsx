@@ -22,10 +22,11 @@ import { EfiExportModifierModal } from './EfiExportModifierModal';
 import { getFreshestPurchasesData } from '@/lib/sabanaFormulaEngine';
 
 interface Comp2Props {
+  isActive?: boolean;
   selectedDate: string;
 }
 
-export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
+export function Comp2EfiExporter({ selectedDate, isActive = true }: Comp2Props) {
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
       return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate || '2026-09-05';
@@ -124,8 +125,9 @@ export function Comp2EfiExporter({ selectedDate }: Comp2Props) {
   }, [selectedDate, refreshTrigger]);
 
   const previewRows = useMemo(() => {
+    if (!isActive) return [];
     return buildImportacionTable(selectedDate, validFromDate, finalDate);
-  }, [selectedDate, validFromDate, finalDate, refreshTrigger]);
+  }, [isActive, selectedDate, validFromDate, finalDate, refreshTrigger]);
 
   // List of all tariffs in preview
   const allTariffsList = useMemo(() => {
@@ -355,6 +357,9 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
     setCopiedWhatsApp(true);
     setTimeout(() => setCopiedWhatsApp(false), 2500);
   };
+
+  // Keep editor state and data effects mounted; render only the visible table.
+  if (!isActive) return null;
 
   return (
     <div className="space-y-6">

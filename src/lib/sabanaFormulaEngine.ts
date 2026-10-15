@@ -593,65 +593,78 @@ export function evaluateFormula(
   // Quitar el "=" inicial si existe
   let expression = trimmed.startsWith("=") ? trimmed.substring(1).trim() : trimmed;
 
-  // Si hay contexto de estación, construir aliases locales para tokens relativos
-  const localMap: Record<string, number> = { ...variablesMap };
-  if (stationContext?.stationName) {
-    const norm = stationContext.stationName.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
-    const cleanNorm = stationContext.stationName.toUpperCase().replace(/^ES\s+/, '').replace(/[^a-zA-Z0-9]/g, "_");
-    for (const [k, v] of Object.entries(variablesMap)) {
-      if (k.startsWith(`COMPRAS:${norm}:`)) {
-        const shortK = k.replace(`COMPRAS:${norm}:`, '');
-        localMap[shortK] = v;
-      } else if (cleanNorm && k.startsWith(`COMPRAS:${cleanNorm}:`)) {
-        const shortK = k.replace(`COMPRAS:${cleanNorm}:`, '');
-        localMap[shortK] = v;
-      } else if (k.startsWith(`SABANA:${norm}:`)) {
-        const shortK = k.replace(`SABANA:${norm}:`, '');
-        localMap[shortK] = v;
-      } else if (cleanNorm && k.startsWith(`SABANA:${cleanNorm}:`)) {
-        const shortK = k.replace(`SABANA:${cleanNorm}:`, '');
-        localMap[shortK] = v;
-      } else if (k.startsWith(`ESPECIAL:${norm}:`)) {
-        const shortK = k.replace(`ESPECIAL:${norm}:`, '');
-        localMap[shortK] = v;
-        localMap[`ESPECIAL_${shortK}`] = v;
-      } else if (cleanNorm && k.startsWith(`ESPECIAL:${cleanNorm}:`)) {
-        const shortK = k.replace(`ESPECIAL:${cleanNorm}:`, '');
-        localMap[shortK] = v;
-        localMap[`ESPECIAL_${shortK}`] = v;
-      } else if (k.startsWith(`POSTES:${norm}:`)) {
-        const shortK = k.replace(`POSTES:${norm}:`, '');
-        localMap[shortK] = v;
-      } else if (cleanNorm && k.startsWith(`POSTES:${cleanNorm}:`)) {
-        const shortK = k.replace(`POSTES:${cleanNorm}:`, '');
-        localMap[shortK] = v;
-      }
-    }
-  }
-
-  // 1. Reemplazar tokens entre corchetes [TOKEN]
-  const tokenRegex = /\[([^\]]+)\]/g;
-  expression = expression.replace(tokenRegex, (match, tokenName) => {
-    const cleanToken = tokenName.trim();
-    if (localMap[cleanToken] !== undefined) {
-      return localMap[cleanToken].toString();
-    }
-    const upperToken = cleanToken.toUpperCase();
-    if (localMap[upperToken] !== undefined) {
-      return localMap[upperToken].toString();
-    }
-    return "0";
+  // Absolute bracketed references already identify their station. Resolve only the
+  // requested tokens; do not copy and sort thousands of unrelated variables for
+  // each cell. Relative and unbracketed formulas keep the full alias resolution.
+  expression = expression.replace(/\[([^\]]+)\]/g, (match, tokenName: string) => {
+    const token = tokenName.trim();
+    const upper = token.toUpperCase();
+    if (!/^(COMPRAS|SABANA|ESPECIAL|POSTES):/.test(upper)) return match;
+    return String(variablesMap[token] ?? variablesMap[upper] ?? 0);
   });
 
-  // 2. Reemplazar tokens sin corchetes (ej: COMPRAS:TORREJON:P_VENTA o P_VENTA)
-  const tokenKeys = Object.keys(localMap)
-    .filter((k) => k.length >= 3 && !/^[0-9.]+$/.test(k))
-    .sort((a, b) => b.length - a.length);
-
-  for (const key of tokenKeys) {
-    if (expression.includes(key)) {
-      expression = expression.split(key).join(localMap[key].toString());
+  if (/[a-zA-Z_\[\]:]/.test(expression)) {
+    // Si hay contexto de estación, construir aliases locales para tokens relativos
+    const localMap: Record<string, number> = { ...variablesMap };
+    if (stationContext?.stationName) {
+      const norm = stationContext.stationName.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+      const cleanNorm = stationContext.stationName.toUpperCase().replace(/^ES\s+/, '').replace(/[^a-zA-Z0-9]/g, "_");
+      for (const [k, v] of Object.entries(variablesMap)) {
+        if (k.startsWith(`COMPRAS:${norm}:`)) {
+          const shortK = k.replace(`COMPRAS:${norm}:`, '');
+          localMap[shortK] = v;
+        } else if (cleanNorm && k.startsWith(`COMPRAS:${cleanNorm}:`)) {
+          const shortK = k.replace(`COMPRAS:${cleanNorm}:`, '');
+          localMap[shortK] = v;
+        } else if (k.startsWith(`SABANA:${norm}:`)) {
+          const shortK = k.replace(`SABANA:${norm}:`, '');
+          localMap[shortK] = v;
+        } else if (cleanNorm && k.startsWith(`SABANA:${cleanNorm}:`)) {
+          const shortK = k.replace(`SABANA:${cleanNorm}:`, '');
+          localMap[shortK] = v;
+        } else if (k.startsWith(`ESPECIAL:${norm}:`)) {
+          const shortK = k.replace(`ESPECIAL:${norm}:`, '');
+          localMap[shortK] = v;
+          localMap[`ESPECIAL_${shortK}`] = v;
+        } else if (cleanNorm && k.startsWith(`ESPECIAL:${cleanNorm}:`)) {
+          const shortK = k.replace(`ESPECIAL:${cleanNorm}:`, '');
+          localMap[shortK] = v;
+          localMap[`ESPECIAL_${shortK}`] = v;
+        } else if (k.startsWith(`POSTES:${norm}:`)) {
+          const shortK = k.replace(`POSTES:${norm}:`, '');
+          localMap[shortK] = v;
+        } else if (cleanNorm && k.startsWith(`POSTES:${cleanNorm}:`)) {
+          const shortK = k.replace(`POSTES:${cleanNorm}:`, '');
+          localMap[shortK] = v;
+        }
+      }
     }
+
+    // 1. Reemplazar tokens entre corchetes [TOKEN]
+    const tokenRegex = /\[([^\]]+)\]/g;
+    expression = expression.replace(tokenRegex, (match, tokenName) => {
+      const cleanToken = tokenName.trim();
+      if (localMap[cleanToken] !== undefined) {
+        return localMap[cleanToken].toString();
+      }
+      const upperToken = cleanToken.toUpperCase();
+      if (localMap[upperToken] !== undefined) {
+        return localMap[upperToken].toString();
+      }
+      return "0";
+    });
+
+    // 2. Reemplazar tokens sin corchetes (ej: COMPRAS:TORREJON:P_VENTA o P_VENTA)
+    const tokenKeys = Object.keys(localMap)
+      .filter((k) => k.length >= 3 && !/^[0-9.]+$/.test(k))
+      .sort((a, b) => b.length - a.length);
+
+    for (const key of tokenKeys) {
+      if (expression.includes(key)) {
+        expression = expression.split(key).join(localMap[key].toString());
+      }
+    }
+
   }
 
   // 3. Reemplazar comas decimales europeas por puntos
@@ -904,9 +917,7 @@ export function getSabanaTariff60ConIvaForStation(
   // 2. Comprobar caché de Sábana de Precios (publicada por SabanaPreciosManager)
   const checkCache = (cacheKey: string): number | null => {
     try {
-      const raw = workspaceStorage.getItem(cacheKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
+      const parsed = workspaceStorage.readJson<Record<string, any>>(cacheKey);
       if (!parsed || typeof parsed !== 'object') return null;
 
       for (const al of aliasList) {
