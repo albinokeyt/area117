@@ -1,6 +1,10 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.2', date: '16/10/2026', title: 'Un coche más reconocible en el acceso', changes: [
+    'Redibujamos el coche del login con carrocería curva, capó, puertas, cristales, retrovisor, faros y llantas. Las ruedas siguen la misma perspectiva.',
+    'La manguera se conecta a la tapa de combustible del lateral trasero. Se conservan el arrastre, el acceso al pulsar el surtidor, el teclado y Acceder directamente.'
+  ] },
   { version: 'v1.6.1', date: '16/10/2026', title: 'Navegación flotante AREA117', changes: [
     'Las pestañas se convierten en un notch de cristal azul que flota en la parte superior. Muestra la sección actual, la hora, un saludo y los avisos de novedades.',
     'Pasa el ratón para desplegarlo o púlsalo para dejarlo abierto. Elige cualquiera de las ocho secciones; pulsa fuera o Escape para cerrar. También funciona con teclado y en móvil.',
