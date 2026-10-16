@@ -7,7 +7,7 @@ const HOME = { x: 353, y: 254 };
 const PORT = { x: 438, y: 309 };
 
 /** Decorative interaction only: it never authenticates or stores credentials. */
-export function FuelStationScene({ connected, onConnect }: { connected: boolean; onConnect: () => void }) {
+export function FuelStationScene({ connected, onConnect, departing = false }: { connected: boolean; onConnect: () => void; departing?: boolean }) {
   const scene = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const moved = useRef(false);
@@ -15,7 +15,7 @@ export function FuelStationScene({ connected, onConnect }: { connected: boolean;
   const position = connected ? PORT : nozzle;
   const connect = () => { setNozzle(PORT); onConnect(); };
 
-  return <div ref={scene} className={`fuel-scene ${connected ? 'is-connected' : ''}`} data-testid="fuel-scene">
+  return <div ref={scene} className={`fuel-scene ${connected ? 'is-connected' : ''} ${departing ? 'is-departing' : ''}`} data-testid="fuel-scene">
     <div className="station-halo" />
     <svg viewBox="0 0 780 470" className="station-art" aria-hidden="true">
       <defs>
@@ -107,12 +107,12 @@ export function FuelStationScene({ connected, onConnect }: { connected: boolean;
         <path d="M437 330Q437 306 458 310Q477 312 481 342M595 356Q599 333 618 338Q639 342 639 372" fill="none" stroke="#e4efff" strokeWidth="2.5" strokeLinecap="round" />
         <path d="m432 302 12 2 1 12-12-2Z" fill="#c0d3eb" stroke="#6d8cac" strokeWidth="1" />
       </g>
-      <path d={`M360 238 C438 261 277 388 ${position.x} ${position.y}`} fill="none" stroke="#020916" strokeWidth="9" strokeLinecap="round" />
+      {!departing && <><path d={`M360 238 C438 261 277 388 ${position.x} ${position.y}`} fill="none" stroke="#020916" strokeWidth="9" strokeLinecap="round" />
       <path d={`M360 238 C438 261 277 388 ${position.x} ${position.y}`} fill="none" stroke={connected ? '#578cdd' : '#526783'} strokeWidth="3" strokeLinecap="round" />
-      {connected && <path className="fuel-flow" d={`M360 238 C438 261 277 388 ${PORT.x} ${PORT.y}`} fill="none" stroke="#c3e2ff" strokeWidth="3" strokeDasharray="4 15" />}
+      {connected && <path className="fuel-flow" d={`M360 238 C438 261 277 388 ${PORT.x} ${PORT.y}`} fill="none" stroke="#c3e2ff" strokeWidth="3" strokeDasharray="4 15" />}</>}
     </svg>
-    {!connected && <div className="fuel-port" style={{ left: `${PORT.x / 7.8}%`, top: `${PORT.y / 4.7}%` }} aria-hidden="true"><span /><MoveUpRight size={15} /></div>}
-    <button type="button" className={`fuel-nozzle ${connected ? 'is-docked' : ''}`} aria-label="Conectar surtidor al coche" aria-describedby="fuel-scene-help" disabled={connected}
+    {!connected && !departing && <div className="fuel-port" style={{ left: `${PORT.x / 7.8}%`, top: `${PORT.y / 4.7}%` }} aria-hidden="true"><span /><MoveUpRight size={15} /></div>}
+    {!departing && <><button type="button" className={`fuel-nozzle ${connected ? 'is-docked' : ''}`} aria-label="Conectar surtidor al coche" aria-describedby="fuel-scene-help" disabled={connected}
       style={{ left: `${position.x / 7.8}%`, top: `${position.y / 4.7}%` }}
       onPointerDown={event => { moved.current = false; drag.current = { x: event.clientX, y: event.clientY, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
       onPointerMove={event => {
@@ -126,7 +126,7 @@ export function FuelStationScene({ connected, onConnect }: { connected: boolean;
       onClick={event => { if (event.detail === 0 || !moved.current) connect(); }}>
       {connected ? <Check size={22} /> : <Fuel size={24} />}
     </button>
-    <div className="station-interaction-caption" id="fuel-scene-help"><span className="scene-status-dot" /><span>{connected ? 'Conectado. Todo listo para tu próxima ruta.' : 'Arrastra el surtidor hasta el coche. O púlsalo para conectar.'}</span></div>
+    <div className="station-interaction-caption" id="fuel-scene-help"><span className="scene-status-dot" /><span>{connected ? 'Conectado. Todo listo para tu próxima ruta.' : 'Arrastra el surtidor hasta el coche. O púlsalo para conectar.'}</span></div></>}
   </div>;
 }
 

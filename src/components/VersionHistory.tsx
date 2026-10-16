@@ -6,7 +6,7 @@ import { APP_VERSION } from '@/lib/version';
 import { AppRelease } from '@/lib/releases';
 import { flushPendingSync } from '@/lib/serverSyncService';
 
-export function VersionHistory({ onNoticeChange }: { onNoticeChange?: (message: string | null) => void }) {
+export function VersionHistory({ onNoticeChange, enabled = true }: { onNoticeChange?: (message: string | null) => void; enabled?: boolean }) {
   const [releases, setReleases] = useState<AppRelease[]>([]);
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState(false);
@@ -32,12 +32,13 @@ export function VersionHistory({ onNoticeChange }: { onNoticeChange?: (message: 
     } catch (err) { if (manual) { setError((err as Error).message); setOpen(true); } }
   }, [onNoticeChange]);
   useEffect(() => {
+    if (!enabled) return;
     void load();
     const onFocus = () => { if (!document.hidden) void load(); };
     const interval = setInterval(onFocus, 60000);
     window.addEventListener('focus', onFocus);
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
-  }, [load]);
+  }, [load, enabled]);
   useEffect(() => {
     if (!open) return;
     previousFocus.current = document.activeElement as HTMLElement;

@@ -6,7 +6,7 @@ import { ArrowRight, ArrowUpRight, Check, Eye, EyeOff, Fuel, Loader2, LockKeyhol
 import { FuelGauge, FuelStationScene } from './FuelStationScene';
 import { APP_VERSION } from '@/lib/version';
 
-export function LoginForm() {
+export function LoginForm({ onLoginStart, onLoginFailure }: { onLoginStart?: () => void; onLoginFailure?: () => void }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,8 +24,10 @@ export function LoginForm() {
     if (busy) return;
     setError('');
     setBusy(true);
+    onLoginStart?.();
     const success = await login(email, password).catch(() => false);
     if (!success) {
+      onLoginFailure?.();
       setError('Credenciales inválidas. Comprueba el usuario o correo y la contraseña.');
       setBusy(false);
     }

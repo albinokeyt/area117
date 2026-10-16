@@ -2,6 +2,8 @@ import { openLogin } from './login';
 import { test, expect } from './fixtures';
 
 test('typing each character across background save responses keeps every character', async ({ page }) => {
+  let writes = 0;
+  page.on('request', request => { if (request.url().endsWith('/api/sync') && request.method() === 'POST') writes++; });
   await page.goto('/');
   await openLogin(page);
   await page.getByLabel('Usuario o correo electrónico').fill('admin@efidataoil.com');
@@ -9,8 +11,6 @@ test('typing each character across background save responses keeps every charact
   await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
   const input = page.getByLabel('ALFAJARIN GOA curr', { exact: true });
   await expect(input).toBeVisible();
-  let writes = 0;
-  page.on('request', request => { if (request.url().endsWith('/api/sync') && request.method() === 'POST') writes++; });
   await expect.poll(() => writes).toBeGreaterThan(0);
   await page.waitForTimeout(2500);
   const settledWrites = writes;
