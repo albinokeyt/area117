@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { Check, Fuel, MoveUpRight } from 'lucide-react';
 
 const HOME = { x: 353, y: 254 };
-const PORT = { x: 565, y: 318 };
+const PORT = { x: 438, y: 309 };
 
 /** Decorative interaction only: it never authenticates or stores credentials. */
 export function FuelStationScene({ connected, onConnect }: { connected: boolean; onConnect: () => void }) {
@@ -23,8 +23,11 @@ export function FuelStationScene({ connected, onConnect }: { connected: boolean;
         <linearGradient id="station-roof" x1="0" y1="0" x2=".9" y2="1"><stop stopColor="#e7efff" /><stop offset=".5" stopColor="#9fbaeb" /><stop offset="1" stopColor="#3260a5" /></linearGradient>
         <linearGradient id="station-glass" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#e0edff" stopOpacity=".95" /><stop offset="1" stopColor="#3768aa" stopOpacity=".5" /></linearGradient>
         <linearGradient id="station-red"><stop stopColor="#ff6b79" /><stop offset="1" stopColor="#c51f42" /></linearGradient>
-        <linearGradient id="station-car" x1="0" y1="0" x2=".4" y2="1"><stop stopColor="#f7faff" /><stop offset=".5" stopColor="#b7cce9" /><stop offset="1" stopColor="#567ead" /></linearGradient>
-        <linearGradient id="station-window"><stop stopColor="#486689" /><stop offset="1" stopColor="#0c203b" /></linearGradient>
+        <linearGradient id="station-car" x1="0" y1="0" x2=".25" y2="1"><stop stopColor="#fff" /><stop offset=".38" stopColor="#edf4ff" /><stop offset=".65" stopColor="#b9cce5" /><stop offset="1" stopColor="#6786ae" /></linearGradient>
+        <linearGradient id="station-window" x1="0" y1="0" x2=".7" y2="1"><stop stopColor="#7199be" /><stop offset=".45" stopColor="#25425d" /><stop offset="1" stopColor="#091b30" /></linearGradient>
+        <linearGradient id="car-hood" x1="0" y1="0" x2=".7" y2="1"><stop stopColor="#fff" /><stop offset=".55" stopColor="#dce9fa" /><stop offset="1" stopColor="#8ba8cc" /></linearGradient>
+        <linearGradient id="car-side" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#e7f0ff" /><stop offset=".42" stopColor="#cbdcf2" /><stop offset=".52" stopColor="#94b1d4" /><stop offset="1" stopColor="#bdd0e8" /></linearGradient>
+        <radialGradient id="car-rim"><stop stopColor="#f4f8ff" /><stop offset=".68" stopColor="#a5bbd5" /><stop offset="1" stopColor="#3f5874" /></radialGradient>
         <radialGradient id="station-light"><stop stopColor="#a5d5ff" stopOpacity=".4" /><stop offset="1" stopColor="#558af5" stopOpacity="0" /></radialGradient>
         <filter id="station-blur"><feGaussianBlur stdDeviation="9" /></filter>
       </defs>
@@ -59,19 +62,50 @@ export function FuelStationScene({ connected, onConnect }: { connected: boolean;
         <circle cx="351" cy="249" r="2" fill={connected ? '#70e5ca' : '#ef8398'} />
       </g>
       <g className="station-car">
-        <ellipse cx="548" cy="362" rx="131" ry="37" fill="#030b1a" opacity=".72" />
-        <path d="m417 290 89-46 81 17 90 57-7 35-101 46-128-59Z" fill="url(#station-car)" stroke="#d3e3f9" strokeOpacity=".6" />
-        <path d="m436 291 70-40 73 16 57 37-86 40Z" fill="#e6effc" />
-        <path d="m477 273 36-30 60 15 42 39-65 27Z" fill="url(#station-window)" stroke="#afcae9" />
-        <path d="m483 271 31-22 55 13 25 26-46 21Z" fill="#8eb0d1" fillOpacity=".37" />
-        <path d="m548 309 3 15m-34-73 32 57" fill="none" stroke="#d2e2f4" strokeWidth="3" />
-        <path d="m417 290 133 64 127-36m-127 36 19 45" fill="none" stroke="#fafcff" strokeOpacity=".7" />
-        <path d="m429 316 17 8m176 21 39-18" stroke="#dcefff" strokeWidth="5" strokeLinecap="round" />
-        <path d="m451 340 91 42m44-2 27-12" stroke="#e44964" strokeWidth="3" />
-        <path d="m451 317 82 39m-51-55 20 9" stroke="#7d9bbd" strokeWidth="2" />
-        <g fill="#0c1628" stroke="#5b7799" strokeWidth="3"><ellipse cx="471" cy="347" rx="13" ry="21" transform="rotate(-24 471 347)" /><ellipse cx="627" cy="353" rx="13" ry="21" transform="rotate(24 627 353)" /></g>
-        <g fill="#abc3e1"><ellipse cx="471" cy="347" rx="7" ry="13" transform="rotate(-24 471 347)" /><ellipse cx="627" cy="353" rx="7" ry="13" transform="rotate(24 627 353)" /></g>
-        <path d="m557 309 14 7v13l-14-7Z" fill="#29456c" stroke="#91b2d9" />
+        <ellipse cx="548" cy="362" rx="142" ry="29" transform="rotate(9 548 362)" fill="#020917" opacity=".7" />
+        {/* The two visible wheels share the side plane; the far wheel sits behind
+            the nose. Rounded arches and a separate bonnet make the silhouette readable. */}
+        <ellipse cx="666" cy="339" rx="12" ry="21" transform="rotate(14 666 339)" fill="#0a1322" stroke="#263c55" strokeWidth="3" />
+        <path d="M418 305 Q416 296 432 290 L470 282 Q484 257 506 250 Q514 247 531 250 L580 260 Q589 262 596 272 L622 304 L670 318 Q687 323 692 336 L687 353 Q682 362 654 378 L433 346 Q423 343 420 330Z" fill="url(#station-car)" stroke="#bfd4ee" strokeWidth="1.2" />
+        {/* Roof, rear screen and windshield: three distinct curved glass surfaces. */}
+        <path d="M450 290 Q471 262 506 252 L479 269 Q463 277 450 298Z" fill="#284662" stroke="#abc4df" />
+        <path d="M479 267 Q492 255 511 251 Q518 250 532 253 L579 263 Q584 265 587 269 L556 283Z" fill="#f2f7ff" />
+        <path d="M559 281 588 267 Q599 279 617 302 L591 322 Q581 300 559 281Z" fill="url(#station-window)" stroke="#9ebad9" strokeWidth="1.2" />
+        <path d="m566 282 20-10 23 28-16 10Z" fill="#c5e2fa" opacity=".2" />
+        <path d="m571 283 29 16" stroke="#e2f3ff" strokeOpacity=".48" strokeWidth="1.4" />
+        {/* Near side has a continuous window line, a B-pillar and two doors. */}
+        <path d="M447 299 Q458 281 479 273 L552 285 Q572 302 586 322 Q520 312 447 299Z" fill="url(#station-window)" stroke="#a2bddc" strokeWidth="1.6" />
+        <path d="M455 295 Q465 283 480 278 L503 282 504 307Z" fill="#b2d2ed" opacity=".21" />
+        <path d="m511 283 2 26" stroke="#152b43" strokeWidth="5" />
+        <path d="m518 286 28 5 26 24-49-9Z" fill="#bedbf1" opacity=".15" />
+        <path d="M419 308 Q475 315 589 334 L652 346 Q663 350 663 360 L654 378 637 381 Q639 343 618 340 Q594 336 594 372 L482 353 Q482 315 459 312 Q438 310 438 347 L432 346 Q420 341 419 328Z" fill="url(#car-side)" stroke="#adc5e2" strokeWidth="1.1" />
+        <path d="M591 325 621 306 Q647 310 671 321 Q681 325 684 330 L652 347 Q624 333 591 325Z" fill="url(#car-hood)" />
+        <path d="m610 324 42 12m-30-23 37 9" fill="none" stroke="#fff" strokeOpacity=".62" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M653 348 687 331 Q693 337 687 352 Q682 364 655 377Z" fill="#8fabc9" stroke="#c3d8f0" />
+        {/* Thin LED lights, a dark grille, bumper and rear lamp. */}
+        <path d="m655 349 12-6m12-10 7-3" stroke="#e6f7ff" strokeWidth="4" strokeLinecap="round" />
+        <path d="m658 357 25-13-2 10-22 12Z" fill="#15273d" stroke="#b8cfeb" strokeWidth=".8" />
+        <path d="m660 361 19-10" stroke="#647d99" strokeWidth="1" />
+        <path d="m659 371 18-10" stroke="#1b3149" strokeWidth="3" strokeLinecap="round" />
+        <path d="m420 313 15 3" stroke="#ed526a" strokeWidth="4" strokeLinecap="round" />
+        <path d="M424 305 Q487 312 587 330" fill="none" stroke="#fff" strokeOpacity=".85" strokeWidth="1.8" />
+        <path d="m488 319 1 27m59-18 2 26" fill="none" stroke="#6788ac" strokeOpacity=".65" strokeWidth="1" />
+        <path d="m493 321 10 2m50 8 11 2" stroke="#6683a6" strokeWidth="2.4" strokeLinecap="round" />
+        <path d="m485 352 106 17" stroke="#d63d5e" strokeWidth="2" strokeLinecap="round" />
+        <path d="m485 356 107 17" stroke="#183553" strokeWidth="3" strokeLinecap="round" />
+        {/* Mirror projects from the A-pillar instead of becoming part of the glass. */}
+        <path d="m578 318 7-5 12 3 1 6-8 3-10-3Z" fill="#e3efff" stroke="#7b9abd" />
+        <path d="m585 321 7 3" stroke="#142e4b" strokeWidth="2" />
+        {[{ x: 459, y: 338 }, { x: 618, y: 363 }].map(({ x, y }) => <g key={x} transform={`translate(${x} ${y}) rotate(-9)`}>
+          <ellipse rx="17" ry="25" fill="#080f1b" stroke="#47617f" strokeWidth="2" />
+          <ellipse rx="12" ry="19" fill="url(#car-rim)" stroke="#c5d6ec" strokeWidth="1.2" />
+          <ellipse rx="9" ry="15" fill="#263c55" />
+          <g transform="scale(.6 1)">{[0, 72, 144, 216, 288].map(angle => <path key={angle} d="M-1-3-3-14 1-16 3-3Z" transform={`rotate(${angle})`} fill="#cbdced" />)}</g>
+          <ellipse rx="3.5" ry="5" fill="#dce9f8" /><ellipse rx="1.4" ry="2" fill="#5f7793" />
+          <path d="M-14-6Q-12-22 0-23" fill="none" stroke="#95abc5" strokeOpacity=".4" strokeWidth="1.2" />
+        </g>)}
+        <path d="M437 330Q437 306 458 310Q477 312 481 342M595 356Q599 333 618 338Q639 342 639 372" fill="none" stroke="#e4efff" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="m432 302 12 2 1 12-12-2Z" fill="#c0d3eb" stroke="#6d8cac" strokeWidth="1" />
       </g>
       <path d={`M360 238 C438 261 277 388 ${position.x} ${position.y}`} fill="none" stroke="#020916" strokeWidth="9" strokeLinecap="round" />
       <path d={`M360 238 C438 261 277 388 ${position.x} ${position.y}`} fill="none" stroke={connected ? '#578cdd' : '#526783'} strokeWidth="3" strokeLinecap="round" />
