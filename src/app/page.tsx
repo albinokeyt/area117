@@ -2,11 +2,12 @@
 
 import { workspaceStorage } from '@/lib/workspaceStorage';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { APP_VERSION } from '@/lib/version';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { LoginForm } from '@/components/LoginForm';
+import { LoginDriveTransition } from '@/components/LoginDriveTransition';
 import { Comp1PurchaseManager } from '@/components/Comp1PurchaseManager';
 import { Comp2EfiExporter } from '@/components/Comp2EfiExporter';
 import { PostesManager } from '@/components/PostesManager';
@@ -28,6 +29,15 @@ function AppContent() {
   const [mounted, setMounted] = useState(false);
   const [syncReady, setSyncReady] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [entryRequested, setEntryRequested] = useState(false);
+  const [entryRevealing, setEntryRevealing] = useState(false);
+  const revealEntry = useCallback(() => setEntryRevealing(true), []);
+  const workspace = useRef<HTMLElement>(null);
+  const finishEntry = useCallback(() => {
+    setEntryRequested(false);
+    setEntryRevealing(false);
+    requestAnimationFrame(() => { window.scrollTo(0, 0); if (!document.querySelector('[role=dialog][aria-modal=true]')) workspace.current?.focus({ preventScroll: true }); });
+  }, []);
   const [activeTab, setActiveTab] = useState('comp1');
   const [selectedDate, setSelectedDate] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -123,24 +133,23 @@ function AppContent() {
   }
 
   if (!currentUser) {
-    return <LoginForm />;
+    return <LoginForm onLoginStart={() => { setEntryRevealing(false); setEntryRequested(true); }} onLoginFailure={() => setEntryRequested(false)} />;
   }
 
-  if (!syncReady) return <div className="p-10 text-slate-200 bg-slate-950 min-h-screen">
-    <p>{loadError || 'Cargando datos de PostgreSQL...'}</p>
-    {loadError && <button className="mt-4 p-3 bg-amber-600 rounded" onClick={() => window.location.reload()}>Reintentar conexión</button>}
-  </div>;
-
-  return (
-    <div className="efi-app min-h-screen">
+  return <>
+    {!syncReady ? <div className="p-10 text-slate-200 bg-slate-950 min-h-screen" aria-hidden={entryRequested} style={{ visibility: entryRequested ? 'hidden' : undefined }} ref={node => { if (node) node.inert = entryRequested; }}>
+      <p>{loadError || 'Cargando datos de PostgreSQL...'}</p>
+      {loadError && <button className="mt-4 p-3 bg-amber-600 rounded" onClick={() => window.location.reload()}>Reintentar conexión</button>}
+    </div> : <div className="efi-app min-h-screen" style={{ visibility: entryRequested && !entryRevealing ? 'hidden' : undefined }} ref={node => { if (node) node.inert = entryRequested; }}>
       <Header
+        deferNotices={entryRequested}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
       />
       <div key={activeTab} className="efi-route-sweep print:hidden" aria-hidden="true" />
-      <main className="efi-workspace max-w-[1680px] mx-auto px-4 sm:px-8 py-8 space-y-6">
+      <main ref={workspace} tabIndex={-1} className="efi-workspace max-w-[1680px] mx-auto px-4 sm:px-8 py-8 space-y-6">
         <div className="efi-workspace-route print:hidden"><div><span className="efi-route-mark" />ESTACIÓN DE TRABAJO<span className="efi-route-separator">/</span><strong>{{ dashboard: 'Resumen general', comp1: 'Compras', postes: 'Postes', sabana: 'Sábana de precios', pdf: 'PDFs y clientes', comp2: 'EFI Export', users: 'Usuarios', instructions: 'Instrucciones' }[activeTab]}</strong></div><span>La energía de tenerlo todo bajo control.</span></div>
         {/* Los gestores permanecen montados; las tablas ocultas no se renderizan.
             Garantiza que al pasar a Postes y regresar a Compras todos los valores, marcas amarillas y cálculos permanezcan 100% intactos */}
@@ -186,8 +195,9 @@ function AppContent() {
           <span className="text-xs">{syncNotification}</span>
         </div>
       )}
-    </div>
-  );
+    </div>}
+    {entryRequested && <LoginDriveTransition ready={syncReady} error={loadError} onReveal={revealEntry} onComplete={finishEntry} />}
+  </>;
 }
 
 export default function Home() {

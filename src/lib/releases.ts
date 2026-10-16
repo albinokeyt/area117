@@ -1,6 +1,11 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.3', date: '16/10/2026', title: 'Arranca tu estación de trabajo', changes: [
+    'Al iniciar sesión correctamente, el coche avanza hacia la pantalla y da paso al sistema en una transición de unos 3,5 segundos. Las credenciales incorrectas mantienen el formulario y su mensaje de error.',
+    'Los datos se cargan durante la animación. Si la conexión tarda más, el aviso continúa hasta que estén listos; si falla, aparece Reintentar conexión. Las novedades se muestran después de la transición.',
+    'La transición se acorta cuando está activado el movimiento reducido. Una sesión ya abierta entra directamente al sistema al recargar.'
+  ] },
   { version: 'v1.6.2', date: '16/10/2026', title: 'Un coche más reconocible en el acceso', changes: [
     'Redibujamos el coche del login con carrocería curva, capó, puertas, cristales, retrovisor, faros y llantas. Las ruedas siguen la misma perspectiva.',
     'La manguera se conecta a la tapa de combustible del lateral trasero. Se conservan el arrastre, el acceso al pulsar el surtidor, el teclado y Acceder directamente.'
