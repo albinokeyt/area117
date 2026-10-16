@@ -15,7 +15,7 @@ Ahora, al entrar con tu usuario y contraseña correctos, el coche arranca y avan
 ## Verificación
 
 - 38 pruebas unitarias, TypeScript y compilación de producción correctos.
-- 26 casos únicos de navegador verificados en PostgreSQL aislado. La batería completa confirmó 24; las dos expectativas que dependían del momento anterior de entrada se ajustaron y se repitieron correctamente con los recorridos de edición, acceso e historial (8 casos).
+- 26 casos únicos de navegador verificados en PostgreSQL aislado. La batería completa confirmó 24; se ajustaron dos expectativas de prueba (observar los guardados desde antes del login y comprobar el texto de error real del servicio) y se repitieron correctamente con los recorridos de edición, acceso e historial (8 casos).
 - Tras afinar la salida, pasaron de nuevo los cuatro casos específicos: duración y acercamiento del coche, sistema visible pero inerte durante el fundido, novedades posteriores, sesión restaurada sin animación, datos lentos, fallo y reintento, credenciales inválidas y movimiento reducido en móvil.
 - Guardado, cierres, fórmulas, 2.600 celdas PDF y exportaciones conservaron sus resultados. La edición con 190 fórmulas y CPU cuatro veces más lenta mantuvo un máximo observado de 377 ms, dentro de 500 ms.
 - Se revisó el fotograma intermedio real y se guardó una captura. El código de autenticación y la API no se modificaron.
