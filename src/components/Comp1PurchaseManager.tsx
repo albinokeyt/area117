@@ -1134,7 +1134,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="efi-purchase-table w-full text-left border-collapse">
             <thead>
               {activeProductTab === 'ADBLUE' ? (
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-cyan-500/30 font-bold">

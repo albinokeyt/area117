@@ -1,104 +1,86 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Fuel, Lock, Mail, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Check, Eye, EyeOff, Fuel, Loader2, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
+import { FuelGauge, FuelStationScene } from './FuelStationScene';
+import { APP_VERSION } from '@/lib/version';
 
 export function LoginForm() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [connected, setConnected] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const username = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (connected) username.current?.focus(); }, [connected]);
+  const progress = connected ? Math.round(12 + Math.min(email.length / 20, 1) * 35 + Math.min(password.length / 12, 1) * 43 + (busy ? 10 : 0)) : 0;
+  const reveal = () => { setConnected(true); };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
     setError('');
+    setBusy(true);
     const success = await login(email, password).catch(() => false);
     if (!success) {
       setError('Credenciales inválidas. Comprueba el usuario o correo y la contraseña.');
+      setBusy(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Glow Effects */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+  return <div className="efi-login">
+    <div className="login-ambient" aria-hidden="true"><span /><span /><span /></div>
+    <header className="login-masthead">
+      <a href="#acceso" className="login-brand" onClick={reveal} aria-label="AREA117, ir al acceso">
+        <img src="/logo_area117.png" width="66" height="55" alt="AREA117" />
+        <span><strong>AREA<span>117</span></strong><small>ENERGÍA QUE TE ACOMPAÑA</small></span>
+      </a>
+      <div className="login-masthead-right"><span className="login-secure-dot" />Tu estación de control<span className="login-edition">EFI DATA OIL</span></div>
+    </header>
 
-      <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6">
-        
-        {/* Header Logo */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex h-14 w-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 items-center justify-center shadow-lg shadow-amber-500/20 mb-2">
-            <Fuel className="h-8 w-8 text-slate-950 font-bold" />
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            EFI DATA OIL
-          </h1>
-          <p className="text-xs text-slate-400 font-medium">
-            Acceso al Sistema de Gestión de Combustibles
-          </p>
-        </div>
+    <main className="login-experience">
+      <section className="login-story" aria-label="Estación interactiva AREA117">
+        <div className="login-eyebrow"><span />CONTIGO EN LA CARRETERA</div>
+        <h1>La energía de<br />tenerlo <em>todo bajo control.</em></h1>
+        <p className="login-story-intro">Tu red de estaciones. Tus precios. Un solo destino.<br />Bienvenido a una nueva forma de ponerlo todo en marcha.</p>
+        <FuelStationScene connected={connected} onConnect={reveal} />
+        <div className="login-story-foot"><span><ShieldCheck size={15} />Acceso privado y protegido</span><span>Diseñado para seguir avanzando<ArrowUpRight size={14} /></span></div>
+      </section>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-semibold text-center">
-              {error}
+      <section className={`login-crystal ${connected ? 'is-ready' : ''}`} id="acceso" aria-label="Acceso al sistema">
+        <div className="login-card-rim" aria-hidden="true" />
+        <div className="login-card-topline"><span><span className="login-secure-dot" />EFI DATA OIL</span><span>01 / ACCESO</span></div>
+        <FuelGauge value={Math.min(100, progress)} />
+        {!connected ? <div className="login-welcome">
+          <span className="login-mini-label">TU PRÓXIMA PARADA</span>
+          <h2>Todo empieza<br />con una conexión.</h2>
+          <p>Conecta el surtidor al coche para abrir tu estación de trabajo.</p>
+          <button type="button" className="login-submit" onClick={reveal}><span>Acceder directamente</span><ArrowRight size={18} /></button>
+          <div className="login-welcome-note"><Fuel size={15} /><span>También puedes pulsar el surtidor.<br />Tú eliges cómo arrancar.</span></div>
+        </div> : <div className="login-form-content">
+          <span className="login-mini-label"><Check size={12} />CONEXIÓN LISTA</span>
+          <h2>Bienvenido<br />de nuevo<span>.</span></h2>
+          <p className="login-form-intro">Tu equipo, tu energía, tu siguiente paso.</p>
+          <form onSubmit={handleSubmit} className="login-fields" aria-busy={busy}>
+            {error && <div role="alert" className="login-error">{error}</div>}
+            <div className="login-field-group">
+              <label htmlFor="area117-username">Usuario o correo electrónico</label>
+              <div className="login-field"><UserRound size={17} /><input ref={username} id="area117-username" type="text" aria-label="Usuario o correo electrónico" autoComplete="username" autoCapitalize="none" spellCheck={false} required value={email} onChange={event => setEmail(event.target.value)} placeholder="Tu usuario o correo" /></div>
             </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5">
-              Usuario o correo electrónico
-            </label>
-            <div className="relative">
-              <Mail className="h-4 w-4 text-slate-500 absolute left-3.5 top-3" />
-              <input
-                type="text" aria-label="Usuario o correo electrónico" autoComplete="username" autoCapitalize="none"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none transition-colors"
-                placeholder="Usuario o correo electrónico"
-              />
+            <div className="login-field-group">
+              <label htmlFor="area117-password">Contraseña</label>
+              <div className="login-field"><LockKeyhole size={17} /><input id="area117-password" type={showPassword ? 'text' : 'password'} aria-label="Contraseña" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} placeholder="Tu contraseña" /><button type="button" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showPassword} onClick={() => setShowPassword(previous => !previous)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5">
-              Contraseña
-            </label>
-            <div className="relative">
-              <Lock className="h-4 w-4 text-slate-500 absolute left-3.5 top-3" />
-              <input
-                type="password" aria-label="Contraseña" autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none transition-colors"
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center space-x-2 transition-all active:scale-95 mt-2"
-          >
-            <span>Iniciar Sesión</span>
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </form>
-
-        <div className="pt-2 border-t border-slate-800/80 text-center">
-          <p className="text-[11px] text-slate-500 flex items-center justify-center space-x-1">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Conexión Protegida &bull; Docker Ready</span>
-          </p>
-        </div>
-
-      </div>
-    </div>
-  );
+            <button type="submit" className="login-submit" disabled={busy}><span>{busy ? 'Iniciando sesión…' : 'Iniciar Sesión'}</span>{busy ? <Loader2 className="animate-spin" size={18} /> : <ArrowRight size={18} />}</button>
+          </form>
+          <p className="login-privacy"><ShieldCheck size={14} />Acceso exclusivo para usuarios autorizados</p>
+        </div>}
+        <div className="login-card-bottom"><span>AREA117 · ESTACIÓN DE TRABAJO</span><span>{APP_VERSION}</span></div>
+      </section>
+    </main>
+    <footer className="login-footer"><span>© {new Date().getFullYear()} AREA117. Contigo en la carretera.</span><span><span />Conexión segura<span className="login-footer-rule" />Una experiencia EFI DATA OIL</span></footer>
+  </div>;
 }

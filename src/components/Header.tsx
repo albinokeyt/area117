@@ -122,146 +122,27 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
 
   return (
     <>
-      <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 shadow-lg print:hidden">
-        <div className="max-w-[1600px] mx-auto px-4">
-          <div className="flex flex-wrap 2xl:flex-nowrap items-center justify-between min-h-16 py-2 gap-3">
-
-            {/* Logo */}
-            <div className="flex items-center space-x-3 shrink-0">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center shadow-md shadow-amber-500/20">
-                <Fuel className="h-5 w-5 text-slate-950" />
-              </div>
-              <div className="hidden md:block">
-                <div className="flex items-center space-x-2">
-                  <h1 className="text-base font-bold tracking-tight leading-tight text-white">
-                    EFI DATA OIL
-                  </h1>
-                  <span
-                    className="text-[10px] font-black tracking-wide px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
-                    title={`Versión desplegada: ${APP_VERSION} (Compilación: ${APP_BUILD_DATE})`}
-                  >
-                    {APP_VERSION}
-                  </span>
-                </div>
-                <p className="text-[10px] text-amber-400 font-medium leading-tight">Gestión de Combustibles</p>
-              </div>
+      <header className="efi-header print:hidden">
+        <div className="efi-header-inner">
+          <div className="efi-header-top">
+            <div className="efi-brand">
+              <img src="/logo_area117.png" width="58" height="48" alt="AREA117" />
+              <div><div className="efi-brand-name">AREA<span>117</span><span className="efi-version" title={`Versión desplegada: ${APP_VERSION} (Compilación: ${APP_BUILD_DATE})`}>{APP_VERSION}</span></div><p>EFI DATA OIL <span> / </span> Gestión de Combustibles</p></div>
             </div>
-
-            {/* Nav Tabs */}
-            <nav className="flex flex-1 min-w-[240px] space-x-0.5 bg-slate-800/50 p-1 rounded-xl border border-slate-700/40 overflow-x-auto">
-              {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id)}
-                  className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all duration-150 ${
-                    activeTab === id
-                      ? 'bg-amber-500 text-slate-950 shadow'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              ))}
-            </nav>
-
-            {/* Right Side: Sync + Date + User */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="efi-header-tools">
               <VersionHistory />
-              {/* App Version Badge on Top Bar */}
-              <div
-                className="hidden xl:flex items-center px-2 py-1 rounded-xl bg-slate-800/90 border border-amber-500/30 text-[10px] font-mono text-amber-300 font-bold shadow-sm"
-                title={`Versión activa del Software: ${APP_VERSION} (${APP_BUILD_DATE})`}
-              >
-                App {APP_VERSION}
-              </div>
-
-              {/* PostgreSQL Status Indicator */}
-              {isPostgres !== null && (
-                <div
-                  className={`hidden sm:inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm ${
-                    isPostgres
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                  }`}
-                  title={
-                    isPostgres
-                      ? 'Base de Datos PostgreSQL Conectada y Activa'
-                      : 'PostgreSQL no conectado (revisa DATABASE_URL en Easypanel)'
-                  }
-                >
-                  <span className={`h-2 w-2 rounded-full ${isPostgres ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-                  <span>{isPostgres ? 'PostgreSQL' : 'Sin BD'}</span>
-                </div>
-              )}
-
-              {/* Sync Status / Manual Refresh */}
-              <button
-                onClick={handleManualPull}
-                disabled={isPulling}
-                title="Sincronizar datos con PostgreSQL central"
-                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 shadow-sm text-xs font-semibold transition-all"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 text-emerald-400 ${isPulling ? 'animate-spin' : ''}`} />
-                <span className="hidden lg:inline text-[11px] text-slate-300">BD #{serverVersion}</span>
-              </button>
-
-              {/* Master Upload Button */}
-              <button
-                onClick={() => {
-                  setUploadResult(null);
-                  setShowUploadModal(true);
-                }}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs shadow-md shadow-amber-500/20 transition-all active:scale-95"
-                title="Subir todos los datos locales de este navegador al servidor central para que todos los usuarios vean exactamente lo mismo"
-              >
-                <CloudUpload className="h-4 w-4 shrink-0" />
-                <span className="font-extrabold tracking-tight whitespace-nowrap">Subir Todo al Servidor</span>
-              </button>
-
-              {/* Date Box with Click to Open Day Summary Modal */}
-              <div className="flex items-center bg-slate-800/80 hover:bg-slate-800 rounded-xl px-2.5 py-1 border border-slate-700/60 shadow-sm transition-colors">
-                <button
-                  onClick={() => setShowDailySummaryModal(true)}
-                  className="flex items-center space-x-1.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 mr-2 uppercase tracking-tight"
-                  title="Haz clic para ver el resumen consolidado del día"
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  <span>Resumen Día:</span>
-                </button>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs text-amber-300 font-semibold focus:outline-none cursor-pointer"
-                />
-              </div>
-
-              {/* User Badge */}
-              {currentUser && (
-                <div className="flex items-center space-x-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
-                  <div className="h-7 w-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-black shrink-0">
-                    {(currentUser?.name || 'A').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="hidden md:block">
-                    <p className="text-[11px] font-bold text-white leading-tight truncate max-w-[100px]">
-                      {currentUser?.name ? currentUser.name.split(' ')[0] : 'Admin'}
-                    </p>
-                    <p className="text-[10px] text-slate-400 leading-tight">
-                      {currentUser?.role ? ROLE_LABELS[currentUser.role] : 'Administrador'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="ml-1 p-1.5 rounded-lg bg-slate-700 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all"
-                    title="Cerrar sesión"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              {isPostgres !== null && <div className={`efi-connection ${isPostgres ? 'is-online' : 'is-offline'}`} title={isPostgres ? 'Base de Datos PostgreSQL Conectada y Activa' : 'PostgreSQL no conectado (revisa DATABASE_URL en Easypanel)'}><span /><span>{isPostgres ? 'PostgreSQL' : 'Sin BD'}</span></div>}
+              <button onClick={handleManualPull} disabled={isPulling} title="Sincronizar datos con PostgreSQL central" className="efi-sync-button"><RefreshCw size={14} className={isPulling ? 'animate-spin' : ''} /><span>BD #{serverVersion}</span></button>
+              <button onClick={() => { setUploadResult(null); setShowUploadModal(true); }} className="efi-upload-button" title="Subir todos los datos locales de este navegador al servidor central para que todos los usuarios vean exactamente lo mismo"><CloudUpload size={15} /><span>Subir Todo al Servidor</span></button>
+              <div className="efi-day-selector"><button onClick={() => setShowDailySummaryModal(true)} title="Haz clic para ver el resumen consolidado del día"><Calendar size={15} /><span>Resumen Día:</span></button><input type="date" aria-label="Fecha de trabajo" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} /></div>
+              {currentUser && <div className="efi-user"><div className="efi-user-avatar">{(currentUser.name || 'A').charAt(0).toUpperCase()}</div><div className="efi-user-name"><strong>{currentUser.name ? currentUser.name.split(' ')[0] : 'Admin'}</strong><span>{ROLE_LABELS[currentUser.role]}</span></div><button onClick={logout} title="Cerrar sesión" aria-label="Cerrar sesión"><LogOut size={15} /></button></div>}
             </div>
-
+          </div>
+          <div className="efi-navigation-row">
+            <nav className="efi-navigation" aria-label="Navegación principal">
+              {NAV_ITEMS.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} className={activeTab === id ? 'is-active' : ''}><Icon size={16} /><span>{label}</span>{activeTab === id && <span className="efi-nav-dot" />}</button>)}
+            </nav>
+            <span className="efi-nav-signature">CONTIGO EN LA CARRETERA <span>↗</span></span>
           </div>
         </div>
       </header>

@@ -1,7 +1,9 @@
+import { openLogin } from './login';
 import { test, expect } from './fixtures';
 
 test('typing each character across background save responses keeps every character', async ({ page }) => {
   await page.goto('/');
+  await openLogin(page);
   await page.getByLabel('Usuario o correo electrónico').fill('admin@efidataoil.com');
   await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
   await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
@@ -35,6 +37,7 @@ test('typing each character across background save responses keeps every charact
 
 test('a delayed acknowledgement cannot undo a newer keystroke or remove its daily highlight', async ({ page }) => {
   await page.goto('/');
+  await openLogin(page);
   await page.getByLabel('Usuario o correo electrónico').fill('admin@efidataoil.com');
   await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
   await page.getByRole('button', { name: 'Iniciar Sesión' }).click();

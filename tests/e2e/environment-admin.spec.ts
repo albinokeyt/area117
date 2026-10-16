@@ -1,3 +1,4 @@
+import { openLogin } from './login';
 import { test, expect } from './fixtures';
 import { Client } from 'pg';
 
@@ -5,6 +6,7 @@ test('environment admin logs in with a username and can manage users and save da
   const rejected = await page.request.post('/api/auth', { data: { email: 'recovery-test', password: 'incorrect' } });
   expect(rejected.status()).toBe(401);
   await page.goto('/');
+  await openLogin(page);
   await page.getByLabel('Usuario o correo electrónico').fill('recovery-test');
   await page.getByLabel('Contraseña', { exact: true }).fill('recovery-test-password');
   await page.getByRole('button', { name: 'Iniciar Sesión' }).click();

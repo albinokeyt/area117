@@ -1,3 +1,4 @@
+import { openLogin } from './login';
 import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 import * as XLSX from 'xlsx';
@@ -6,6 +7,7 @@ import { Client } from 'pg';
 
 async function login(page: Page) {
   await page.goto('/');
+  await openLogin(page);
   await page.getByRole('textbox', { name: 'Usuario o correo electrónico' }).fill('admin@efidataoil.com');
   await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
   await page.getByRole('button', { name: /Entrar|Acceder|Iniciar/i }).click();

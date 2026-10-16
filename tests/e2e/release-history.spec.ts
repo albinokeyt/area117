@@ -1,3 +1,4 @@
+import { openLogin } from './login';
 import { test, expect } from '@playwright/test';
 import { Client } from 'pg';
 import { APP_RELEASES, latestRelease } from '../../src/lib/releases';
@@ -9,13 +10,14 @@ test('release notice is per user, persists in PostgreSQL and history stays avail
     await request.post('/api/auth', { data: { email: 'admin@efidataoil.com', password: 'admin123' } });
     await db.query("DELETE FROM efi_release_reads WHERE user_id IN ('1','3')");
     await page.goto('/');
+    await openLogin(page);
     await page.getByLabel('Usuario o correo electrónico').fill('admin@efidataoil.com');
     await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
     const notice = page.getByRole('dialog', { name: `Novedades ${latestRelease.version}`, exact: true });
     await expect(notice).toBeVisible();
-    await expect(notice).toContainText('Validar tarifas PDF');
-    await expect(notice).toContainText('Precio Referencia');
+    await expect(notice).toContainText(latestRelease.title);
+    await expect(notice).toContainText(latestRelease.changes[0]);
     await page.route('**/api/releases', route => route.request().method() === 'POST' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }) : route.continue());
     await notice.getByRole('button', { name: 'Entendido', exact: true }).click();
     await expect(notice.getByRole('alert')).toContainText('No se pudo guardar');
@@ -36,6 +38,7 @@ test('release notice is per user, persists in PostgreSQL and history stays avail
     await history.getByRole('button', { name: 'Entendido', exact: true }).click();
     const other = await browser.newPage();
     await other.goto('/');
+    await openLogin(other);
     await other.getByLabel('Usuario o correo electrónico').fill('efi@efidataoil.com');
     await other.getByLabel('Contraseña', { exact: true }).fill('efi123');
     await other.getByRole('button', { name: 'Iniciar Sesión' }).click();

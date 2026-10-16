@@ -132,14 +132,15 @@ function AppContent() {
   </div>;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className="efi-app min-h-screen">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
       />
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main className="efi-workspace max-w-[1680px] mx-auto px-4 sm:px-8 py-8 space-y-6">
+        <div className="efi-workspace-route print:hidden"><div><span className="efi-route-mark" />ESTACIÓN DE TRABAJO<span className="efi-route-separator">/</span><strong>{{ dashboard: 'Resumen general', comp1: 'Compras', postes: 'Postes', sabana: 'Sábana de precios', pdf: 'PDFs y clientes', comp2: 'EFI Export', users: 'Usuarios', instructions: 'Instrucciones' }[activeTab]}</strong></div><span>La energía de tenerlo todo bajo control.</span></div>
         {/* Los gestores permanecen montados; las tablas ocultas no se renderizan.
             Garantiza que al pasar a Postes y regresar a Compras todos los valores, marcas amarillas y cálculos permanezcan 100% intactos */}
         <div className={activeTab === 'dashboard' ? 'block' : 'hidden'}>
@@ -167,11 +168,11 @@ function AppContent() {
           <InstructionsManager />
         </div>
       </main>
-      <footer className="border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 print:hidden">
+      <footer className="efi-footer print:hidden">
         <div className="max-w-[1600px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span><strong className="text-slate-400">EFI DATA OIL App</strong> &bull; Sistema de Gestión de Compras y Precios</span>
           <div className="flex items-center space-x-4">
-            <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-mono border border-emerald-500/20">Docker Ready (Easypanel)</span>
+            <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-mono border border-emerald-500/20">AREA117 · Contigo en la carretera</span>
             <span>{APP_VERSION}</span>
           </div>
         </div>

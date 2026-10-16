@@ -1,3 +1,4 @@
+import { openLogin } from './login';
 import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 
@@ -30,6 +31,7 @@ test('editing stays responsive with production-sized formulas and preserves the 
       }, true);
     });
     await page.goto('/');
+    await openLogin(page);
     await page.getByLabel('Usuario o correo electrónico').fill('admin@efidataoil.com');
     await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
