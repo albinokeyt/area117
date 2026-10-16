@@ -1,6 +1,12 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.0', date: '16/10/2026', title: 'AREA117 Crystal: nueva experiencia visual', changes: [
+    'Nuevo diseño de cristal en todo el sistema: azul, rojo y blanco del logo AREA117, cabecera renovada, navegación más clara, tablas luminosas y ventanas translúcidas.',
+    'Acceso interactivo con una gasolinera y un coche: arrastra o pulsa el surtidor para abrir el formulario, o utiliza Acceder directamente. El indicador acompaña la escritura del usuario y la contraseña.',
+    'La contraseña puede mostrarse u ocultarse. El acceso funciona con teclado y pantalla táctil; las animaciones respetan la preferencia de movimiento reducido.',
+    'Se conservan la autenticación, los permisos, PostgreSQL, las fórmulas, el guardado y las exportaciones. Las casillas modificadas siguen en amarillo y los formatos PDF mantienen su presentación original.'
+  ] },
   { version: 'v1.5.7', date: '15/10/2026', title: 'Validación de todas las tarifas PDF', changes: [
     'Nuevo botón Validar tarifas PDF en PDFs y Clientes. Revisa todas las tarifas y estaciones, incluidas las desactivadas, comparando por separado los precios sin IVA y con IVA con el cálculo actual de Sábana.',
     'El informe distingue coincidencias, diferencias y datos por revisar. Muestra tarifa, estación, origen, fórmula personalizada y ambos precios. Respeta las excepciones comerciales guardadas, incluido Precio Referencia de Compras.',

@@ -1,3 +1,4 @@
+import { openLogin } from './login';
 import { test, expect } from './fixtures';
 
 test('PDF validator catches invalid formulas, includes inactive stations and invalidates the report after remote edits', async ({ page, request }, testInfo) => {
@@ -16,6 +17,7 @@ test('PDF validator catches invalid formulas, includes inactive stations and inv
     expect((await request.post('/api/sync', { data: { data, baseData: original } })).ok()).toBe(true);
     await page.setViewportSize({ width: 1500, height: 1000 });
     await page.goto('/');
+    await openLogin(page);
     await page.getByLabel('Usuario o correo electrónico').fill('admin@efidataoil.com');
     await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();

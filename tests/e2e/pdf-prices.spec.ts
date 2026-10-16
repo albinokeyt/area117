@@ -1,3 +1,4 @@
+import { openLogin } from './login';
 import { test, expect } from './fixtures';
 
 const tariffSources: Record<string, string> = {
@@ -47,6 +48,7 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     expect((await request.post('/api/sync', { data: { data, baseData: original } })).ok()).toBe(true);
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto('/');
+    await openLogin(page);
     await page.getByLabel('Usuario o correo electrónico').fill('admin@efidataoil.com');
     await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
