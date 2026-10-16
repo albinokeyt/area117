@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Check, Fuel, MoveUpRight } from 'lucide-react';
+import { Fuel, MoveUpRight } from 'lucide-react';
 
 const HOME = { x: 353, y: 254 };
 const PORT = { x: 438, y: 309 };
@@ -9,11 +9,15 @@ const PORT = { x: 438, y: 309 };
 /** Decorative interaction only: it never authenticates or stores credentials. */
 export function FuelStationScene({ connected, onConnect, departing = false }: { connected: boolean; onConnect: () => void; departing?: boolean }) {
   const scene = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
-  const moved = useRef(false);
+  const drag = useRef<{ id: number; x: number; y: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
+  const point = useRef(HOME);
   const [nozzle, setNozzle] = useState(HOME);
+  const [hint, setHint] = useState('');
   const position = connected ? PORT : nozzle;
-  const connect = () => { setNozzle(PORT); onConnect(); };
+  const place = (next: typeof HOME) => { point.current = next; setNozzle(next); };
+  const nearPort = () => Math.hypot(point.current.x - PORT.x, point.current.y - PORT.y) <= 45;
+  const connect = () => { place(PORT); onConnect(); };
+  const tail = { x: position.x - 31, y: position.y + 68 };
 
   return <div ref={scene} className={`fuel-scene ${connected ? 'is-connected' : ''} ${departing ? 'is-departing' : ''}`} data-testid="fuel-scene">
     <div className="station-halo" />
@@ -107,26 +111,54 @@ export function FuelStationScene({ connected, onConnect, departing = false }: { 
         <path d="M437 330Q437 306 458 310Q477 312 481 342M595 356Q599 333 618 338Q639 342 639 372" fill="none" stroke="#e4efff" strokeWidth="2.5" strokeLinecap="round" />
         <path d="m432 302 12 2 1 12-12-2Z" fill="#c0d3eb" stroke="#6d8cac" strokeWidth="1" />
       </g>
-      {!departing && <><path d={`M360 238 C438 261 277 388 ${position.x} ${position.y}`} fill="none" stroke="#020916" strokeWidth="9" strokeLinecap="round" />
-      <path d={`M360 238 C438 261 277 388 ${position.x} ${position.y}`} fill="none" stroke={connected ? '#578cdd' : '#526783'} strokeWidth="3" strokeLinecap="round" />
-      {connected && <path className="fuel-flow" d={`M360 238 C438 261 277 388 ${PORT.x} ${PORT.y}`} fill="none" stroke="#c3e2ff" strokeWidth="3" strokeDasharray="4 15" />}</>}
+      {!departing && <><path d={`M360 238 C438 261 277 388 ${tail.x} ${tail.y}`} fill="none" stroke="#020916" strokeWidth="9" strokeLinecap="round" />
+      <path d={`M360 238 C438 261 277 388 ${tail.x} ${tail.y}`} fill="none" stroke={connected ? '#578cdd' : '#526783'} strokeWidth="3" strokeLinecap="round" />
+      {connected && <path className="fuel-flow" d={`M360 238 C438 261 277 388 ${tail.x} ${tail.y}`} fill="none" stroke="#c3e2ff" strokeWidth="3" strokeDasharray="4 15" />}</>}
     </svg>
     {!connected && !departing && <div className="fuel-port" style={{ left: `${PORT.x / 7.8}%`, top: `${PORT.y / 4.7}%` }} aria-hidden="true"><span /><MoveUpRight size={15} /></div>}
-    {!departing && <><button type="button" className={`fuel-nozzle ${connected ? 'is-docked' : ''}`} aria-label="Conectar surtidor al coche" aria-describedby="fuel-scene-help" disabled={connected}
+    {!departing && <><button type="button" className={`fuel-nozzle ${connected ? 'is-docked' : ''}`} aria-label="Mover boquilla de combustible" aria-describedby="fuel-scene-help fuel-keyboard-help" disabled={connected}
       style={{ left: `${position.x / 7.8}%`, top: `${position.y / 4.7}%` }}
-      onPointerDown={event => { moved.current = false; drag.current = { x: event.clientX, y: event.clientY, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerDown={event => {
+        if (!event.isPrimary || drag.current || !scene.current) return;
+        const box = scene.current.getBoundingClientRect();
+        drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, offsetX: (event.clientX - box.left) / box.width * 780 - point.current.x, offsetY: (event.clientY - box.top) / box.height * 470 - point.current.y, moved: false };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
       onPointerMove={event => {
-        if (!drag.current || !scene.current) return;
+        if (!drag.current || drag.current.id !== event.pointerId || !scene.current) return;
         if (Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) > 5) drag.current.moved = true;
         const box = scene.current.getBoundingClientRect();
-        setNozzle({ x: Math.max(30, Math.min(750, (event.clientX - box.left) / box.width * 780)), y: Math.max(30, Math.min(440, (event.clientY - box.top) / box.height * 470)) });
+        place({ x: Math.max(30, Math.min(750, (event.clientX - box.left) / box.width * 780 - drag.current.offsetX)), y: Math.max(30, Math.min(440, (event.clientY - box.top) / box.height * 470 - drag.current.offsetY)) });
       }}
-      onPointerUp={() => { if (!drag.current) return; moved.current = drag.current.moved; drag.current = null; if (Math.hypot(nozzle.x - PORT.x, nozzle.y - PORT.y) < 85) connect(); else setNozzle(HOME); }}
-      onPointerCancel={() => { drag.current = null; moved.current = true; setNozzle(HOME); }}
-      onClick={event => { if (event.detail === 0 || !moved.current) connect(); }}>
-      {connected ? <Check size={22} /> : <Fuel size={24} />}
+      onPointerUp={event => { if (!drag.current || drag.current.id !== event.pointerId) return; const moved = drag.current.moved; drag.current = null; if (moved && nearPort()) connect(); else { place(HOME); setHint('Lleva la punta de la boquilla hasta la toma señalada del coche.'); } }}
+      onPointerCancel={() => { drag.current = null; place(HOME); }}
+      onLostPointerCapture={() => { if (drag.current) { drag.current = null; place(HOME); } }}
+      onKeyDown={event => {
+        const steps: Record<string, [number, number]> = { ArrowLeft: [-20, 0], ArrowRight: [20, 0], ArrowUp: [0, -20], ArrowDown: [0, 20] };
+        if (steps[event.key]) { event.preventDefault(); const [x, y] = steps[event.key]; place({ x: Math.max(30, Math.min(750, point.current.x + x)), y: Math.max(30, Math.min(440, point.current.y + y)) }); setHint(nearPort() ? 'Boquilla en la toma. Pulsa Enter para conectarla.' : 'Sigue acercando la punta a la toma del coche con las flechas.'); }
+        else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (nearPort()) connect(); else setHint('Primero mueve la boquilla hasta el coche con las flechas.'); }
+        else if (event.key === 'Escape') { event.preventDefault(); place(HOME); setHint('Boquilla devuelta al surtidor.'); }
+      }}>
+      <svg viewBox="0 0 80 94" aria-hidden="true" focusable="false">
+        <defs><linearGradient id="nozzle-metal" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#f3f8ff" /><stop offset=".5" stopColor="#8fa6bd" /><stop offset="1" stopColor="#d9e5f0" /></linearGradient><linearGradient id="nozzle-grip" x1="0" y1="0" x2="1" y2="1"><stop stopColor={connected ? '#348b75' : '#4174b1'} /><stop offset="1" stopColor={connected ? '#124839' : '#173b69'} /></linearGradient></defs>
+        <path d="M39 35 48 20Q51 14 60 14H72" fill="none" stroke="#4d627b" strokeWidth="11" strokeLinecap="round" />
+        <path d="M39 35 48 20Q51 14 60 14H72" fill="none" stroke="url(#nozzle-metal)" strokeWidth="7" strokeLinecap="round" />
+        <path d="M48 20Q51 14 60 14H70" fill="none" stroke="#fff" strokeOpacity=".75" strokeWidth="1.5" />
+        <path d="m70 9 5 1v8l-5 1Z" fill="#99afc5" stroke="#e4eef7" strokeWidth="1" />
+        <path d="m17 74 14 7-4 11-14-6Z" fill="#142033" stroke="#6c839c" strokeWidth="1.5" />
+        <path d="m16 81 12 5m-13-1 12 5" stroke="#061123" strokeWidth="2" />
+        <path d="M24 39 44 46 35 75Q32 84 24 81L13 76Q8 74 11 66Z" fill="#111e30" stroke="#8298b1" strokeWidth="1.6" />
+        <path d="m24 50 10 4-7 18-10-4Z" fill="#061123" stroke="#657e99" strokeWidth="1.1" />
+        <path d="m25 49-5 15q4 6 8 0l4-10" fill="none" stroke="url(#nozzle-metal)" strokeWidth="2.7" strokeLinecap="round" />
+        <path d="M23 28Q28 22 34 24L46 28Q51 31 47 38L40 53 25 48 20 40Z" fill="url(#nozzle-grip)" stroke="#a1bddc" strokeWidth="1.4" />
+        <path d="m25 29 16 7-3 7-15-6Z" fill="#d83a5b" />
+        <path d="m26 30 11 5" stroke="#faafbd" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx="40" cy="32" r="2" fill={connected ? '#8ef0c7' : '#d9eaff'} />
+      </svg>
+      <span className="nozzle-tip" data-testid="nozzle-tip" aria-hidden="true" />
     </button>
-    <div className="station-interaction-caption" id="fuel-scene-help"><span className="scene-status-dot" /><span>{connected ? 'Conectado. Todo listo para tu próxima ruta.' : 'Arrastra el surtidor hasta el coche. O púlsalo para conectar.'}</span></div></>}
+    <div className="station-interaction-caption" id="fuel-scene-help"><span className="scene-status-dot" /><span>{connected ? 'Conectado. Todo listo para tu próxima ruta.' : 'Arrastra la boquilla hasta la toma del coche.'}</span></div>
+    <p className="sr-only" id="fuel-keyboard-help">Con teclado, usa las flechas para mover la boquilla. Pulsa Enter cuando la punta esté junto a la toma. Escape la devuelve al surtidor.</p><p className="sr-only" role="status">{hint}</p></>}
   </div>;
 }
 

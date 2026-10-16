@@ -141,6 +141,7 @@ function AppContent() {
       <p>{loadError || 'Cargando datos de PostgreSQL...'}</p>
       {loadError && <button className="mt-4 p-3 bg-amber-600 rounded" onClick={() => window.location.reload()}>Reintentar conexión</button>}
     </div> : <div className="efi-app min-h-screen" style={{ visibility: entryRequested && !entryRevealing ? 'hidden' : undefined }} ref={node => { if (node) node.inert = entryRequested; }}>
+      <fieldset disabled={entryRequested} className="contents" role="presentation">
       <Header
         deferNotices={entryRequested}
         activeTab={activeTab}
@@ -195,6 +196,7 @@ function AppContent() {
           <span className="text-xs">{syncNotification}</span>
         </div>
       )}
+      </fieldset>
     </div>}
     {entryRequested && <LoginDriveTransition ready={syncReady} error={loadError} onReveal={revealEntry} onComplete={finishEntry} />}
   </>;
