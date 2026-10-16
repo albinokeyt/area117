@@ -33,8 +33,10 @@ test('successful login drives the car toward the screen for 3.5 seconds, then re
   await expect(transition).toHaveClass(/is-leaving/, { timeout: 2500 });
   await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toBeVisible();
   await expect(page.locator('.efi-app')).toHaveJSProperty('inert', true);
+  await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toBeDisabled();
   await expect(transition).not.toBeVisible({ timeout: 6000 });
   await expect(page.locator('.efi-app')).toHaveJSProperty('inert', false);
+  await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toBeEnabled();
   expect(Date.now() - started).toBeGreaterThanOrEqual(3200);
   await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toBeVisible();
   expect(releaseRequests.every(time => time - started >= 3000)).toBe(true);

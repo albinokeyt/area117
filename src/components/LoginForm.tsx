@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowRight, ArrowUpRight, Check, Eye, EyeOff, Fuel, Loader2, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Check, Eye, EyeOff, MoveUpLeft, Loader2, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
 import { FuelGauge, FuelStationScene } from './FuelStationScene';
 import { APP_VERSION } from '@/lib/version';
 
@@ -36,7 +36,7 @@ export function LoginForm({ onLoginStart, onLoginFailure }: { onLoginStart?: () 
   return <div className="efi-login">
     <div className="login-ambient" aria-hidden="true"><span /><span /><span /></div>
     <header className="login-masthead">
-      <a href="#acceso" className="login-brand" onClick={reveal} aria-label="AREA117, ir al acceso">
+      <a href="#acceso" className="login-brand" aria-label="AREA117, instrucciones de acceso">
         <img src="/logo_area117.png" width="66" height="55" alt="AREA117" />
         <span><strong>AREA<span>117</span></strong><small>ENERGÍA QUE TE ACOMPAÑA</small></span>
       </a>
@@ -59,9 +59,8 @@ export function LoginForm({ onLoginStart, onLoginFailure }: { onLoginStart?: () 
         {!connected ? <div className="login-welcome">
           <span className="login-mini-label">TU PRÓXIMA PARADA</span>
           <h2>Todo empieza<br />con una conexión.</h2>
-          <p>Conecta el surtidor al coche para abrir tu estación de trabajo.</p>
-          <button type="button" className="login-submit" onClick={reveal}><span>Acceder directamente</span><ArrowRight size={18} /></button>
-          <div className="login-welcome-note"><Fuel size={15} /><span>También puedes pulsar el surtidor.<br />Tú eliges cómo arrancar.</span></div>
+          <p>Lleva la boquilla de combustible hasta la toma señalada del coche para abrir tu estación de trabajo.</p>
+          <div className="login-connection-guide"><MoveUpLeft size={23} /><div><strong>Conecta para continuar</strong><span>Arrastra con el ratón o el dedo.</span><small>Con teclado: flechas para mover y Enter para conectar.</small></div></div>
         </div> : <div className="login-form-content">
           <span className="login-mini-label"><Check size={12} />CONEXIÓN LISTA</span>
           <h2>Bienvenido<br />de nuevo<span>.</span></h2>

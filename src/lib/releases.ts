@@ -1,6 +1,11 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.4', date: '16/10/2026', title: 'Conecta la boquilla para entrar', changes: [
+    'La pieza que se arrastra ahora es una boquilla de repostaje, con tubo metálico, empuñadura, gatillo y manguera; sustituye al icono de gasolinera.',
+    'Se elimina Acceder directamente y el acceso desde el logo. El formulario se abre únicamente al llevar la boquilla hasta la toma del coche. Pulsarla sin moverla no conecta.',
+    'Funciona con ratón y pantalla táctil. Con teclado, las flechas mueven la boquilla, Enter la conecta cuando está junto a la toma y Escape la devuelve al surtidor. Se mantiene la transición del coche tras iniciar sesión.'
+  ] },
   { version: 'v1.6.3', date: '16/10/2026', title: 'Arranca tu estación de trabajo', changes: [
     'Al iniciar sesión correctamente, el coche avanza hacia la pantalla y da paso al sistema en una transición de unos 3,5 segundos. Las credenciales incorrectas mantienen el formulario y su mensaje de error.',
     'Los datos se cargan durante la animación. Si la conexión tarda más, el aviso continúa hasta que estén listos; si falla, aparece Reintentar conexión. Las novedades se muestran después de la transición.',

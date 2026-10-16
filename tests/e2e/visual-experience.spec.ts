@@ -1,4 +1,5 @@
 import { navigate } from './navigation';
+import { openLogin } from './login';
 import { test, expect } from './fixtures';
 
 test('fuel nozzle reveals login, gauge responds and existing authentication receives unchanged credentials', async ({ page }, testInfo) => {
@@ -8,8 +9,8 @@ test('fuel nozzle reveals login, gauge responds and existing authentication rece
   await page.goto('/');
   const meter = page.getByRole('meter', { name: 'Preparación del acceso' });
   await expect(meter).toHaveAttribute('aria-valuenow', '0');
-  await page.screenshot({ path: testInfo.outputPath('crystal-login-intro.png'), fullPage: true });
-  const nozzle = (await page.getByRole('button', { name: 'Conectar surtidor al coche', exact: true }).boundingBox())!;
+  await page.screenshot({ path: testInfo.outputPath('crystal-login-intro.png'), fullPage: true, animations: 'disabled' });
+  const nozzle = (await page.getByTestId('nozzle-tip').boundingBox())!;
   const port = (await page.locator('.fuel-port').boundingBox())!;
   await page.mouse.move(nozzle.x + nozzle.width / 2, nozzle.y + nozzle.height / 2);
   await page.mouse.down();
@@ -43,7 +44,7 @@ test('crystal workspace adapts to mobile, keeps every module accessible and pres
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Acceder directamente', exact: true }).click();
+  await openLogin(page);
   await page.getByLabel('Usuario o correo electrónico', { exact: true }).fill('admin@efidataoil.com');
   await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -74,14 +75,56 @@ test('crystal workspace adapts to mobile, keeps every module accessible and pres
 test('keyboard remains usable after an unsuccessful drag and reduced motion disables decorative animation', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  const nozzle = page.getByRole('button', { name: 'Conectar surtidor al coche', exact: true });
+  const nozzle = page.getByRole('button', { name: 'Mover boquilla de combustible', exact: true });
   const box = (await nozzle.boundingBox())!;
   await page.mouse.move(box.x + 15, box.y + 15);
   await page.mouse.down();
   await page.mouse.move(box.x - 50, box.y + 15, { steps: 5 });
   await page.mouse.up();
-  await expect(page.getByRole('button', { name: 'Acceder directamente', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Usuario o correo electrónico', { exact: true })).toHaveCount(0);
   await nozzle.press('Enter');
+  await expect(page.getByLabel('Usuario o correo electrónico', { exact: true })).toHaveCount(0);
+  await openLogin(page);
   await expect(page.getByLabel('Usuario o correo electrónico', { exact: true })).toBeFocused();
   expect(await page.locator('.station-car').evaluate(element => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThan(.001);
+});
+
+test('opening the form requires moving the nozzle; touch cancellation resets it and a touch drag connects', async ({ page, browser }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Acceder directamente', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Mover boquilla de combustible', exact: true }).click();
+  await expect(page.getByLabel('Usuario o correo electrónico', { exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'AREA117, instrucciones de acceso', exact: true }).click();
+  await expect(page.getByLabel('Usuario o correo electrónico', { exact: true })).toHaveCount(0);
+  const nozzle = page.getByRole('button', { name: 'Mover boquilla de combustible', exact: true });
+  await nozzle.press('Enter');
+  await expect(page.getByLabel('Usuario o correo electrónico', { exact: true })).toHaveCount(0);
+  await nozzle.press('ArrowRight');
+  await nozzle.press('Escape');
+  await nozzle.press('Enter');
+  await expect(page.getByLabel('Usuario o correo electrónico', { exact: true })).toHaveCount(0);
+
+  const touch = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    await touch.goto('/');
+    await touch.evaluate(() => document.fonts.ready.then(() => {}));
+    const tip = (await touch.getByTestId('nozzle-tip').boundingBox())!;
+    const port = (await touch.locator('.fuel-port').boundingBox())!;
+    const start = { x: tip.x + tip.width / 2, y: tip.y + tip.height / 2 };
+    const end = { x: port.x + port.width / 2, y: port.y + port.height / 2 };
+    const cdp = await touch.context().newCDPSession(touch);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x - 25, y: start.y + 12 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    const reset = (await touch.getByTestId('nozzle-tip').boundingBox())!;
+    expect(Math.abs(reset.x - tip.x)).toBeLessThan(1);
+    expect(Math.abs(reset.y - tip.y)).toBeLessThan(1);
+    await expect(touch.getByLabel('Usuario o correo electrónico', { exact: true })).toHaveCount(0);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+    for (let step = 1; step <= 8; step++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + (end.x - start.x) * step / 8, y: start.y + (end.y - start.y) * step / 8 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(touch.getByLabel('Usuario o correo electrónico', { exact: true })).toBeFocused();
+    expect(await touch.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await cdp.detach();
+  } finally { await touch.close(); }
 });
