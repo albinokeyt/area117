@@ -1,11 +1,12 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { History, X } from 'lucide-react';
 import { APP_VERSION } from '@/lib/version';
 import { AppRelease } from '@/lib/releases';
 import { flushPendingSync } from '@/lib/serverSyncService';
 
-export function VersionHistory() {
+export function VersionHistory({ onNoticeChange }: { onNoticeChange?: (message: string | null) => void }) {
   const [releases, setReleases] = useState<AppRelease[]>([]);
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState(false);
@@ -22,13 +23,14 @@ export function VersionHistory() {
       if (!response.ok) throw new Error('No se pudo cargar el historial. Vuelve a intentarlo.');
       const result = await response.json();
       setReleases(result.releases);
+      onNoticeChange?.(result.currentVersion !== APP_VERSION ? 'Actualización disponible' : result.unread ? 'Hay novedades' : null);
       if (manual || (result.unread && notified.current !== result.currentVersion)) {
         notified.current = result.currentVersion;
         setHistory(manual); setOpen(true);
       }
       setError('');
     } catch (err) { if (manual) { setError((err as Error).message); setOpen(true); } }
-  }, []);
+  }, [onNoticeChange]);
   useEffect(() => {
     void load();
     const onFocus = () => { if (!document.hidden) void load(); };
@@ -51,6 +53,7 @@ export function VersionHistory() {
       const response = await fetch('/api/releases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: latest.version }) });
       if (!response.ok) throw new Error('No se pudo guardar tu confirmación. Inténtalo otra vez.');
       setOpen(false); setError('');
+      onNoticeChange?.(needsReload ? 'Actualización disponible' : null);
     } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   };
   const reload = async () => {
@@ -62,7 +65,7 @@ export function VersionHistory() {
     <button type="button" aria-label="Historial de versiones" onClick={() => void load(true)} className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-slate-600 text-xs text-slate-200 hover:bg-slate-700" title="Consultar todos los cambios publicados">
       <History className="h-4 w-4" /><span>Historial de versiones</span>
     </button>
-    {open && <div className="fixed inset-0 z-[100] bg-slate-950/85 flex items-center justify-center p-4 print:hidden" onKeyDown={event => {
+    {open && createPortal(<div className="fixed inset-0 z-[100] bg-slate-950/85 flex items-center justify-center p-4 print:hidden" onKeyDown={event => {
       if (event.key === 'Escape' && !busy) { event.preventDefault(); void close(); }
       if (event.key === 'Tab') {
         const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), [href]'));
@@ -82,6 +85,6 @@ export function VersionHistory() {
           <button disabled={busy} onClick={() => void close()} className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl">Entendido</button>
         </div>
       </section>
-    </div>}
+    </div>, document.querySelector('.efi-app') || document.body)}
   </>;
 }

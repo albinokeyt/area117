@@ -1,3 +1,4 @@
+import { navigate } from './navigation';
 import { openLogin } from './login';
 import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
@@ -31,9 +32,9 @@ test('prices persist in PostgreSQL, propagate to formulas and survive close + re
   expect((await page.request.post('/api/sync', { data: { data: { efi_sabana_custom_formulas_global: formulas }, baseData: state.data } })).ok()).toBeTruthy();
   await page.reload();
   await expect(purchase).toHaveValue('1,555');
-  await page.getByRole('button', { name: 'Sábana de Precios', exact: true }).click();
+  await navigate(page, 'Sábana de Precios');
   await expect.poll(async () => (await (await page.request.get('/api/sync')).json()).data.efi_sabana_standard_table_full_v1?.['12::TORREJON']?.sinIva).toBe(1.567);
-  await page.getByRole('button', { name: 'Compras', exact: true }).click();
+  await navigate(page, 'Compras');
   await expect(purchase).toHaveValue('1,555');
   // Formula updates immediately without a reload or remount.
   await purchase.fill('1,556');
@@ -42,15 +43,15 @@ test('prices persist in PostgreSQL, propagate to formulas and survive close + re
   await page.getByLabel('TORREJON GOA sale', { exact: true }).fill('1,900');
   await page.getByRole('button', { name: 'Guardar Precios', exact: true }).click();
   await expect(page.getByRole('button', { name: '¡Guardado!', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'EFI Export', exact: true }).click();
+  await navigate(page, 'EFI Export');
   const efiRow = page.getByRole('row').filter({ hasText: 'TORREJON' }).filter({ hasText: /TARIFA\s*12/ }).first();
   await expect(efiRow).toContainText('1,896');
-  await page.getByRole('button', { name: 'Postes', exact: true }).click();
+  await navigate(page, 'Postes');
   const poste = page.getByLabel('Poste ARCOS goa', { exact: true });
   await poste.fill('1,987');
   await expect(poste).toHaveClass(/bg-amber/);
   await page.getByRole('button', { name: /Guardar/ }).first().click();
-  await page.getByRole('button', { name: 'Compras', exact: true }).click();
+  await navigate(page, 'Compras');
   const closing = page.waitForEvent('download');
   await page.getByRole('button', { name: /Cierre.*Día/i }).click();
   const download = await closing;
@@ -70,7 +71,7 @@ test('prices persist in PostgreSQL, propagate to formulas and survive close + re
   await page.reload();
   await expect(purchase).toHaveValue('1,555');
   await expect(purchase).not.toHaveClass(/bg-amber/);
-  await page.getByRole('button', { name: 'Postes', exact: true }).click();
+  await navigate(page, 'Postes');
   await expect(poste).toHaveValue('1,987');
   await expect(poste).not.toHaveClass(/bg-amber/);
   const other = await browser.newPage();
