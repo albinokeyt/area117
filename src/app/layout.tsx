@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./crystal.css";
+import "./notch.css";
 
 export const metadata: Metadata = {
   title: "EFI DATA OIL - Gestión de Precios de Combustible",

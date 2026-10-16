@@ -16,6 +16,9 @@ test('release notice is per user, persists in PostgreSQL and history stays avail
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
     const notice = page.getByRole('dialog', { name: `Novedades ${latestRelease.version}`, exact: true });
     await expect(notice).toBeVisible();
+    const noticeBounds = (await notice.boundingBox())!;
+    expect(noticeBounds.y).toBeGreaterThanOrEqual(0);
+    expect(noticeBounds.y + noticeBounds.height).toBeLessThanOrEqual(page.viewportSize()!.height);
     await expect(notice).toContainText(latestRelease.title);
     await expect(notice).toContainText(latestRelease.changes[0]);
     await page.route('**/api/releases', route => route.request().method() === 'POST' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }) : route.continue());

@@ -1,6 +1,12 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.1', date: '16/10/2026', title: 'Navegación flotante AREA117', changes: [
+    'Las pestañas se convierten en un notch de cristal azul que flota en la parte superior. Muestra la sección actual, la hora, un saludo y los avisos de novedades.',
+    'Pasa el ratón para desplegarlo o púlsalo para dejarlo abierto. Elige cualquiera de las ocho secciones; pulsa fuera o Escape para cerrar. También funciona con teclado y en móvil.',
+    'El notch indica Guardando cambios, Guardado en PostgreSQL o Guardado pendiente según el resultado real de la sincronización. Las herramientas BD y Subir Todo al Servidor están dentro del menú.',
+    'Apertura y cierre fluidos, opciones que aparecen en secuencia y transiciones al cambiar de sección. Se respeta el movimiento reducido y se conservan los datos, permisos, fórmulas y exportaciones.'
+  ] },
   { version: 'v1.6.0', date: '16/10/2026', title: 'AREA117 Crystal: nueva experiencia visual', changes: [
     'Nuevo diseño de cristal en todo el sistema: azul, rojo y blanco del logo AREA117, cabecera renovada, navegación más clara, tablas luminosas y ventanas translúcidas.',
     'Acceso interactivo con una gasolinera y un coche: arrastra o pulsa el surtidor para abrir el formulario, o utiliza Acceder directamente. El indicador acompaña la escritura del usuario y la contraseña.',

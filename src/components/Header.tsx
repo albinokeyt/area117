@@ -1,6 +1,7 @@
 'use client';
 
 import { VersionHistory } from './VersionHistory';
+import { NavigationNotch } from './NavigationNotch';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 
 import React, { useState, useEffect } from 'react';
@@ -51,6 +52,7 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
   const [serverVersion, setServerVersion] = useState<string>('1');
 
   const [isPostgres, setIsPostgres] = useState<boolean | null>(null);
+  const [releaseNotice, setReleaseNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -122,7 +124,12 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
 
   return (
     <>
-      <header className="efi-header print:hidden">
+      <NavigationNotch items={NAV_ITEMS} active={activeTab} onSelect={setActiveTab} name={currentUser?.name?.split(' ')[0] || 'equipo'} busy={isUploading || isPulling} connected={isPostgres} notice={releaseNotice} actions={<>
+        {isPostgres !== null && <span className={`efi-connection ${isPostgres ? 'is-online' : 'is-offline'}`} title={isPostgres ? 'PostgreSQL conectado' : 'PostgreSQL no conectado'}><span /><span>{isPostgres ? 'PostgreSQL' : 'Sin BD'}</span></span>}
+        <button onClick={handleManualPull} disabled={isPulling} title="Sincronizar datos con PostgreSQL central" className="efi-sync-button"><RefreshCw size={13} className={isPulling ? 'animate-spin' : ''} /><span>BD #{serverVersion}</span></button>
+        <button onClick={() => { setUploadResult(null); setShowUploadModal(true); }} className="efi-upload-button" title="Subir todos los datos al servidor central"><CloudUpload size={14} /><span>Subir Todo al Servidor</span></button>
+      </>} />
+      <header className="efi-header efi-island-header print:hidden">
         <div className="efi-header-inner">
           <div className="efi-header-top">
             <div className="efi-brand">
@@ -130,19 +137,10 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate 
               <div><div className="efi-brand-name">AREA<span>117</span><span className="efi-version" title={`Versión desplegada: ${APP_VERSION} (Compilación: ${APP_BUILD_DATE})`}>{APP_VERSION}</span></div><p>EFI DATA OIL <span> / </span> Gestión de Combustibles</p></div>
             </div>
             <div className="efi-header-tools">
-              <VersionHistory />
-              {isPostgres !== null && <div className={`efi-connection ${isPostgres ? 'is-online' : 'is-offline'}`} title={isPostgres ? 'Base de Datos PostgreSQL Conectada y Activa' : 'PostgreSQL no conectado (revisa DATABASE_URL en Easypanel)'}><span /><span>{isPostgres ? 'PostgreSQL' : 'Sin BD'}</span></div>}
-              <button onClick={handleManualPull} disabled={isPulling} title="Sincronizar datos con PostgreSQL central" className="efi-sync-button"><RefreshCw size={14} className={isPulling ? 'animate-spin' : ''} /><span>BD #{serverVersion}</span></button>
-              <button onClick={() => { setUploadResult(null); setShowUploadModal(true); }} className="efi-upload-button" title="Subir todos los datos locales de este navegador al servidor central para que todos los usuarios vean exactamente lo mismo"><CloudUpload size={15} /><span>Subir Todo al Servidor</span></button>
+              <VersionHistory onNoticeChange={setReleaseNotice} />
               <div className="efi-day-selector"><button onClick={() => setShowDailySummaryModal(true)} title="Haz clic para ver el resumen consolidado del día"><Calendar size={15} /><span>Resumen Día:</span></button><input type="date" aria-label="Fecha de trabajo" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} /></div>
               {currentUser && <div className="efi-user"><div className="efi-user-avatar">{(currentUser.name || 'A').charAt(0).toUpperCase()}</div><div className="efi-user-name"><strong>{currentUser.name ? currentUser.name.split(' ')[0] : 'Admin'}</strong><span>{ROLE_LABELS[currentUser.role]}</span></div><button onClick={logout} title="Cerrar sesión" aria-label="Cerrar sesión"><LogOut size={15} /></button></div>}
             </div>
-          </div>
-          <div className="efi-navigation-row">
-            <nav className="efi-navigation" aria-label="Navegación principal">
-              {NAV_ITEMS.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} className={activeTab === id ? 'is-active' : ''}><Icon size={16} /><span>{label}</span>{activeTab === id && <span className="efi-nav-dot" />}</button>)}
-            </nav>
-            <span className="efi-nav-signature">CONTIGO EN LA CARRETERA <span>↗</span></span>
           </div>
         </div>
       </header>

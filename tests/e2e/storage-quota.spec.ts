@@ -1,3 +1,4 @@
+import { navigate } from './navigation';
 import { openLogin } from './login';
 import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
@@ -37,8 +38,8 @@ test('two suggested sale edits save in PostgreSQL even when browser storage is c
   await expect(page.getByLabel('TORREJON GOA sale', { exact: true })).toHaveValue('1,401');
   await expect(page.getByLabel('ARCOS JALON GOA sale', { exact: true })).toHaveValue('1,411');
   await expect(page.getByLabel('TORREJON GOA sale', { exact: true })).toHaveClass(/bg-amber/);
-  await page.getByRole('button', { name: 'Postes', exact: true }).click();
-  await page.getByRole('button', { name: 'Compras', exact: true }).click();
+  await navigate(page, 'Postes');
+  await navigate(page, 'Compras');
   await expect(page.getByLabel('ARCOS JALON GOA sale', { exact: true })).toHaveValue('1,411');
   await expect(page.getByLabel('ARCOS JALON GOA sale', { exact: true })).toHaveClass(/bg-amber/);
   expect(await page.evaluate(() => localStorage.getItem('quota-test-unrelated')?.length)).toBeGreaterThan(0);

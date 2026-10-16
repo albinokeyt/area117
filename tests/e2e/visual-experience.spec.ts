@@ -1,3 +1,4 @@
+import { navigate } from './navigation';
 import { test, expect } from './fixtures';
 
 test('fuel nozzle reveals login, gauge responds and existing authentication receives unchanged credentials', async ({ page }, testInfo) => {
@@ -53,13 +54,12 @@ test('crystal workspace adapts to mobile, keeps every module accessible and pres
   await page.screenshot({ path: testInfo.outputPath('crystal-compras-mobile.png') });
   await page.setViewportSize({ width: 1600, height: 1000 });
   for (const name of ['Dashboard', 'Compras', 'Postes', 'Sábana de Precios', 'PDFs & Clientes', 'EFI Export', 'Usuarios', 'Instrucciones']) {
-    const tab = page.getByRole('navigation', { name: 'Navegación principal' }).getByRole('button', { name, exact: true });
-    await tab.click();
-    await expect(tab).toHaveAttribute('aria-current', 'page');
+    await navigate(page, name);
+    await expect(page.locator('.notch-current')).toHaveText(name);
     await expect(page.getByRole('main').getByRole('heading').first()).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`crystal-module-${name.replace(/[^a-z0-9]/gi, '')}.png`) });
   }
-  await page.getByRole('button', { name: 'PDFs & Clientes', exact: true }).click();
+  await navigate(page, 'PDFs & Clientes');
   const paper = page.locator('.printable-document');
   const original = await paper.evaluate(element => ({ color: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor, font: getComputedStyle(element).fontFamily }));
   expect(original.background).toBe('rgb(255, 255, 255)');

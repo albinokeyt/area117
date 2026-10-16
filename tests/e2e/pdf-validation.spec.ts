@@ -1,3 +1,4 @@
+import { navigate } from './navigation';
 import { openLogin } from './login';
 import { test, expect } from './fixtures';
 
@@ -22,7 +23,7 @@ test('PDF validator catches invalid formulas, includes inactive stations and inv
     await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
     await expect(page.getByLabel('TORREJON GOA sale', { exact: true })).toHaveValue('1,400');
-    await page.getByRole('button', { name: 'PDFs & Clientes', exact: true }).click();
+    await navigate(page, 'PDFs & Clientes');
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_sabana_prices_v1?.sources?.SABANA_T12?.TORREJON?.conIva).toBe(1.710);
     const beforeValidation = (await (await request.get('/api/sync')).json()).version;
     await page.getByRole('button', { name: 'Validar tarifas PDF', exact: true }).click();

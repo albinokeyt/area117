@@ -1,3 +1,4 @@
+import { navigate } from './navigation';
 import { openLogin } from './login';
 import { test, expect } from './fixtures';
 import * as XLSX from 'xlsx';
@@ -24,7 +25,7 @@ test('saved EFI source stays live across edits, date changes and reload; preview
     await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
     await expect(page.getByLabel('TORREJON GOA sale', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'EFI Export', exact: true }).click();
+    await navigate(page, 'EFI Export');
     await page.getByPlaceholder('Buscar estación, ID, tarifa, pago...').fill('TALAEXPRESS');
     const row = page.getByTestId('efi-row-TARIFA TALAEXPRESS-73-1');
     await expect(row).toContainText('1,704');
@@ -45,12 +46,12 @@ test('saved EFI source stays live across edits, date changes and reload; preview
     await page.getByLabel('Fecha final de exportación').fill('2026-10-31');
     await expect(row).toContainText('17/10/2026');
     await expect(row).toContainText('31/10/2026');
-    await page.getByRole('button', { name: 'Compras', exact: true }).click();
+    await navigate(page, 'Compras');
     await page.getByRole('button', { name: 'Tarifas Especiales', exact: true }).click();
     await page.getByLabel('Precio especial referencia TORREJON', { exact: true }).fill('1,500');
     await page.getByRole('button', { name: 'Guardar Precios', exact: true }).click();
     await expect(page.getByRole('button', { name: '¡Guardado!', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'EFI Export', exact: true }).click();
+    await navigate(page, 'EFI Export');
     await expect(row).toContainText('1,825');
     await row.getByRole('button').click();
     await expect(dialog.getByLabel('Origen de datos base')).toHaveValue('ESPECIAL_REF');
@@ -68,7 +69,7 @@ test('saved EFI source stays live across edits, date changes and reload; preview
     expect(csv).toContain('93;73;1;17/10/2026;31/10/2026;1,825;TORREJON;MENSUAL;TARIFA TALAEXPRESS');
     await page.reload();
     await expect(page.getByLabel('TORREJON GOA sale', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'EFI Export', exact: true }).click();
+    await navigate(page, 'EFI Export');
     await page.getByPlaceholder('Buscar estación, ID, tarifa, pago...').fill('TALAEXPRESS');
     await expect(row).toContainText('1,825');
     await expect(page.getByLabel('Fecha final de exportación')).toHaveValue('2026-10-31');
@@ -83,7 +84,7 @@ test('saved EFI source stays live across edits, date changes and reload; preview
     await expect(row).toContainText('2,123');
     await page.reload();
     await expect(page.getByLabel('TORREJON GOA sale', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'EFI Export', exact: true }).click();
+    await navigate(page, 'EFI Export');
     await page.getByPlaceholder('Buscar estación, ID, tarifa, pago...').fill('TALAEXPRESS');
     await expect(row).toContainText('2,123');
     await row.getByRole('button').click();

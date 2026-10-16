@@ -1,3 +1,4 @@
+import { navigate } from './navigation';
 import { openLogin } from './login';
 import { test, expect } from './fixtures';
 
@@ -53,14 +54,14 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await page.getByLabel('Contraseña', { exact: true }).fill('admin123');
     await page.getByRole('button', { name: 'Iniciar Sesión' }).click();
     await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toHaveValue('1,290');
-    await page.getByRole('button', { name: 'Sábana de Precios', exact: true }).click();
+    await navigate(page, 'Sábana de Precios');
     await expect(page.getByTestId('sabana-price-TORREJON-12-sinIva')).toContainText('1,413');
     await expect(page.getByTestId('sabana-price-TORREJON-12-conIva')).toContainText('1,710');
     const standard = await page.locator('td[data-testid^="sabana-price-"]').evaluateAll(cells => Object.fromEntries(cells.map(cell => [cell.getAttribute('data-testid'), cell.textContent!.match(/-?\d+,\d{3}/)![0]])));
-    await page.getByRole('button', { name: 'Postes', exact: true }).click();
+    await navigate(page, 'Postes');
     const hvo = { alfajarinSinIva: '1,600', alfajarinConIva: '1,999', valdemoroSinIva: '1,700', valdemoroConIva: '2,222' };
     for (const [key, price] of Object.entries(hvo)) await expect(page.getByTestId(`postes-hvo-${key}`)).toContainText(price);
-    await page.getByRole('button', { name: 'PDFs & Clientes', exact: true }).click();
+    await navigate(page, 'PDFs & Clientes');
     for (const [key, price] of Object.entries(hvo)) await expect(page.getByTestId(`pdf-hvo-${key}`)).toContainText(price);
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_sabana_prices_v1?.sources?.['SABANA_CUSTOM:client']?.TORREJON?.sinIva).toBe(1.535);
     const published = (await (await request.get('/api/sync')).json()).data.efi_sabana_prices_v1;
@@ -111,15 +112,15 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('Sin origen');
     await page.getByRole('button', { name: /Descargar \/ Imprimir PDF/ }).click();
     await expect(page.getByRole('alert').filter({ hasText: 'No se puede generar' })).toContainText('No se puede generar');
-    await page.getByRole('button', { name: 'Compras', exact: true }).click();
+    await navigate(page, 'Compras');
     await page.getByLabel('TORREJON GOA curr', { exact: true }).fill('1,400');
     await page.getByRole('button', { name: 'Tarifas Especiales', exact: true }).click();
     await page.getByLabel('Precio especial referencia TORREJON', { exact: true }).fill('1,510');
     await page.getByRole('button', { name: 'Guardar Precios', exact: true }).click();
     await expect(page.getByRole('button', { name: '¡Guardado!', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Postes', exact: true }).click();
+    await navigate(page, 'Postes');
     await page.getByLabel('HVO Alfajarin sin IVA', { exact: true }).fill('1,800');
-    await page.getByRole('button', { name: 'PDFs & Clientes', exact: true }).click();
+    await navigate(page, 'PDFs & Clientes');
     await page.getByRole('button', { name: 'TAX MOVING 24', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,510');
     await expect(page.getByTestId('pdf-price-TORREJON-conIva')).toContainText('1,827');
@@ -137,7 +138,7 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_postes_data_v2?.hvoAlfajarinSinIva).toBe('1,800');
     await page.reload();
     await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toHaveValue('1,400');
-    await page.getByRole('button', { name: 'PDFs & Clientes', exact: true }).click();
+    await navigate(page, 'PDFs & Clientes');
     await page.getByRole('button', { name: 'TARIFA 12', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,523');
     await expect(page.getByTestId('pdf-hvo-alfajarinSinIva')).toContainText('1,800');
@@ -156,7 +157,7 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_pdf_station_source_mapping_v1?.['CLIENTE NUEVO::__DEFAULT__']?.sourceType).toBe('SABANA_CUSTOM:client');
     await page.reload();
     await expect(page.getByLabel('TORREJON GOA curr', { exact: true })).toHaveValue('1,400');
-    await page.getByRole('button', { name: 'PDFs & Clientes', exact: true }).click();
+    await navigate(page, 'PDFs & Clientes');
     await page.getByRole('button', { name: 'TARIFA 12', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,424');
     await page.getByRole('button', { name: 'CLIENTE NUEVO', exact: true }).click();

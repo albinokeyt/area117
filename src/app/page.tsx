@@ -139,32 +139,33 @@ function AppContent() {
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
       />
+      <div key={activeTab} className="efi-route-sweep print:hidden" aria-hidden="true" />
       <main className="efi-workspace max-w-[1680px] mx-auto px-4 sm:px-8 py-8 space-y-6">
         <div className="efi-workspace-route print:hidden"><div><span className="efi-route-mark" />ESTACIÓN DE TRABAJO<span className="efi-route-separator">/</span><strong>{{ dashboard: 'Resumen general', comp1: 'Compras', postes: 'Postes', sabana: 'Sábana de precios', pdf: 'PDFs y clientes', comp2: 'EFI Export', users: 'Usuarios', instructions: 'Instrucciones' }[activeTab]}</strong></div><span>La energía de tenerlo todo bajo control.</span></div>
         {/* Los gestores permanecen montados; las tablas ocultas no se renderizan.
             Garantiza que al pasar a Postes y regresar a Compras todos los valores, marcas amarillas y cálculos permanezcan 100% intactos */}
-        <div className={activeTab === 'dashboard' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'dashboard' ? 'efi-view is-active' : 'hidden'}>
           <ExecutiveDashboard onNavigateTab={setActiveTab} />
         </div>
-        <div className={activeTab === 'comp1' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'comp1' ? 'efi-view is-active' : 'hidden'}>
           <Comp1PurchaseManager selectedDate={selectedDate} isActive={activeTab === 'comp1'} />
         </div>
-        <div className={activeTab === 'postes' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'postes' ? 'efi-view is-active' : 'hidden'}>
           <PostesManager selectedDate={selectedDate} isActive={activeTab === 'postes'} />
         </div>
-        <div className={activeTab === 'sabana' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'sabana' ? 'efi-view is-active' : 'hidden'}>
           <SabanaPreciosManager selectedDate={selectedDate} isActive={activeTab === 'sabana'} />
         </div>
-        <div className={activeTab === 'pdf' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'pdf' ? 'efi-view is-active' : 'hidden'}>
           <PdfGeneratorManager selectedDate={selectedDate} isActive={activeTab === 'pdf'} />
         </div>
-        <div className={activeTab === 'comp2' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'comp2' ? 'efi-view is-active' : 'hidden'}>
           <Comp2EfiExporter selectedDate={selectedDate} isActive={activeTab === 'comp2'} />
         </div>
-        <div className={activeTab === 'users' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'users' ? 'efi-view is-active' : 'hidden'}>
           <UserManager />
         </div>
-        <div className={activeTab === 'instructions' ? 'block' : 'hidden'}>
+        <div className={activeTab === 'instructions' ? 'efi-view is-active' : 'hidden'}>
           <InstructionsManager />
         </div>
       </main>
