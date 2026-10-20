@@ -1,6 +1,11 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.5', date: '20/10/2026', title: 'Margen de Compras respecto a la venta anterior', changes: [
+    'En todos los cuadros de Compras, Margen = P. Venta Sugerido − P. Venta Ant. de la misma fila. Se aplica a Gasóleo A, Gasolina 95 y AdBlue, en estaciones propias y colaboradoras.',
+    'El margen se recalcula al editar cualquiera de los dos precios de venta y también en Ver Todos los Productos. Los precios iguales muestran 0,000 €, las subidas un margen positivo y las bajadas uno negativo.',
+    'El Resumen Diario Excel y el Excel de Cierre de Día usan el mismo cálculo. Al copiar la venta sugerida a la anterior en el cierre, el margen queda a cero. Puedes consultar la fórmula pasando el ratón sobre el título Margen.'
+  ] },
   { version: 'v1.6.4', date: '16/10/2026', title: 'Conecta la boquilla para entrar', changes: [
     'La pieza que se arrastra ahora es una boquilla de repostaje, con tubo metálico, empuñadura, gatillo y manguera; sustituye al icono de gasolinera.',
     'Se elimina Acceder directamente y el acceso desde el logo. El formulario se abre únicamente al llevar la boquilla hasta la toma del coche. Pulsarla sin moverla no conecta.',

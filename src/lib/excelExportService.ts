@@ -183,8 +183,8 @@ export function buildCierreWorkbook(
         const finNum = parseNum(item.fin);
         const totalCost = round3(currNum + porteNum + paseNum + finNum);
         const effectiveSale = item.sale !== undefined && item.sale !== '' ? parseNum(item.sale) : totalCost;
-        const prevSale = item.prevSale ? parseNum(item.prevSale) : effectiveSale;
-        const margin = round3(effectiveSale - totalCost);
+        const prevSale = item.prevSale !== undefined ? parseNum(item.prevSale) : parseNum(item.prev || totalCost);
+        const margin = round3(effectiveSale - prevSale);
         const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
 
         calculoRows.push([
