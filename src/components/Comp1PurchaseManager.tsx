@@ -979,9 +979,9 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
           const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
           const effectiveSale = item.sale !== undefined && item.sale !== '' ? item.sale : totalCost.toFixed(3);
           const saleNum = parseNum(effectiveSale);
-          const margin = Number((saleNum - totalCost).toFixed(3));
           const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
-          const prevSaleVal = item.prevSale || effectiveSale;
+          const prevSaleVal = item.prevSale !== undefined ? item.prevSale : (item.prev || totalCost.toFixed(3));
+          const margin = Number((saleNum - parseNum(prevSaleVal)).toFixed(3));
 
           comprasRows.push([
             st.name,
@@ -1148,7 +1148,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/80">Precio Con IVA 21% (€)</th>
                   <th className="py-3.5 px-3 bg-slate-900/50 text-slate-300">P. Venta Ant. (€)</th>
                   <th className="py-3.5 px-3 text-blue-400 bg-slate-900/60">P. Venta Sugerido (€)</th>
-                  <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
+                  <th className="py-3.5 px-3 text-emerald-400" title="P. Venta Sugerido − P. Venta Ant.">Margen (€)</th>
                 </tr>
               ) : (
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
@@ -1165,7 +1165,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/60">Costo Total (€)</th>
                   <th className="py-3.5 px-3 bg-slate-900/50 text-slate-300">P. Venta Ant. (€)</th>
                   <th className="py-3.5 px-3 text-blue-400 bg-slate-900/80">P. Venta Sugerido (€)</th>
-                  <th className="py-3.5 px-3 text-emerald-400">Margen (€)</th>
+                  <th className="py-3.5 px-3 text-emerald-400" title="P. Venta Sugerido − P. Venta Ant.">Margen (€)</th>
                 </tr>
               )}
             </thead>
@@ -1198,8 +1198,8 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                     : formatNum(totalCost, 3);
                   const displaySale = item.sale !== undefined && item.sale !== '' ? item.sale : defaultSale;
                   const saleNum = parseNum(displaySale);
-                  const margin = Number((saleNum - totalCost).toFixed(3));
                   const displayPrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || formatNum(totalCost, 3));
+                  const margin = Number((saleNum - parseNum(displayPrevSale)).toFixed(3));
 
                   const isCurrMod = modifiedKeys.has(`${key}_curr`);
                   const isPrevMod = modifiedKeys.has(`${key}_prev`);
@@ -1218,8 +1218,8 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                     const adblueConIva = Number((currNum * 1.21).toFixed(3));
                     const displayAdblueSale = item.sale !== undefined && item.sale !== '' ? item.sale : formatNum(currNum, 3);
                     const adblueSaleNum = parseNum(displayAdblueSale);
-                    const adblueMargin = Number((adblueSaleNum - currNum).toFixed(3));
                     const displayAdbluePrevSale = item.prevSale !== undefined ? item.prevSale : (item.prev || formatNum(currNum, 3));
+                    const adblueMargin = Number((adblueSaleNum - parseNum(displayAdbluePrevSale)).toFixed(3));
 
                     return (
                       <tr
