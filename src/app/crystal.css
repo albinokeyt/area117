@@ -181,6 +181,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
   .efi-app :where(tr[class*="bg-amber-"],td[class*="bg-amber-"]):not(.printable-document, .printable-document *) { background-color: #fff4c663; }
   .efi-app :where(table):not(.printable-document, .printable-document *) { border-collapse: separate; border-spacing: 0; }
   .efi-app .efi-purchase-table { min-width: 1310px; }
+  .efi-app :is(.efi-purchase-table,.efi-route-table) tr[data-route-active="true"] > td:not([class*="bg-amber-"]) { background-color: #e0f5e7 !important; }
+  .efi-app :is(.efi-purchase-table,.efi-route-table) tr[data-route-active="true"] > td:first-child { color: #175c38; border-left-color: #259461; }
   .efi-app .efi-purchase-table :where(td,th) { white-space: nowrap; }
   .efi-app :where(thead):not(.printable-document, .printable-document *) { background-color: #e8effbe6; }
   .efi-app :where(thead th):not(.printable-document, .printable-document *) { font-weight: 650; letter-spacing: .2px; color: #42618a; border-bottom: 1px solid #b9cce247; }

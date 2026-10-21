@@ -1,6 +1,12 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.6', date: '21/10/2026', title: 'Rutas enlazadas y PDF por cuadro de Compras', changes: [
+    'Nuevo botón Rutas y etiquetas en Compras y casilla Ruta junto a cada estación con etiqueta. Activarla colorea en verde sus filas en GOA, Gasolina y AdBlue, también en la vista de todos los productos.',
+    'Compras y PDFs y Clientes comparten las mismas etiquetas y su estado activo. Desactivar una ruta conserva sus etiquetas asignadas: al volver a activarla aparecen las mismas en todas las tarifas PDF. Se mantienen el distintivo naranja y el resaltado amarillo de los PDF de clientes.',
+    'Cada cuadro de Compras (propias, colaboradoras fijas y restantes) tiene Descargar PDF. Descarga solo ese cuadro con el filtro de producto seleccionado, los valores actuales, fechas, márgenes, rutas verdes y celdas modificadas en amarillo. Incluye todas las filas, cabeceras repetidas y páginas numeradas.',
+    'Las asignaciones y la activación se guardan en PostgreSQL y se conservan al cambiar de ventana, recargar y cerrar el día. El amarillo de precios modificados sigue siendo independiente de la ruta activa.'
+  ] },
   { version: 'v1.6.5', date: '20/10/2026', title: 'Margen de Compras respecto a la venta anterior', changes: [
     'En todos los cuadros de Compras, Margen = P. Venta Sugerido − P. Venta Ant. de la misma fila. Se aplica a Gasóleo A, Gasolina 95 y AdBlue, en estaciones propias y colaboradoras.',
     'El margen se recalcula al editar cualquiera de los dos precios de venta y también en Ver Todos los Productos. Los precios iguales muestran 0,000 €, las subidas un margen positivo y las bajadas uno negativo.',
