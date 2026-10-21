@@ -55,4 +55,5 @@ temp_excel/
 next-env.d.ts
 
 /test-results/
+/test-results-*/
 /playwright-report/

@@ -1,6 +1,10 @@
 'use client';
 
 import { workspaceStorage } from '@/lib/workspaceStorage';
+import { useStationLabels } from './useStationLabels';
+import { StationLabelsModal } from './StationLabelsModal';
+import { setStationRouteActive } from '@/lib/stationLabels';
+import { capturePurchaseTable } from '@/lib/purchaseTableSnapshot';
 
 import { getLatestPurchasePayload, closePurchaseDay } from '@/lib/purchaseState';
 import { jsonValuesEqual } from '@/lib/jsonEquality';
@@ -146,6 +150,11 @@ interface PurchaseRowValues {
 }
 
 export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Props) {
+  const { labelsFor, routeActive } = useStationLabels();
+  const [showLabelsModal, setShowLabelsModal] = useState(false);
+  const [labelStation, setLabelStation] = useState('');
+  const closeLabelsModal = useCallback(() => setShowLabelsModal(false), []);
+  const [pdfBusySection, setPdfBusySection] = useState<string | null>(null);
   const [activeProductTab, setActiveProductTab] = useState<ProductSubTab>('GOA');
   const [validFromDate, setValidFromDate] = useState<string>(() => {
     try {
@@ -1073,6 +1082,16 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const renderRouteToggle = (station: string) => {
+    const assigned = labelsFor(station);
+    return <div className="mt-1 text-[10px] font-normal">
+      {assigned.length > 0 ? <label className="inline-flex items-center gap-1.5 cursor-pointer" title={assigned.join(', ')}>
+        <input type="checkbox" aria-label={`Ruta activa ${station}`} checked={routeActive(station)} onChange={event => setStationRouteActive(station, event.target.checked)} className="h-3.5 w-3.5 accent-emerald-600" />
+        <span>Ruta · {assigned.join(', ')}</span>
+      </label> : <button type="button" className="underline text-slate-400" onClick={() => { setLabelStation(station); setShowLabelsModal(true); }}>Asignar etiqueta de ruta</button>}
+    </div>;
+  };
+
   const renderStationTable = (
     title: string,
     subtitle: string,
@@ -1108,7 +1127,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
     }[themeColor];
 
     return (
-      <div className={`bg-slate-900 border ${themeStyles.border} rounded-3xl overflow-hidden shadow-2xl space-y-0`}>
+      <div data-purchase-section={title} className={`bg-slate-900 border ${themeStyles.border} rounded-3xl overflow-hidden shadow-2xl space-y-0`}>
         <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className={`p-2.5 rounded-xl border ${themeStyles.badge}`}>
@@ -1126,6 +1145,23 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
           </div>
           
           <div className="flex flex-wrap items-center gap-2 text-xs">
+            <button type="button" disabled={pdfBusySection !== null} aria-label={`Descargar PDF ${title}`}
+              title="Descargar este cuadro con el filtro de producto y los valores actuales"
+              className="flex items-center gap-2 px-3 py-2 bg-blue-500/15 border border-blue-500/30 rounded-xl font-bold disabled:opacity-50"
+              onClick={async event => {
+                const table = event.currentTarget.closest('[data-purchase-section]')?.querySelector('table');
+                if (!table) return;
+                const snapshot = capturePurchaseTable(table, labelsFor);
+                const product = activeProductTab === 'ALL' ? 'Todos los productos' : activeProductTab === 'ADBLUE' ? 'AdBlue' : activeProductTab === 'GASOLINA' ? 'Gasolina 95' : 'Gasóleo A (GOA)';
+                setPdfBusySection(title);
+                try {
+                  const { downloadPurchasePdf } = await import('@/lib/purchasePdf');
+                  downloadPurchasePdf(snapshot, { title, date: selectedDate, validFrom: validFromDate, product });
+                } catch (error) {
+                  setToastMessage('No se pudo generar el PDF: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+                } finally { setPdfBusySection(null); }
+              }}><Download className="h-4 w-4" />{pdfBusySection === title ? 'Generando PDF…' : 'Descargar PDF'}</button>
+            <span className="text-emerald-600 font-bold">Verde = Ruta activa</span>
             <span className="flex items-center space-x-1.5 bg-amber-400/15 text-amber-300 border border-amber-400/40 px-3 py-1 rounded-full font-bold shadow-sm">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
               <span>Amarillo = Dato Modificado Hoy</span>
@@ -1224,10 +1260,12 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                     return (
                       <tr
                         key={key}
+                        data-station={st.name}
+                        data-route-active={routeActive(st.name)}
                         className="hover:bg-slate-800/40 transition-colors border-b border-slate-800/60"
                       >
                         {/* 1. Estación */}
-                        <td className={`py-2.5 px-4 font-bold sticky left-0 z-10 border-r border-slate-800 transition-colors ${themeStyles.stationBg}`}>
+                        <td data-pdf-value={st.name} className={`py-2.5 px-4 font-bold sticky left-0 z-10 border-r border-slate-800 transition-colors ${themeStyles.stationBg}`}>
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 font-sans">
                             <span className="font-extrabold tracking-tight">{st.name}</span>
                             {themeColor === 'orange' && (
@@ -1237,6 +1275,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                               </span>
                             )}
                           </div>
+                          {renderRouteToggle(st.name)}
                         </td>
 
                         {/* 2. Producto */}
@@ -1353,12 +1392,15 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   return (
                     <tr
                       key={key}
+                      data-station={st.name}
+                      data-route-active={routeActive(st.name)}
                       className={`hover:bg-slate-800/40 transition-colors ${
                         pIdx === stationProds.length - 1 ? 'border-b-2 border-slate-800/80' : ''
                       }`}
                     >
                       {/* 1. Nombre de la Estación */}
                       <td
+                        data-pdf-value={st.name}
                         className={`py-2.5 px-4 font-bold sticky left-0 z-10 border-r border-slate-800 transition-colors ${themeStyles.stationBg}`}
                       >
                         {pIdx === 0 ? (
@@ -1374,6 +1416,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                         ) : (
                           <span className="text-slate-600 text-[10px] pl-2">&rdquor;</span>
                         )}
+                        {pIdx === 0 && renderRouteToggle(st.name)}
                       </td>
 
                       {/* 2. Producto */}
@@ -1562,6 +1605,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
 
   return (
     <div className="space-y-8">
+      {showLabelsModal && <StationLabelsModal stations={[...propiasStations, ...colaboradoraStations]} initialStation={labelStation} onClose={closeLabelsModal} />}
       {/* 1. Barra Principal Superior */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -1599,6 +1643,10 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
             >
               <Building2 className="h-4 w-4 text-amber-400" />
               <span>Gestión de Estaciones</span>
+            </button>
+
+            <button type="button" onClick={() => { setLabelStation(''); setShowLabelsModal(true); }} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-400">
+              <Layers className="h-4 w-4" />Rutas y etiquetas
             </button>
 
             <button
@@ -1948,7 +1996,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
           </div>
 
           <div className="overflow-x-auto max-h-[70vh]">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="efi-route-table w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 bg-slate-950 z-20">
                 <tr className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800 font-bold">
                   <th className="py-3 px-4 w-12 text-center">Nº</th>
@@ -1975,7 +2023,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   const isBaseMod = modifiedKeys.has(`special_${row.id}_basePrice`);
 
                   return (
-                    <tr key={row.id} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={row.id} data-station={row.name} data-route-active={routeActive(row.name)} className="hover:bg-slate-800/40 transition-colors">
                       <td className="py-2.5 px-4 text-center font-bold text-slate-500 font-mono">
                         {idx + 1}
                       </td>
