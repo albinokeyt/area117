@@ -2,6 +2,7 @@ import { hashPassword } from "./passwords";
 import { jsonValuesEqual } from './jsonEquality';
 import { mergeState } from "./stateMerge";
 import { Pool } from 'pg';
+import { assertFormulaPermission } from './formulaPermissions';
 
 export interface ServerStatePayload {
   version: number;
@@ -16,6 +17,7 @@ export interface ServerUser {
   email: string;
   role: 'ADMIN' | 'COMPANERO_1' | 'COMPANERO_2_3' | 'VISITOR';
   password?: string;
+  canManageFormulas?: boolean;
   createdAt: string;
 }
 
@@ -110,6 +112,10 @@ export async function ensureTables() {
       );
       ALTER TABLE efi_sessions ALTER COLUMN user_id DROP NOT NULL;
       ALTER TABLE efi_sessions ADD COLUMN IF NOT EXISTS environment_fingerprint TEXT;
+      ALTER TABLE efi_server_users ADD COLUMN IF NOT EXISTS manage_formulas BOOLEAN NOT NULL DEFAULT FALSE;
+      CREATE TABLE IF NOT EXISTS efi_user_preferences (
+        user_id TEXT PRIMARY KEY, theme TEXT NOT NULL DEFAULT 'crystal'
+      );
     `);
 
     // Inicializar fila de estado si está vacía
@@ -181,13 +187,14 @@ export async function getServerUsers(): Promise<ServerUser[]> {
 
   try {
     await ensureTables();
-    const res = await p.query('SELECT id, name, email, role, password, created_at FROM efi_server_users ORDER BY id ASC');
+    const res = await p.query('SELECT id, name, email, role, password, created_at, manage_formulas FROM efi_server_users ORDER BY id ASC');
     if (res.rows.length > 0) {
       return res.rows.map((r) => ({
         id: r.id,
         name: r.name,
         email: r.email,
         role: r.role,
+        canManageFormulas: r.role === 'ADMIN' || r.manage_formulas,
         password: r.password,
         createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
       }));
@@ -243,7 +250,7 @@ export async function deleteServerUser(id: string): Promise<boolean> {
 }
 
 // Row lock works across processes/containers, unlike a JavaScript write queue.
-export async function patchServerState(data: Record<string, any>, base: Record<string, any>, updatedBy: string): Promise<ServerStatePayload> {
+export async function patchServerState(data: Record<string, any>, base: Record<string, any>, actor: ServerUser): Promise<ServerStatePayload> {
   const p = getDatabasePool();
   if (!p) throw new Error('PostgreSQL no está configurado.');
   await ensureTables();
@@ -259,13 +266,17 @@ export async function patchServerState(data: Record<string, any>, base: Record<s
       const value = mergeState(base[key], data[key] === null ? undefined : data[key], current.data[key], key);
       if (value === undefined) delete next[key]; else next[key] = value;
     }
+    // Recheck a registered user's permission in the same transaction as the write.
+    const permission = actor.id === '__environment_admin__' ? actor : (await client.query('SELECT role, manage_formulas AS "canManageFormulas" FROM efi_server_users WHERE id = $1 FOR SHARE', [actor.id])).rows[0];
+    if (!permission || permission.role === 'VISITOR') throw new Error('Usuario sin permiso de escritura.');
+    assertFormulaPermission(current.data, next, permission);
     if (jsonValuesEqual(next, current.data)) {
       await client.query('COMMIT');
       return { version: current.version, updatedAt: current.updated_at.toISOString(), updatedBy: current.updated_by, data: current.data };
     }
     const result = await client.query(`UPDATE efi_server_state SET data = $1::jsonb,
       version = version + 1, updated_at = NOW(), updated_by = $2 WHERE id = 1
-      RETURNING version, updated_at, updated_by, data`, [JSON.stringify(next), updatedBy]);
+      RETURNING version, updated_at, updated_by, data`, [JSON.stringify(next), actor.name]);
     await client.query('COMMIT');
     const row = result.rows[0];
     return { version: row.version, updatedAt: row.updated_at.toISOString(), updatedBy: row.updated_by, data: row.data };

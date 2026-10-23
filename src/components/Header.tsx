@@ -2,6 +2,7 @@
 
 import { VersionHistory } from './VersionHistory';
 import { NavigationNotch } from './NavigationNotch';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 
 import React, { useState, useEffect } from 'react';
@@ -138,6 +139,7 @@ export function Header({ activeTab, setActiveTab, selectedDate, setSelectedDate,
               <div><div className="efi-brand-name">AREA<span>117</span><span className="efi-version" title={`Versión desplegada: ${APP_VERSION} (Compilación: ${APP_BUILD_DATE})`}>{APP_VERSION}</span></div><p>EFI DATA OIL <span> / </span> Gestión de Combustibles</p></div>
             </div>
             <div className="efi-header-tools">
+              <ThemeSwitcher />
               <VersionHistory onNoticeChange={setReleaseNotice} enabled={!deferNotices} />
               <div className="efi-day-selector"><button onClick={() => setShowDailySummaryModal(true)} title="Haz clic para ver el resumen consolidado del día"><Calendar size={15} /><span>Resumen Día:</span></button><input type="date" aria-label="Fecha de trabajo" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} /></div>
               {currentUser && <div className="efi-user"><div className="efi-user-avatar">{(currentUser.name || 'A').charAt(0).toUpperCase()}</div><div className="efi-user-name"><strong>{currentUser.name ? currentUser.name.split(' ')[0] : 'Admin'}</strong><span>{ROLE_LABELS[currentUser.role]}</span></div><button onClick={logout} title="Cerrar sesión" aria-label="Cerrar sesión"><LogOut size={15} /></button></div>}

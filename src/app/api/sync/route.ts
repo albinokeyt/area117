@@ -2,6 +2,7 @@ import { sessionUser } from "@/lib/auth";
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerState, patchServerState } from '@/lib/db';
 import { StateConflictError } from '@/lib/stateMerge';
+import { FormulaPermissionError } from '@/lib/formulaPermissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,10 +31,10 @@ export async function POST(req: NextRequest) {
       !/^(efi_|sabana_|compras_)/.test(key) || ['efi_current_user', 'efi_users_list', 'efi_last_server_version', 'efi_last_server_sync_time'].includes(key))) {
       return NextResponse.json({ success: false, error: 'Datos de sincronización no válidos. Recarga la aplicación.' }, { status: 400 });
     }
-    const state = await patchServerState(data, baseData, user.name);
+    const state = await patchServerState(data, baseData, user);
     return NextResponse.json({ success: true, ...state, isPostgres: true, keysCount: Object.keys(state.data).length });
   } catch (error) {
-    return NextResponse.json({ success: false, error: error instanceof StateConflictError ? error.message : 'No se pudo guardar en PostgreSQL.' },
-      { status: error instanceof StateConflictError ? 409 : 503 });
+    return NextResponse.json({ success: false, error: error instanceof StateConflictError || error instanceof FormulaPermissionError ? error.message : 'No se pudo guardar en PostgreSQL.' },
+      { status: error instanceof StateConflictError ? 409 : error instanceof FormulaPermissionError ? 403 : 503 });
   }
 }

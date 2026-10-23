@@ -1,4 +1,5 @@
 'use client';
+import { useFormulaAccess } from './FormulaAccessNotice';
 
 import { workspaceStorage } from '@/lib/workspaceStorage';
 import { HVO_PRICES_KEY, HVO_PRICES_EVENT, HvoPrices } from '@/lib/publishedPrices';
@@ -89,6 +90,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     return num.toFixed(decimals).replace('.', ',');
   };
 
+  const formulaAccess = useFormulaAccess();
   const [stationsVersion, setStationsVersion] = useState(0);
   const postesStations = useMemo(() => getPostesStations(), [stationsVersion]);
 
@@ -313,25 +315,6 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     return reevaluateAllPostesFormulas(customPostesFormulas, selectedDate || validFromDate);
   }, [customPostesFormulas, selectedDate, validFromDate, comprasUpdateTick, postes, hvoGeneralBase, hvoGeneralAddition, hvoAlfajarinSinIva, hvoValdemoroAddition, gasoleoBRows, adblueRows, broncoRow, gasesRows]);
 
-  // Sincronizar fórmulas recalculadas a workspaceStorage si cambiaron
-  useEffect(() => {
-    let hasDiff = false;
-    for (const [key, item] of Object.entries(resolvedPostesFormulas)) {
-      if (customPostesFormulas[key]?.evaluatedValue !== item.evaluatedValue) {
-        hasDiff = true;
-        break;
-      }
-    }
-    if (hasDiff) {
-      try {
-        const effDate = selectedDate || validFromDate;
-        workspaceStorage.setItem(`efi_postes_custom_formulas_${effDate}`, JSON.stringify(resolvedPostesFormulas));
-        workspaceStorage.setItem('efi_postes_custom_formulas_global', JSON.stringify(resolvedPostesFormulas));
-        window.dispatchEvent(new Event('efi_postes_updated'));
-      } catch (e) {}
-    }
-  }, [resolvedPostesFormulas, selectedDate, validFromDate, customPostesFormulas]);
-
   const [activeModalCell, setActiveModalCell] = useState<{
     cellKey: string;
     cellTitle: string;
@@ -390,6 +373,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
 
   // Guardar fórmula en celda de Postes
   const handleSaveFormula = (cellKey: string, rawFormula: string, evaluatedValue: number) => {
+    if (!formulaAccess) return;
     const updated = savePostesFormula(validFromDate, cellKey, {
       rawFormula,
       evaluatedValue,
@@ -513,12 +497,13 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
       setModifiedKeys((prev) => new Set(prev).add('bronco_compra'));
     }
 
-    setImageToast(`Fórmula guardada para ${cellKey}`);
+    setImageToast('Fórmula actualizada. Guardando en PostgreSQL…');
     setTimeout(() => setImageToast(null), 3000);
   };
 
   // Eliminar fórmula de celda
   const handleRemoveFormula = (cellKey: string) => {
+    if (!formulaAccess) return;
     const updated = removePostesFormula(validFromDate, cellKey);
     setCustomPostesFormulas(updated);
     setImageToast(`Fórmula restablecida a valor original`);
@@ -527,6 +512,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
 
   // Limpiar todas las fórmulas de Postes
   const handleClearAllFormulas = () => {
+    if (!formulaAccess) return;
     if (window.confirm('¿Seguro que deseas eliminar todas las fórmulas personalizadas de la ventana de Postes y volver a los valores estándar?')) {
       clearAllPostesFormulas(validFromDate);
       setCustomPostesFormulas({});
@@ -553,6 +539,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     rawFormula: string,
     sourceStationName?: string
   ) => {
+    if (!formulaAccess) return;
     const { map } = getProgramVariables(validFromDate);
     const updatedFormulas = { ...customPostesFormulas };
     const sourceNorm = sourceStationName ? sourceStationName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase() : '';
@@ -1645,6 +1632,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
 
             {/* Botón Formular */}
             <button
+              disabled={!formulaAccess} title={!formulaAccess ? "Requiere el permiso Gestionar fórmulas" : undefined}
               onClick={() => setIsFormulaMode((prev) => !prev)}
               className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 ${
                 isFormulaMode

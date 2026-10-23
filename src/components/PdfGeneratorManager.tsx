@@ -1,4 +1,5 @@
 'use client';
+import { useFormulaAccess } from './FormulaAccessNotice';
 
 import { workspaceStorage } from '@/lib/workspaceStorage';
 import { useStationLabels } from './useStationLabels';
@@ -253,6 +254,7 @@ export interface CustomSourceConfig {
 }
 
 export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGeneratorProps) {
+  const formulaAccess = useFormulaAccess();
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
       const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
@@ -263,18 +265,10 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed
-            .filter((t: any) => t && t.name && !deletedList.includes(t.name))
-            .map((t: any) => {
-              if (t.name === 'AMAEXO' || t.name === 'E100') return { ...t, markup: 0.0360 };
-              if (t.name === 'TARIFA ECO' || t.name === 'ECOTRANS') return { ...t, markup: 0.0500 };
-              return t;
-            });
+            .filter((t: any) => t && t.name && !deletedList.includes(t.name));
         }
       }
       const initial = INITIAL_TARIFFS_LIST.filter((t) => !deletedList.includes(t.name));
-      workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(initial));
-      workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(initial));
-      workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(initial));
       return initial;
     } catch (e) {}
     return INITIAL_TARIFFS_LIST;
@@ -350,23 +344,12 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
       if (!saved) {
         const initial = INITIAL_TARIFFS_LIST.filter((t) => !deletedList.includes(t.name));
         setTariffsList(initial);
-        workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(initial));
-        workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(initial));
-        workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(initial));
       } else {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           const filtered = parsed
-            .filter((t: any) => t && t.name && !deletedList.includes(t.name))
-            .map((t: any) => {
-              if (t.name === 'AMAEXO' || t.name === 'E100') return { ...t, markup: 0.0360 };
-              if (t.name === 'TARIFA ECO' || t.name === 'ECOTRANS') return { ...t, markup: 0.0500 };
-              return t;
-            });
+            .filter((t: any) => t && t.name && !deletedList.includes(t.name));
           setTariffsList(filtered);
-          workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
-          workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
-          workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
         }
       }
     } catch (e) {}
@@ -381,9 +364,6 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
 
         setTariffsList((prev) => {
           const filtered = prev.filter((t) => !deletedList.includes(t.name));
-          workspaceStorage.setItem('efi_custom_tariffs_catalog_v5', JSON.stringify(filtered));
-          workspaceStorage.setItem('efi_custom_tariffs_list_v3', JSON.stringify(filtered));
-          workspaceStorage.setItem('efi_custom_tariffs_list', JSON.stringify(filtered));
           return filtered;
         });
       } catch (e) {}
@@ -396,6 +376,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
   }, []);
 
   const handleRestoreAllTariffs = () => {
+    if (!formulaAccess) return;
     setTariffsList(INITIAL_TARIFFS_LIST);
     try {
       workspaceStorage.removeItem('efi_deleted_tariffs_list');
@@ -545,6 +526,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
 
   const handleAddNewTariff = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formulaAccess) return;
     if (!newTariffName.trim()) return;
 
     const formattedName = newTariffName.trim().toUpperCase();
@@ -665,7 +647,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={handleRestoreAllTariffs}
+              disabled={!formulaAccess} onClick={handleRestoreAllTariffs}
               className="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-750 shadow-md transition-all active:scale-95"
               title="Restaurar catálogo completo oficial con todas las tarifas originales"
             >
@@ -674,7 +656,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
             </button>
 
             <button
-              onClick={() => setShowAddTariffModal(true)}
+              disabled={!formulaAccess} title={!formulaAccess ? 'Requiere el permiso Gestionar fórmulas' : undefined} onClick={() => setShowAddTariffModal(true)}
               className="flex items-center space-x-2 px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/40 shadow-md transition-all active:scale-95"
             >
               <Plus className="h-4 w-4" />
@@ -1252,6 +1234,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
                   <button
                     type="button"
                     onClick={() => {
+                      if (!formulaAccess) return;
                       const tariffToDelete = deleteModalState.tariffName;
                       const newTariffs = tariffsList.filter((t) => t.name !== tariffToDelete);
                       setTariffsList(newTariffs);

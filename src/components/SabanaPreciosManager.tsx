@@ -1,4 +1,5 @@
 'use client';
+import { useFormulaAccess } from './FormulaAccessNotice';
 
 import { registerSabanaValidationReader, SabanaValidationSnapshot, SourceDetails } from '@/lib/pdfPriceValidation';
 import { checkSabanaFormula } from '@/lib/formulaValidation';
@@ -187,6 +188,7 @@ const isBlueSpecialStation = (stName: string): boolean => {
 };
 
 export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaProps) {
+  const formulaAccess = useFormulaAccess();
   const [searchFilter, setSearchFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'PROPIA' | 'COLABORADORA'>('ALL');
   const [comprasPurchases, setComprasPurchases] = useState<Record<string, { sale: string }>>({});
@@ -213,23 +215,6 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   const resolvedFormulas = useMemo(() => {
     return reevaluateAllSabanaFormulas(customFormulas, selectedDate, comprasPurchases, specialRates);
   }, [customFormulas, selectedDate, comprasPurchases, specialRates, postesFormulaRevision]);
-
-  // Sincronizar fórmulas recalculadas a workspaceStorage si cambiaron por variaciones en Compras
-  useEffect(() => {
-    let hasDiff = false;
-    for (const [key, item] of Object.entries(resolvedFormulas)) {
-      if (customFormulas[key]?.evaluatedValue !== item.evaluatedValue) {
-        hasDiff = true;
-        break;
-      }
-    }
-    if (hasDiff) {
-      try {
-        workspaceStorage.setItem(`efi_sabana_custom_formulas_${selectedDate}`, JSON.stringify(resolvedFormulas));
-        workspaceStorage.setItem('efi_sabana_custom_formulas_global', JSON.stringify(resolvedFormulas));
-      } catch (e) {}
-    }
-  }, [resolvedFormulas, selectedDate, customFormulas]);
 
   const [activeModalCell, setActiveModalCell] = useState<{
     cellKey: string;
@@ -439,6 +424,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   }, [deletedTariffIds, customStandardTariffs, customSpecialTariffs, customBlockTariffs]);
 
   const handleCreateTariff = (tariff: SabanaTariffDef, initialSource?: SabanaSourceConfig) => {
+    if (!formulaAccess) return;
     // Si estaba eliminada previamente, desmarcarla
     if (deletedTariffIds.includes(tariff.id)) {
       const nextDeleted = deletedTariffIds.filter((id) => id !== tariff.id);
@@ -498,6 +484,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   };
 
   const handleUpdateTariff = (tariffId: string, updates: Partial<SabanaTariffDef>) => {
+    if (!formulaAccess) return;
     const updated = {
       ...modifiedTariffsConfig,
       [tariffId]: {
@@ -516,6 +503,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   };
 
   const handleDeleteTariff = (tariffId: string) => {
+    if (!formulaAccess) return;
     const nextStd = customStandardTariffs.filter((t) => t.id !== tariffId);
     setCustomStandardTariffs(nextStd);
     const nextSpec = customSpecialTariffs.filter((t) => t.id !== tariffId);
@@ -539,6 +527,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   };
 
   const handleRestoreTariff = (tariffId: string) => {
+    if (!formulaAccess) return;
     const nextDeleted = deletedTariffIds.filter((id) => id !== tariffId);
     setDeletedTariffIds(nextDeleted);
     try {
@@ -551,6 +540,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   };
 
   const handleSaveSourceMapping = (mapping: Record<string, SabanaSourceConfig>) => {
+    if (!formulaAccess) return;
     setTariffSourcesMapping(mapping);
     try {
       workspaceStorage.setItem('efi_sabana_tariff_source_mapping_v1', JSON.stringify(mapping));
@@ -1804,18 +1794,20 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
   // Guardar fórmula en celda
   const handleSaveFormula = (cellKey: string, rawFormula: string, evaluatedValue: number) => {
+    if (!formulaAccess) return;
     const updated = saveSabanaFormula(selectedDate, cellKey, {
       rawFormula,
       evaluatedValue,
       updatedAt: new Date().toISOString(),
     });
     setCustomFormulas(updated);
-    setDownloadToast(`Fórmula guardada para ${cellKey}`);
+    setDownloadToast(`Fórmula actualizada. Guardando en PostgreSQL…`);
     setTimeout(() => setDownloadToast(null), 3000);
   };
 
   // Eliminar fórmula de celda
   const handleRemoveFormula = (cellKey: string) => {
+    if (!formulaAccess) return;
     const updated = removeSabanaFormula(selectedDate, cellKey);
     setCustomFormulas(updated);
     setDownloadToast(`Fórmula restablecida a valor original`);
@@ -1824,6 +1816,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
   // Limpiar todas las fórmulas
   const handleClearAllFormulas = () => {
+    if (!formulaAccess) return;
     if (window.confirm('¿Seguro que deseas eliminar todas las fórmulas personalizadas de la Sábana de Precios y volver a los valores estándar?')) {
       clearAllSabanaFormulas(selectedDate);
       setCustomFormulas({});
@@ -1834,6 +1827,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
   // Aplicar fórmula a toda la columna de Tarifas Estándar
   const handleApplyFormulaToStandardColumn = (tariffId: string, isConIva: boolean, rawFormula: string, sourceStationName?: string) => {
+    if (!formulaAccess) return;
     const field = isConIva ? 'conIva' : 'sinIva';
     const { map } = getProgramVariables(selectedDate, comprasPurchases, specialRates, customFormulas);
     const updatedFormulas = { ...customFormulas };
@@ -2851,6 +2845,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
             {/* Botón Formular */}
             <button
+              disabled={!formulaAccess} title={!formulaAccess ? "Requiere el permiso Gestionar fórmulas" : undefined}
               onClick={() => setIsFormulaMode((prev) => !prev)}
               className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 ${
                 isFormulaMode

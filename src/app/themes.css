@@ -1,0 +1,56 @@
+/* Screen-only palettes. Client PDFs and exported documents keep their official colours. */
+@media screen {
+  .efi-app { --row-hover: #1d598315; --row-focus: #1d59833b; }
+  .efi-theme-control { position: relative; }
+  .efi-theme-picker { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 5px 9px; border: 1px solid #ffffffa0; border-radius: 10px; background: #ffffff80; color: #526b8b; font-size: 10px; }
+  .efi-app .efi-theme-picker select { font: inherit; color: inherit; background: transparent; border: 0; box-shadow: none; max-width: 85px; padding: 2px; }
+  .efi-theme-error { position: absolute; right: 0; top: 100%; width: 230px; background: #fff1f2; color: #9f1239; border: 1px solid #fda4af; padding: 10px; border-radius: 10px; font-size: 11px; z-index: 50; }
+
+  html[data-efi-theme="dark"] { --theme-bg: #10161f; --theme-fg: #e1e8f1; --theme-muted: #a5b3c7; --theme-surface: #1b2533dc; --theme-input: #121c2be6; --theme-head: #233147; --theme-line: #40516a80; --theme-rim: #91a9ca30; --theme-blue: #9cc7ff; --theme-green: #77dac0; --theme-gold: #f0cd8f; --theme-purple: #c9b0f1; --theme-red: #ffa4b6; --theme-header: #172130e6; --theme-shadow: #0005; --theme-route: #173d31; --theme-route-text: #a0e5ba; --row-hover: #d0e4ff15; --row-focus: #a6ceff80; }
+  html[data-efi-theme="cream"] { --theme-bg: #eee7db; --theme-fg: #423a30; --theme-muted: #766753; --theme-surface: #fffaf0cc; --theme-input: #fffdf6e8; --theme-head: #e9decd; --theme-line: #b3a38b50; --theme-rim: #fffff0e0; --theme-blue: #365b79; --theme-green: #286958; --theme-gold: #835d21; --theme-purple: #795f83; --theme-red: #a8324b; --theme-header: #f8f1e4e6; --theme-shadow: #5b432015; --theme-route: #dfecd6; --theme-route-text: #285b32; --row-hover: #9c722119; --row-focus: #946b365e; }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) body { background: var(--theme-bg); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app {
+    --crystal-line: var(--theme-line); --crystal-rim: var(--theme-rim); --crystal-shadow: 0 12px 35px -18px var(--theme-shadow);
+    --row-hover: inherit; --row-focus: inherit; background: var(--theme-bg); color: var(--theme-fg);
+  }
+  html[data-efi-theme="dark"] .efi-app::before { background: radial-gradient(ellipse at 5% 0%,#36548635,transparent 55%),radial-gradient(ellipse at 95% 80%,#72344b18,transparent 55%); }
+  html[data-efi-theme="cream"] .efi-app::before { background: radial-gradient(ellipse at 5% 0%,#fffdf8a0,transparent 55%),radial-gradient(ellipse at 95% 80%,#d8bd8d35,transparent 55%); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-header { background: var(--theme-header); border-color: var(--theme-rim); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :is(.efi-brand-name,.efi-workspace-route strong,.efi-footer strong) { color: var(--theme-blue); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :is(.efi-brand p,.efi-workspace-route,.efi-footer,.efi-user-name > span,.efi-day-selector > button) { color: var(--theme-muted); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :is(.efi-header-tools > button,.efi-day-selector,.efi-theme-picker,.efi-user-avatar,.efi-version) { color: var(--theme-fg); background: var(--theme-surface); border-color: var(--theme-line); box-shadow: 0 4px 12px -8px var(--theme-shadow); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="bg-slate-"]):not(.printable-document,.printable-document *) { background: var(--theme-surface); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(.bg-slate-950,.bg-slate-800):not(.printable-document,.printable-document *) { background: var(--theme-input); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="text-slate-"],.text-white,h2):not(.printable-document,.printable-document *) { color: var(--theme-fg); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(.text-slate-400,.text-slate-500,.text-slate-300):not(.printable-document,.printable-document *) { color: var(--theme-muted); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="text-blue-"],[class*="text-sky-"],[class*="text-cyan-"]):not(.printable-document,.printable-document *) { color: var(--theme-blue); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="text-emerald-"],[class*="text-green-"],[class*="text-teal-"]):not(.printable-document,.printable-document *) { color: var(--theme-green); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="text-amber-"],[class*="text-yellow-"],[class*="text-orange-"]):not(.printable-document,.printable-document *) { color: var(--theme-gold); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="text-purple-"],[class*="text-violet-"],[class*="text-indigo-"]):not(.printable-document,.printable-document *) { color: var(--theme-purple); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="text-rose-"],[class*="text-red-"],[class*="text-pink-"]):not(.printable-document,.printable-document *) { color: var(--theme-red); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="bg-blue-9"],[class*="bg-indigo-9"],[class*="bg-cyan-9"]):not(.printable-document,.printable-document *) { background: color-mix(in srgb,var(--theme-blue) 12%,var(--theme-surface)); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="bg-purple-9"],[class*="bg-violet-9"]):not(.printable-document,.printable-document *) { background: color-mix(in srgb,var(--theme-purple) 13%,var(--theme-surface)); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="bg-emerald-9"],[class*="bg-green-9"]):not(.printable-document,.printable-document *) { background: color-mix(in srgb,var(--theme-green) 12%,var(--theme-surface)); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where([class*="bg-orange-9"],[class*="bg-amber-9"]):not(.printable-document,.printable-document *) { background: color-mix(in srgb,var(--theme-gold) 13%,var(--theme-surface)); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(div[class*="bg-gradient-to-"],[role="dialog"],.fixed > .bg-slate-900):not(.printable-document,.printable-document *) { background: var(--theme-surface); color: var(--theme-fg); border-color: var(--theme-line); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(input:not([type="checkbox"]),select,textarea):not(.printable-document,.printable-document *) { background: var(--theme-input); color: var(--theme-fg); border-color: var(--theme-line); }
+  html[data-efi-theme="dark"] .efi-app :where(input,select,textarea):not(.printable-document,.printable-document *) { color-scheme: dark; }
+  html[data-efi-theme="cream"] .efi-app :where(input,select,textarea):not(.printable-document,.printable-document *) { color-scheme: light; }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(thead,thead tr):not(.printable-document,.printable-document *) { background: var(--theme-head); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(thead th):not(.printable-document,.printable-document *) { color: var(--theme-muted); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(tbody tr:nth-child(even)):not(.printable-document,.printable-document *) { background-color: transparent; }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(tr[class*="bg-amber-"],td[class*="bg-amber-"]):not(.printable-document,.printable-document *) { background: color-mix(in srgb,#dfad32 14%,var(--theme-surface)); }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(input[class*="bg-amber-"],input[class*="bg-yellow-"]):not(.printable-document,.printable-document *) { background: #fff0b5; color: #5e481b; border-color: #d8ae45; }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :is(.efi-purchase-table,.efi-route-table) tr[data-route-active="true"] > td:not([class*="bg-amber-"]) { background-color: var(--theme-route) !important; }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :is(.efi-purchase-table,.efi-route-table) tr[data-route-active="true"] > td:first-child { color: var(--theme-route-text); }
+  /* A flat overlay covers sticky and coloured cells without oversized paint surfaces. */
+  .efi-app :where(tbody > tr:hover > td,tbody > tr:focus-within > td):not(.printable-document,.printable-document *) { background-image: linear-gradient(var(--row-hover),var(--row-hover)); box-shadow: inset 0 1px 0 var(--row-focus),inset 0 -1px 0 var(--row-focus); }
+  .efi-app :where(tbody > tr:hover > td:first-child,tbody > tr:focus-within > td:first-child):not(.printable-document,.printable-document *) { border-left-color: var(--row-focus); }
+  /* Preview stays official; highlight is visible only while working on screen. */
+  .efi-app .printable-document tbody > tr:hover > td { background-image: linear-gradient(#224d7b12,#224d7b12); box-shadow: inset 0 1px 0 #224d7b40,inset 0 -1px 0 #224d7b40; }
+  .efi-app button:disabled { cursor: not-allowed; opacity: .55; }
+  @media (min-width: 1051px) and (max-width: 1800px) { .efi-island-header .efi-user-name { display: none; } }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(button[class*="bg-gradient-to-"],button.bg-amber-500,button.bg-amber-600,button.bg-emerald-500,button.bg-emerald-600,button.bg-teal-600,button.bg-blue-600,button.bg-purple-600,button.bg-rose-500,button.bg-rose-600):not(.printable-document,.printable-document *) { color: #fff; }
+  html:is([data-efi-theme="dark"],[data-efi-theme="cream"]) .efi-app :where(button[class*="bg-gradient-to-"],button.bg-amber-500,button.bg-amber-600) :is(svg,span):not(.printable-document,.printable-document *) { color: inherit; }
+  @media (max-width: 600px) { .efi-theme-picker { font-size: 9px; padding-inline: 6px; }.efi-theme-picker > svg { display: none; }.efi-header-tools { flex-wrap: wrap; } }
+}

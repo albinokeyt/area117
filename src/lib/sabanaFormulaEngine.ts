@@ -1,3 +1,4 @@
+import { loadPersistentFormulas, writePersistentFormulas } from './persistentFormulas';
 import { workspaceStorage } from '@/lib/workspaceStorage';
 import { getLatestPurchasePayload } from "./purchaseState";
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from "./dataSeed";
@@ -92,13 +93,18 @@ export function getProgramVariables(
   selectedDate: string,
   livePurchases?: Record<string, any>,
   liveSpecialRates?: any[],
-  liveSabanaFormulas?: Record<string, CellFormula>
+  liveSabanaFormulas?: Record<string, CellFormula>,
+  resolveSabanaReferences = true,
+  purchasesOnly = false
 ): {
   list: ProgramCellVariable[];
   map: Record<string, number>;
 } {
   const list: ProgramCellVariable[] = [];
   const map: Record<string, number> = {};
+  const aliases: Record<string, string[]> = {};
+  const bind = (key: string, token: string) => { (aliases[key] ||= []).push(token); };
+
 
   const addVar = (
     windowId: ProgramCellVariable["windowId"],
@@ -121,6 +127,19 @@ export function getProgramVariables(
     });
     map[token] = val;
     map[token.toUpperCase()] = val;
+    if (windowId === 'postes') {
+      const field = token.split(':').at(-1)!;
+      const fields: Record<string, string> = { POSTE_GOA: 'GOA', POSTE_GASOLINA: 'GASOLINA',
+        MARGEN_GOA: 'MARGEN_GOA', MARGEN_GASOLINA: 'MARGEN_GASOLINA', GOA_PREMIUM: 'GOA_PREMIUM',
+        GOB_COMPRA: 'COMPRA', GOB_TRANSFRIRED: 'TRANSFER', GOB_TRANSFRIRED_CON_IVA: 'TRANSFER_CON_IVA', GOB_POSTE: 'POSTE',
+        ADBLUE_COMPRA: 'COMPRA', ADBLUE_POSTE: 'POSTE' };
+      if (stationName && fields[field]) {
+        const prefix = field.startsWith('GOB_') ? 'GASB_' : field.startsWith('ADBLUE_') ? 'ADBLUE_' : '';
+        bind(`POSTE_${prefix}${stationName}_${fields[field]}`, token);
+      } else if (token.startsWith('POSTES:HVO_')) bind(token.replace('POSTES:', 'POSTE_'), token);
+      else if (token.startsWith('POSTES:BRONCO:')) bind(token.replace('POSTES:BRONCO:', 'POSTE_BRONCO_'), token);
+      else if (!stationName) bind(token.replace('POSTES:', 'POSTE_GASES_').replace(':', '_'), token);
+    }
   };
 
   // 1. COMPRAS
@@ -132,13 +151,12 @@ export function getProgramVariables(
   }
 
   // Tarifas Especiales (Compras)
-  let specialRates: any[] = [];
+  let specialRates: readonly any[] = [];
   if (Array.isArray(liveSpecialRates) && liveSpecialRates.length > 0) {
     specialRates = liveSpecialRates;
   } else {
     try {
-      const sp = workspaceStorage.getItem("efi_special_rates_b50_f82_v4") || workspaceStorage.getItem("efi_special_rates_b50_f82_v3");
-      if (sp) specialRates = JSON.parse(sp);
+      specialRates = workspaceStorage.readJson<any[]>("efi_special_rates_b50_f82_v4") || workspaceStorage.readJson<any[]>("efi_special_rates_b50_f82_v3") || [];
     } catch (e) {}
   }
 
@@ -192,6 +210,8 @@ export function getProgramVariables(
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":GASOLINA_VENTA", "P. Venta Sugerido Gasolina (" + st.name + ")", pVentaGas, st.name);
   });
 
+  if (purchasesOnly) return { list, map };
+
   // 2. GASOLINA BRONCO
   let broncoData: any = {
     sinIva: "1.397",
@@ -200,10 +220,7 @@ export function getProgramVariables(
     compra: "1.348",
   };
   try {
-    const bDate = workspaceStorage.getItem("efi_purchases_bronco_" + selectedDate);
-    const bGlob = workspaceStorage.getItem("efi_compras_gasolina_bronco");
-    if (bDate) broncoData = JSON.parse(bDate);
-    else if (bGlob) broncoData = JSON.parse(bGlob);
+    broncoData = workspaceStorage.readJson("efi_purchases_bronco_" + selectedDate) || workspaceStorage.readJson("efi_compras_gasolina_bronco") || {};
   } catch (e) {}
 
   addVar("bronco", "Gasolina Bronco", "Cuadro Especial Bronco", "BRONCO:CON_IVA", "Bronco Con IVA", parseNum(broncoData.conIva));
@@ -214,17 +231,10 @@ export function getProgramVariables(
   // 3. POSTES
   let postesStorage: any = {};
   try {
-    const s = workspaceStorage.getItem("efi_postes_data_v2");
-    if (s) postesStorage = JSON.parse(s);
+    postesStorage = workspaceStorage.readJson("efi_postes_data_v2") || {};
   } catch (e) {}
 
-  let postesFormulas: Record<string, CellFormula> = {};
-  try {
-    const pfDate = workspaceStorage.getItem(`efi_postes_custom_formulas_${selectedDate}`);
-    const pfGlob = workspaceStorage.getItem('efi_postes_custom_formulas_global');
-    if (pfDate) postesFormulas = JSON.parse(pfDate) || {};
-    else if (pfGlob) postesFormulas = JSON.parse(pfGlob) || {};
-  } catch (e) {}
+  const postesFormulas = loadPostesFormulas(selectedDate);
 
   const defaultPostesProp: Record<string, { goa: number; gas: number; gain: number }> = {
     "ARCOS": { goa: 1.702, gas: 0, gain: 0 },
@@ -504,6 +514,8 @@ export function getProgramVariables(
       addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T${td.id}_SIN_IVA`, `T${td.id} Sin IVA (${st.name})`, valSin, st.name);
       addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:T${td.id}_CON_IVA`, `T${td.id} Con IVA (${st.name})`, valCon, st.name);
 
+      bind(sabanaFormulas[stdSinKey] ? stdSinKey : legSinKey, `SABANA:${normName}:T${td.id}_SIN_IVA`);
+      bind(sabanaFormulas[stdConKey] ? stdConKey : legConKey, `SABANA:${normName}:T${td.id}_CON_IVA`);
       // Register raw keys in map
       map[stdSinKey] = valSin;
       map[stdSinKey.toUpperCase()] = valSin;
@@ -530,6 +542,8 @@ export function getProgramVariables(
       let valCon = round3(valSin * 1.21);
       if (sabanaFormulas[conKey]?.evaluatedValue !== undefined) valCon = sabanaFormulas[conKey].evaluatedValue;
 
+      bind(sinKey, `SABANA:${normName}:${tokenName}_SIN_IVA`);
+      bind(conKey, `SABANA:${normName}:${tokenName}_CON_IVA`);
       addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:${tokenName}_SIN_IVA`, `${labelName} Sin IVA (${st.name})`, valSin, st.name);
       addVar("sabana", "Sábana de Precios", group, `SABANA:${normName}:${tokenName}_CON_IVA`, `${labelName} Con IVA (${st.name})`, valCon, st.name);
 
@@ -568,6 +582,23 @@ export function getProgramVariables(
     }
   });
 
+  const formulas = { ...(resolveSabanaReferences ? sabanaFormulas : {}), ...postesFormulas };
+  const stationsByKey = Object.keys(formulas).map(key => [key, allStations.find(st => key.includes(st.name))?.name] as const);
+  // Same bounded dependency passes as the editors; no persistence or update events during calculation.
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (const [key, stationName] of stationsByKey) {
+      const formula = formulas[key];
+      if (!formula?.rawFormula) continue;
+      const result = evaluateFormula(formula.rawFormula, map, { stationName });
+      if (!result.success) continue;
+      if (map[key] !== result.value) changed = true;
+      map[key] = map[key.toUpperCase()] = result.value;
+      for (const token of aliases[key] || []) map[token] = map[token.toUpperCase()] = result.value;
+    }
+    if (!changed) break;
+  }
+  for (const variable of list) variable.currentValue = map[variable.token];
   return { list, map };
 }
 
@@ -704,6 +735,11 @@ export function evaluateFormula(
   }
 }
 
+function onlyPurchaseReferences(formulas: Record<string, CellFormula>) {
+  return Object.values(formulas).every(formula => typeof formula?.rawFormula === 'string'
+    && formula.rawFormula.replace(/\[COMPRAS:[A-Z0-9_: ]+\]/gi, '0').replace(/[=0-9\s.,()+\-*/%]/g, '') === '');
+}
+
 export function reevaluateAllSabanaFormulas(
   formulas: Record<string, CellFormula>,
   selectedDate: string,
@@ -713,11 +749,13 @@ export function reevaluateAllSabanaFormulas(
   if (!formulas || Object.keys(formulas).length === 0) return {};
 
   let current: Record<string, CellFormula> = { ...formulas };
+  const purchasesOnly = onlyPurchaseReferences(formulas);
   const allStations = typeof window !== 'undefined' ? getAllStations() : [...PROPIAS_STATIONS, ...COLABORADORA_STATIONS];
 
-  // Ejecutar hasta 3 pasadas para resolver cadenas de dependencias entre celdas
-  for (let pass = 0; pass < 3; pass++) {
-    const { map } = getProgramVariables(selectedDate, livePurchases, liveSpecialRates, current);
+  // Purchase-only expressions cannot depend on another formula; one pass is sufficient.
+  for (let pass = 0; pass < (purchasesOnly ? 1 : 3); pass++) {
+    const { map } = getProgramVariables(selectedDate, livePurchases, liveSpecialRates, current, false, purchasesOnly);
+    const evaluations = new Map<string, ReturnType<typeof evaluateFormula>>();
     let anyChanged = false;
 
     for (const [cellKey, cellData] of Object.entries(current)) {
@@ -731,7 +769,12 @@ export function reevaluateAllSabanaFormulas(
         }
       }
 
-      const evalRes = evaluateFormula(cellData.rawFormula, map, { stationName });
+      const evaluationKey = `${stationName || ''}\0${cellData.rawFormula}`;
+      let evalRes = evaluations.get(evaluationKey);
+      if (!evalRes) {
+        evalRes = evaluateFormula(cellData.rawFormula, map, { stationName });
+        evaluations.set(evaluationKey, evalRes);
+      }
       if (evalRes.success && Math.abs(evalRes.value - cellData.evaluatedValue) > 0.0001) {
         current[cellKey] = {
           ...cellData,
@@ -747,20 +790,8 @@ export function reevaluateAllSabanaFormulas(
   return current;
 }
 
-export function loadSabanaFormulas(selectedDate: string): Record<string, CellFormula> {
-  try {
-    const sDate = workspaceStorage.getItem("efi_sabana_custom_formulas_" + selectedDate);
-    const sGlob = workspaceStorage.getItem("efi_sabana_custom_formulas_global");
-    if (sDate) {
-      const parsed = JSON.parse(sDate);
-      if (parsed && typeof parsed === "object") return parsed;
-    }
-    if (sGlob) {
-      const parsed = JSON.parse(sGlob);
-      if (parsed && typeof parsed === "object") return parsed;
-    }
-  } catch (e) {}
-  return {};
+export function loadSabanaFormulas(_selectedDate: string): Record<string, CellFormula> {
+  return loadPersistentFormulas('sabana');
 }
 
 export function saveSabanaFormula(
@@ -777,12 +808,7 @@ export function saveSabanaFormula(
     },
   };
 
-  try {
-    workspaceStorage.setItem("efi_sabana_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    workspaceStorage.setItem("efi_sabana_custom_formulas_global", JSON.stringify(updated));
-    window.dispatchEvent(new Event("efi_sabana_updated"));
-    window.dispatchEvent(new Event("storage"));
-  } catch (e) {}
+  writePersistentFormulas('sabana', updated);
 
   return updated;
 }
@@ -795,23 +821,13 @@ export function removeSabanaFormula(
   const updated = { ...current };
   delete updated[cellKey];
 
-  try {
-    workspaceStorage.setItem("efi_sabana_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    workspaceStorage.setItem("efi_sabana_custom_formulas_global", JSON.stringify(updated));
-    window.dispatchEvent(new Event("efi_sabana_updated"));
-    window.dispatchEvent(new Event("storage"));
-  } catch (e) {}
+  writePersistentFormulas('sabana', updated);
 
   return updated;
 }
 
-export function clearAllSabanaFormulas(selectedDate: string): void {
-  try {
-    workspaceStorage.removeItem("efi_sabana_custom_formulas_" + selectedDate);
-    workspaceStorage.removeItem("efi_sabana_custom_formulas_global");
-    window.dispatchEvent(new Event("efi_sabana_updated"));
-    window.dispatchEvent(new Event("storage"));
-  } catch (e) {}
+export function clearAllSabanaFormulas(_selectedDate: string): void {
+  writePersistentFormulas('sabana', {});
 }
 
 /**
@@ -1046,9 +1062,9 @@ export function getSabanaTariff60ConIvaForStation(
   // 4. Margen modificado para la Tarifa 60 (por defecto 0.0800)
   let effectiveMarkup = 0.0800;
   try {
-    const savedMods = workspaceStorage.getItem('efi_sabana_modified_tariffs_config_v1');
+    const savedMods = workspaceStorage.readJson<Record<string, any>>('efi_sabana_modified_tariffs_config_v1');
     if (savedMods) {
-      const parsedMods = JSON.parse(savedMods);
+      const parsedMods = savedMods;
       if (parsedMods['60']?.markup !== undefined) effectiveMarkup = parsedMods['60'].markup;
       else if (parsedMods['TARIFA 60']?.markup !== undefined) effectiveMarkup = parsedMods['TARIFA 60'].markup;
     }
@@ -1119,20 +1135,8 @@ export function getSabanaTariff60ConIvaForStation(
 // GESTIÓN DE FÓRMULAS PERSONALIZADAS PARA LA VENTANA DE POSTES
 // -------------------------------------------------------------
 
-export function loadPostesFormulas(selectedDate: string): Record<string, CellFormula> {
-  try {
-    const sDate = workspaceStorage.getItem("efi_postes_custom_formulas_" + selectedDate);
-    const sGlob = workspaceStorage.getItem("efi_postes_custom_formulas_global");
-    if (sDate) {
-      const parsed = JSON.parse(sDate);
-      if (parsed && typeof parsed === "object") return parsed;
-    }
-    if (sGlob) {
-      const parsed = JSON.parse(sGlob);
-      if (parsed && typeof parsed === "object") return parsed;
-    }
-  } catch (e) {}
-  return {};
+export function loadPostesFormulas(_selectedDate: string): Record<string, CellFormula> {
+  return loadPersistentFormulas('postes');
 }
 
 export function savePostesFormula(
@@ -1149,12 +1153,7 @@ export function savePostesFormula(
     },
   };
 
-  try {
-    workspaceStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    workspaceStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
-    window.dispatchEvent(new Event("efi_postes_updated"));
-    window.dispatchEvent(new Event("storage"));
-  } catch (e) {}
+  writePersistentFormulas('postes', updated);
 
   return updated;
 }
@@ -1167,23 +1166,13 @@ export function removePostesFormula(
   const updated = { ...current };
   delete updated[cellKey];
 
-  try {
-    workspaceStorage.setItem("efi_postes_custom_formulas_" + selectedDate, JSON.stringify(updated));
-    workspaceStorage.setItem("efi_postes_custom_formulas_global", JSON.stringify(updated));
-    window.dispatchEvent(new Event("efi_postes_updated"));
-    window.dispatchEvent(new Event("storage"));
-  } catch (e) {}
+  writePersistentFormulas('postes', updated);
 
   return updated;
 }
 
-export function clearAllPostesFormulas(selectedDate: string): void {
-  try {
-    workspaceStorage.removeItem("efi_postes_custom_formulas_" + selectedDate);
-    workspaceStorage.removeItem("efi_postes_custom_formulas_global");
-    window.dispatchEvent(new Event("efi_postes_updated"));
-    window.dispatchEvent(new Event("storage"));
-  } catch (e) {}
+export function clearAllPostesFormulas(_selectedDate: string): void {
+  writePersistentFormulas('postes', {});
 }
 
 export function reevaluateAllPostesFormulas(
@@ -1194,7 +1183,7 @@ export function reevaluateAllPostesFormulas(
     return {};
   }
 
-  const { map } = getProgramVariables(selectedDate);
+  const { map } = getProgramVariables(selectedDate, undefined, undefined, undefined, true, onlyPurchaseReferences(customFormulas));
   const current = { ...customFormulas };
 
   for (const [cellKey, cellData] of Object.entries(current)) {

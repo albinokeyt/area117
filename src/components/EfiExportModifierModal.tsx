@@ -1,5 +1,7 @@
 'use client';
 
+import { FormulaAccessNotice, useFormulaAccess } from './FormulaAccessNotice';
+
 import { getLivePriceContext, resolveLivePrice } from '@/lib/livePriceSources';
 import { normalizePriceName } from '@/lib/publishedPrices';
 import { workspaceStorage } from '@/lib/workspaceStorage';
@@ -89,6 +91,7 @@ export function EfiExportModifierModal({
   sabanaFormulas = {},
   initialSelectedRow = null,
 }: EfiExportModifierModalProps) {
+  const formulaAccess = useFormulaAccess();
   const [activeTab, setActiveTab] = useState<'modify' | 'add' | 'delete' | 'picker'>('modify');
 
   // Reactivity tracker for changes in Sábana de Precios or EFI Export
@@ -558,6 +561,7 @@ export function EfiExportModifierModal({
   };
 
   if (!isOpen) return null;
+  if (!formulaAccess) return <FormulaAccessNotice onClose={onClose} />;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-in fade-in duration-200">

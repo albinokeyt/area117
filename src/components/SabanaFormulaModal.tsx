@@ -1,5 +1,8 @@
 'use client';
 
+import { FormulaAccessNotice, useFormulaAccess } from './FormulaAccessNotice';
+import { flushPendingSync } from '@/lib/serverSyncService';
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X, Calculator, Search, Check, AlertCircle, RotateCcw,
@@ -39,6 +42,9 @@ export function SabanaFormulaModal({
   onApplyToColumn,
   columnLabel,
 }: SabanaFormulaModalProps) {
+  const formulaAccess = useFormulaAccess();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [formulaInput, setFormulaInput] = useState<string>('');
   const [activeWindowTab, setActiveWindowTab] = useState<'all' | 'compras' | 'postes' | 'especial' | 'sabana' | 'bronco'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -81,6 +87,7 @@ export function SabanaFormulaModal({
   }, [formulaInput, variablesMap, stationName]);
 
   if (!isOpen) return null;
+  if (!formulaAccess) return <FormulaAccessNotice onClose={onClose} />;
 
   // Insertar texto o token en la fórmula
   const handleInsertToken = (token: string) => {
@@ -150,17 +157,22 @@ export function SabanaFormulaModal({
     );
   });
 
+  const persist = async (edit: () => void) => {
+    if (saving) return;
+    setSaving(true); setSaveError('');
+    try { edit(); await flushPendingSync(); onClose(); }
+    catch (err) { setSaveError('Guardado pendiente: ' + (err instanceof Error ? err.message : 'No se pudo guardar en PostgreSQL.')); }
+    finally { setSaving(false); }
+  };
   const handleSave = () => {
-    if (!evalResult.success) return;
-    onSave(formulaInput.trim(), evalResult.value);
-    onClose();
+    if (!evalResult.success || saving) return;
+    void persist(() => onSave(formulaInput.trim(), evalResult.value));
   };
 
   const handleApplyToColumn = () => {
     if (!evalResult.success || !onApplyToColumn) return;
     if (window.confirm(`¿Deseas aplicar esta fórmula a todas las estaciones de la columna "${columnLabel || 'seleccionada'}"?`)) {
-      onApplyToColumn(formulaInput.trim());
-      onClose();
+      void persist(() => onApplyToColumn(formulaInput.trim()));
     }
   };
 
@@ -168,7 +180,7 @@ export function SabanaFormulaModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-amber-500/40 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div role="dialog" aria-modal="true" aria-label="Editor de fórmula" className="bg-slate-900 border border-amber-500/40 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Modal Header */}
         <div className="bg-slate-950 px-6 py-4 border-b border-slate-800 flex items-center justify-between gap-4">
@@ -192,7 +204,7 @@ export function SabanaFormulaModal({
           </div>
 
           <button
-            onClick={onClose}
+            aria-label="Cerrar editor de fórmula" disabled={saving} onClick={onClose}
             className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="h-5 w-5" />
@@ -217,6 +229,7 @@ export function SabanaFormulaModal({
             <div className="relative">
               <input
                 ref={inputRef}
+                aria-label="Fórmula" disabled={saving}
                 type="text"
                 value={formulaInput}
                 onChange={(e) => setFormulaInput(e.target.value)}
@@ -425,16 +438,15 @@ export function SabanaFormulaModal({
           </div>
         </div>
 
+        {saveError && <p role="alert" className="px-6 py-3 text-sm text-rose-400">{saveError}</p>}
         {/* Modal Footer Actions */}
         <div className="bg-slate-950 px-6 py-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             {isModified && (
               <button
                 type="button"
-                onClick={() => {
-                  onRemove();
-                  onClose();
-                }}
+                disabled={saving}
+                onClick={() => void persist(onRemove)}
                 className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 transition-all"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -446,7 +458,7 @@ export function SabanaFormulaModal({
           <div className="flex items-center space-x-2">
             <button
               type="button"
-              onClick={onClose}
+              disabled={saving} onClick={onClose}
               className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             >
               Cancelar
@@ -455,7 +467,7 @@ export function SabanaFormulaModal({
             {onApplyToColumn && (
               <button
                 type="button"
-                disabled={!evalResult.success}
+                disabled={!evalResult.success || saving}
                 onClick={handleApplyToColumn}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95"
                 title="Aplica esta fórmula a todas las estaciones de esta columna"
@@ -466,12 +478,12 @@ export function SabanaFormulaModal({
 
             <button
               type="button"
-              disabled={!evalResult.success}
+              disabled={!evalResult.success || saving}
               onClick={handleSave}
               className="flex items-center space-x-2 px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
             >
               <Check className="h-4 w-4" />
-              <span>Guardar Fórmula</span>
+              <span>{saving ? 'Guardando en PostgreSQL…' : 'Guardar Fórmula'}</span>
             </button>
           </div>
         </div>

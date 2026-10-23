@@ -1,9 +1,22 @@
 import { sessionUser, publicUser } from "@/lib/auth";
 import { ENVIRONMENT_ADMIN_ID } from '@/lib/environmentAdmin';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerUsers, upsertServerUser, deleteServerUser, isPostgresConfigured, ServerUser } from '@/lib/db';
+import { getServerUsers, upsertServerUser, deleteServerUser, isPostgresConfigured, ServerUser, getDatabasePool } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+export async function PATCH(req: NextRequest) {
+  try {
+    const actor = await sessionUser(req);
+    if (actor?.role !== 'ADMIN') return NextResponse.json({ error: 'Se requiere administrador.' }, { status: 403 });
+    const { id, canManageFormulas } = await req.json();
+    if (typeof id !== 'string' || typeof canManageFormulas !== 'boolean' || id === ENVIRONMENT_ADMIN_ID) {
+      return NextResponse.json({ error: 'Permiso no válido.' }, { status: 400 });
+    }
+    const result = await getDatabasePool()!.query('UPDATE efi_server_users SET manage_formulas = $2 WHERE id = $1 AND role NOT IN (\'ADMIN\', \'VISITOR\') RETURNING id', [id, canManageFormulas]);
+    if (!result.rowCount) return NextResponse.json({ error: 'El administrador siempre tiene permiso y el visualizador es de solo lectura.' }, { status: 400 });
+    return NextResponse.json({ success: true, users: (await getServerUsers()).map(publicUser) });
+  } catch { return NextResponse.json({ error: 'No se pudo actualizar el permiso.' }, { status: 503 }); }
+}
 export async function GET(req: NextRequest) {
   try {
     const user = await sessionUser(req);
