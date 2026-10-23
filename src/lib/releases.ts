@@ -1,6 +1,13 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.7', date: '23/10/2026', title: 'Fórmulas permanentes, permisos y temas Oscuro y Crema', changes: [
+    'Las fórmulas de Sábana y Postes tienen un registro permanente. Cambiar de fecha, cerrar el día, navegar o recalcular precios no recupera copias antiguas ni reemplaza las reglas guardadas por resultados numéricos. Eliminar una fórmula tampoco permite que reaparezca desde una fecha anterior.',
+    'En Usuarios, el administrador designa quién puede Gestionar fórmulas. Solo administradores y usuarios designados pueden crear, cambiar o eliminar fórmulas, tarifas y orígenes de Sábana, Postes, PDF y reglas de EFI. El servidor comprueba el permiso en cada guardado. Los precios de Compras siguen actualizando los resultados de las fórmulas.',
+    'El editor de fórmulas confirma el guardado en PostgreSQL antes de cerrarse. Si hay un error, muestra el guardado pendiente y permite reintentarlo. Las reglas y asignaciones existentes se conservan; abrir los PDF ya no reescribe los márgenes de tarifas guardadas.',
+    'Nuevo selector Tema visual en la cabecera: Cristal, Oscuro y Crema. La elección es personal y se guarda en PostgreSQL para recuperarla al volver a entrar. Los documentos PDF conservan sus colores oficiales.',
+    'Al pasar el cursor por una fila, toda la fila queda sombreada, incluida la columna fija de estación. También se identifica la fila al editar con el teclado. Se conservan el verde de rutas y el amarillo de datos modificados.'
+  ] },
   { version: 'v1.6.6', date: '21/10/2026', title: 'Rutas enlazadas y PDF por cuadro de Compras', changes: [
     'Nuevo botón Rutas y etiquetas en Compras y casilla Ruta junto a cada estación con etiqueta. Activarla colorea en verde sus filas en GOA, Gasolina y AdBlue, también en la vista de todos los productos.',
     'Compras y PDFs y Clientes comparten las mismas etiquetas y su estado activo. Desactivar una ruta conserva sus etiquetas asignadas: al volver a activarla aparecen las mismas en todas las tarifas PDF. Se mantienen el distintivo naranja y el resaltado amarillo de los PDF de clientes.',

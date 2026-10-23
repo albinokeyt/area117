@@ -152,7 +152,7 @@ export function getDefaultStationsCatalog(): StationsCatalog {
 /**
  * Carga el catálogo actual de estaciones (o el por defecto si no existe)
  */
-export function getStationsCatalog(): StationsCatalog {
+function readStationsCatalog(): StationsCatalog {
   if (typeof window === 'undefined') {
     return getDefaultStationsCatalog();
   }
@@ -160,7 +160,7 @@ export function getStationsCatalog(): StationsCatalog {
   try {
     const raw = workspaceStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
+      const parsed = workspaceStorage.readJson<StationsCatalog>(STORAGE_KEY);
       if (parsed && Array.isArray(parsed.propias) && Array.isArray(parsed.colaboradoras)) {
         return parsed;
       }
@@ -174,6 +174,11 @@ export function getStationsCatalog(): StationsCatalog {
     workspaceStorage.setItem(STORAGE_KEY, JSON.stringify(def));
   } catch (e) {}
   return def;
+}
+
+// Explicit station editors receive an independent copy. Calculation readers reuse the parsed catalog.
+export function getStationsCatalog(): StationsCatalog {
+  return structuredClone(readStationsCatalog());
 }
 
 /**
@@ -202,21 +207,21 @@ export function saveStationsCatalog(catalog: StationsCatalog) {
  * Obtiene la lista actual de estaciones propias
  */
 export function getPropiasStations(): StationSeed[] {
-  return getStationsCatalog().propias;
+  return readStationsCatalog().propias;
 }
 
 /**
  * Obtiene la lista actual de estaciones colaboradoras
  */
 export function getColaboradoraStations(): StationSeed[] {
-  return getStationsCatalog().colaboradoras;
+  return readStationsCatalog().colaboradoras;
 }
 
 /**
  * Obtiene la lista de todas las estaciones combinadas
  */
 export function getAllStations(): StationSeed[] {
-  const cat = getStationsCatalog();
+  const cat = readStationsCatalog();
   return [...cat.propias, ...cat.colaboradoras];
 }
 
@@ -224,21 +229,21 @@ export function getAllStations(): StationSeed[] {
  * Obtiene el mapa de costes de estaciones
  */
 export function getStationExcelCosts(): Record<string, StationExcelData> {
-  return getStationsCatalog().costs;
+  return readStationsCatalog().costs;
 }
 
 /**
  * Obtiene el mapa de precios de venta sugeridos
  */
 export function getOfficialSuggestedSalePrices(): Record<string, number> {
-  return getStationsCatalog().suggestedPrices;
+  return readStationsCatalog().suggestedPrices;
 }
 
 /**
  * Obtiene la lista de estaciones para Postes
  */
 export function getPostesStations(): PostesStationDef[] {
-  return getStationsCatalog().postesStations.map((p) => ({
+  return readStationsCatalog().postesStations.map((p) => ({
     ...p,
     defaultGoa: (p.defaultGoa || '').replace('.', ','),
     defaultGasolina: (p.defaultGasolina || '').replace('.', ','),
@@ -250,14 +255,14 @@ export function getPostesStations(): PostesStationDef[] {
  * Obtiene la lista de estaciones para el archivo de exportación EFI
  */
 export function getImportStations(): ImportStationDef[] {
-  return getStationsCatalog().importStations;
+  return readStationsCatalog().importStations;
 }
 
 /**
  * Obtiene la configuración de estaciones con AdBlue
  */
 export function getAdblueStationsConfig(): Record<string, { defaultBuy: number; defaultSale: number }> {
-  return getStationsCatalog().adblueConfig;
+  return readStationsCatalog().adblueConfig;
 }
 
 /**

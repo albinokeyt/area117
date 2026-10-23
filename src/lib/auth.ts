@@ -27,7 +27,7 @@ export async function sessionUser(req: NextRequest): Promise<ServerUser | null> 
   await ensureTables();
   const pool = getDatabasePool();
   if (!pool) throw new Error('PostgreSQL no está configurado.');
-  const { rows } = await pool.query(`SELECT u.id, u.name, u.email, u.role, u.created_at, s.environment_fingerprint FROM efi_sessions s
+  const { rows } = await pool.query(`SELECT u.id, u.name, u.email, u.role, u.created_at, u.manage_formulas, s.environment_fingerprint FROM efi_sessions s
     LEFT JOIN efi_server_users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > NOW()`, [digest(token)]);
   const row = rows[0];
   if (!row) return null;
@@ -35,7 +35,7 @@ export async function sessionUser(req: NextRequest): Promise<ServerUser | null> 
     const environment = getEnvironmentAdmin();
     return environment && equalSecret(row.environment_fingerprint, environment.fingerprint) ? environment.user : null;
   }
-  return row.id ? { id: row.id, name: row.name, email: row.email, role: row.role, createdAt: row.created_at.toISOString() } : null;
+  return row.id ? { id: row.id, name: row.name, email: row.email, role: row.role, canManageFormulas: row.role === 'ADMIN' || row.manage_formulas, createdAt: row.created_at.toISOString() } : null;
 }
 
 export async function deleteSession(req: NextRequest) {

@@ -112,7 +112,9 @@ function AppContent() {
     };
     window.addEventListener('efi_valid_date_changed', handleDateChange);
     const onSyncError = (event: Event) => setSyncNotification('Guardado pendiente: ' + (event as CustomEvent).detail);
+    const onSyncSuccess = () => setSyncNotification(current => current?.startsWith('Guardado pendiente:') ? null : current);
     window.addEventListener('efi_sync_error', onSyncError);
+    window.addEventListener('efi_server_sync_event', onSyncSuccess);
 
     return () => {
       cancelled = true;
@@ -120,6 +122,7 @@ function AppContent() {
       window.removeEventListener('focus', checkServerUpdates);
       window.removeEventListener('efi_valid_date_changed', handleDateChange);
       window.removeEventListener('efi_sync_error', onSyncError);
+      window.removeEventListener('efi_server_sync_event', onSyncSuccess);
     };
   }, [currentUser]);
 
@@ -191,7 +194,7 @@ function AppContent() {
 
       {/* Notificación flotante de sincronización en tiempo real */}
       {syncNotification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-amber-500/40 text-amber-300 font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 animate-in slide-in-from-bottom-5">
+        <div role="status" className="pointer-events-none fixed bottom-6 right-6 z-50 bg-slate-900 border border-amber-500/40 text-amber-300 font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 animate-in slide-in-from-bottom-5">
           <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           <span className="text-xs">{syncNotification}</span>
         </div>

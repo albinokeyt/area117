@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth, User } from '@/context/AuthContext';
 import { UserPlus, Trash2, Shield, ChevronDown, Check, X, Users } from 'lucide-react';
+import { canManageFormulas } from '@/lib/formulaPermissions';
 
 const ROLE_LABELS: Record<User['role'], string> = {
   ADMIN: 'Administrador',
@@ -19,7 +20,9 @@ const ROLE_COLORS: Record<User['role'], string> = {
 };
 
 export function UserManager() {
-  const { users, addUser, deleteUser, currentUser, refreshUsers } = useAuth();
+  const { users, addUser, deleteUser, currentUser, refreshUsers, setFormulaPermission } = useAuth();
+  const [permissionBusy, setPermissionBusy] = useState<string | null>(null);
+  const [pendingPermission, setPendingPermission] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,6 +60,8 @@ export function UserManager() {
     setTimeout(() => setIsRefreshing(false), 600);
   };
 
+  if (currentUser?.role !== 'ADMIN') return <p className="p-6 text-slate-400">La gestión de usuarios y permisos está reservada al administrador.</p>;
+
   return (
     <div className="space-y-6">
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -67,7 +72,7 @@ export function UserManager() {
           </div>
           <h2 className="text-2xl font-bold text-white tracking-tight">Gestión de Usuarios</h2>
           <p className="text-slate-400 text-sm mt-1">
-            Crea, consulta y gestiona usuarios sincronizados en el servidor para acceder desde cualquier navegador.
+            Activa Gestionar fórmulas para designar quién puede crear, cambiar o eliminar reglas y orígenes en todo el programa. Los administradores siempre tienen permiso; los visualizadores son de solo lectura. El usuario verá el cambio al recargar; el servidor comprueba el permiso en cada guardado.
           </p>
         </div>
         <button
@@ -175,6 +180,7 @@ export function UserManager() {
                 <th className="py-3.5 px-5">Correo</th>
                 <th className="py-3.5 px-5">Contraseña</th>
                 <th className="py-3.5 px-5">Rol</th>
+                <th className="py-3.5 px-5">Gestionar fórmulas</th>
                 <th className="py-3.5 px-5">Fecha Creación</th>
                 <th className="py-3.5 px-5 text-right">Acciones</th>
               </tr>
@@ -197,6 +203,8 @@ export function UserManager() {
                       {ROLE_LABELS[u.role]}
                     </span>
                   </td>
+                  <td className="py-3.5 px-5"><input type="checkbox" aria-label={`Gestionar fórmulas ${u.name}`} checked={permissionBusy === u.id ? pendingPermission : canManageFormulas(u)} disabled={u.role === 'ADMIN' || u.role === 'VISITOR' || permissionBusy !== null}
+                    onChange={async e => { const allowed = e.target.checked; setPendingPermission(allowed); setPermissionBusy(u.id); setError(null); try { await setFormulaPermission(u.id, allowed); } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo guardar.'); } finally { setPermissionBusy(null); } }} /></td>
                   <td className="py-3.5 px-5 text-slate-400 text-xs font-mono">{u.createdAt}</td>
                   <td className="py-3.5 px-5 text-right">
                     {confirmDelete === u.id ? (

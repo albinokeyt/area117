@@ -49,6 +49,7 @@ test('editing stays responsive with production-sized formulas and preserves the 
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     }
     const profile = (await cdp.send('Profiler.stop')).profile;
+    await testInfo.attach('cpu-profile.json', { body: JSON.stringify(profile), contentType: 'application/json' });
     const measures = await page.evaluate(() => ({ paints: (window as any).editMeasurements as number[], parses: (window as any).parseCount as number }));
     const report = { ...measures, elapsedMs: Date.now() - started, hottest: profile.nodes.filter(n => n.hitCount).sort((a, b) => (b.hitCount || 0) - (a.hitCount || 0)).slice(0, 12).map(n => ({ function: n.callFrame.functionName, hits: n.hitCount, line: n.callFrame.lineNumber })) };
     console.log('EDIT_PERFORMANCE', JSON.stringify(report));

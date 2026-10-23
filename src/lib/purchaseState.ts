@@ -9,7 +9,7 @@ export function getLatestPurchasePayload(selectedDate?: string): any | null {
   let timestamp = -1;
   for (const key of keys) {
     try {
-      const payload = JSON.parse(workspaceStorage.getItem(key) || 'null');
+      const payload = workspaceStorage.readJson<any>(key);
       if (!payload?.data || typeof payload.data !== 'object') continue;
       const time = Date.parse(payload.updatedAt) || 0;
       if (time > timestamp) {
@@ -20,7 +20,7 @@ export function getLatestPurchasePayload(selectedDate?: string): any | null {
   }
   if (!latest) return null;
   let costs: Record<string, any> = {};
-  try { costs = JSON.parse(workspaceStorage.getItem('efi_stations_catalog_v1') || '{}').costs || {}; } catch {}
+  try { costs = workspaceStorage.readJson<any>('efi_stations_catalog_v1')?.costs || {}; } catch {}
   const data = Object.fromEntries(Object.entries(latest.data).filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value)).map(([key, value]) => {
     const row = value as Record<string, any>;
     const cost = costs[key.replace(/_(GOA|GASOLINA|ADBLUE)$/, '')] || {};

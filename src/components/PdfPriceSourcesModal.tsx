@@ -1,4 +1,5 @@
 'use client';
+import { FormulaAccessNotice, useFormulaAccess } from './FormulaAccessNotice';
 
 import { useState } from 'react';
 import { PdfSourceConfig, SabanaPrices, pdfStationSource, publishedStationPrice } from '@/lib/publishedPrices';
@@ -15,9 +16,11 @@ interface Props {
 }
 
 export function PdfPriceSourcesModal({ initialTariff, tariffs, stations, mapping, published, date, onSave, onClose }: Props) {
+  const formulaAccess = useFormulaAccess();
   const [tariff, setTariff] = useState(initialTariff);
   const [search, setSearch] = useState('');
   const [bulkSource, setBulkSource] = useState('DEFAULT');
+  if (!formulaAccess) return <FormulaAccessNotice onClose={onClose} />;
   const options = published ? [...new Map(Object.entries(published.tariffs).map(([name, id]) => [id, { id, name }])).values()] : [];
   const priceText = (price?: number) => price !== undefined && Number.isFinite(price) ? price.toFixed(3).replace('.', ',') : 'Sin origen';
   const saveSource = (source: string, station?: string) => {

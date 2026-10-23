@@ -3,6 +3,7 @@ import "./globals.css";
 import "./crystal.css";
 import "./notch.css";
 import "./login-drive.css";
+import "./themes.css";
 
 export const metadata: Metadata = {
   title: "EFI DATA OIL - Gestión de Precios de Combustible",

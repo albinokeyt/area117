@@ -1,5 +1,7 @@
 'use client';
 
+import { FormulaAccessNotice, useFormulaAccess } from './FormulaAccessNotice';
+
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   X, Plus, PlusCircle, Sliders, Check, RotateCcw, Trash2, ArrowRight,
@@ -196,6 +198,7 @@ export function SabanaTariffManagerModal({
   getSpecialRateActualPrice,
   initialSelectedTariffId,
 }: SabanaTariffManagerModalProps) {
+  const formulaAccess = useFormulaAccess();
   const [activeTab, setActiveTab] = useState<'manage' | 'create' | 'delete' | 'picker'>('manage');
   const [deleteSearchQuery, setDeleteSearchQuery] = useState('');
   const [selectedTariffId, setSelectedTariffId] = useState<string>(
@@ -268,6 +271,7 @@ export function SabanaTariffManagerModal({
   }, [isOpen]);
 
   if (!isOpen) return null;
+  if (!formulaAccess) return <FormulaAccessNotice onClose={onClose} />;
 
   // Manejar creación de nueva tarifa
   const handleCreateTariffSubmit = (e: React.FormEvent) => {

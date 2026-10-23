@@ -8,6 +8,7 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'COMPANERO_1' | 'COMPANERO_2_3' | 'VISITOR';
   password?: string;
+  canManageFormulas?: boolean;
   createdAt: string;
 }
 
@@ -19,6 +20,7 @@ interface AuthContextType {
   addUser: (name: string, email: string, role: User['role'], password?: string) => Promise<boolean>;
   deleteUser: (id: string) => Promise<boolean>;
   refreshUsers: () => Promise<void>;
+  setFormulaPermission: (id: string, allowed: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -76,8 +78,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const setFormulaPermission = async (id: string, allowed: boolean) => {
+    const res = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, canManageFormulas: allowed }) });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'No se pudo guardar el permiso.');
+    setUsers(json.users);
+  };
+
   return (
-    <AuthContext.Provider value={{ currentUser, users, login, logout, addUser, deleteUser, refreshUsers }}>
+    <AuthContext.Provider value={{ currentUser, users, login, logout, addUser, deleteUser, refreshUsers, setFormulaPermission }}>
       {children}
     </AuthContext.Provider>
   );
