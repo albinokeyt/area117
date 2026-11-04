@@ -1,6 +1,13 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.8', date: '04/11/2026', title: 'Descarga conjunta y nombres permanentes de los PDF de clientes', changes: [
+    'El generador de PDFs y Clientes reúne sus opciones y botones en el desplegable Opciones y descargas, accesible también con teclado y adaptado a móvil.',
+    'Descargar PDF actual genera un archivo PDF directamente. Descargar todos los PDF crea un ZIP con un PDF independiente por cada tarifa del catálogo, en el orden del programa y con sus estaciones activas, etiquetas, precios actuales y opción HVO. La búsqueda de la vista previa no recorta las descargas.',
+    'Nombres de archivos PDF permite guardar un nombre de descarga para cada tarifa en PostgreSQL sin renombrar la tarifa original ni cambiar sus fórmulas. Se reutiliza en las descargas individuales y conjuntas, incluso tras recargar o cerrar el día.',
+    'Cada archivo usa número de orden, nombre elegido, VALIDA A PARTIR DE y la fecha de validez del documento. Ejemplo: 01 TARIFA NEXO VALIDA A PARTIR DE 04-11-2026.pdf. Se usan guiones en la fecha del archivo porque Windows no admite barras; en el documento se conserva DD/MM/AAAA.',
+    'Los precios se comprueban contra sus orígenes antes de generar los archivos. Si falta un dato, se indica la tarifa o estación que debe revisarse y no se descarga un lote incompleto. Los PDF mantienen el banner oficial, paginación y cabeceras repetidas.'
+  ] },
   { version: 'v1.6.7', date: '23/10/2026', title: 'Fórmulas permanentes, permisos y temas Oscuro y Crema', changes: [
     'Las fórmulas de Sábana y Postes tienen un registro permanente. Cambiar de fecha, cerrar el día, navegar o recalcular precios no recupera copias antiguas ni reemplaza las reglas guardadas por resultados numéricos. Eliminar una fórmula tampoco permite que reaparezca desde una fecha anterior.',
     'En Usuarios, el administrador designa quién puede Gestionar fórmulas. Solo administradores y usuarios designados pueden crear, cambiar o eliminar fórmulas, tarifas y orígenes de Sábana, Postes, PDF y reglas de EFI. El servidor comprueba el permiso en cada guardado. Los precios de Compras siguen actualizando los resultados de las fórmulas.',

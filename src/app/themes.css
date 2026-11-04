@@ -1,5 +1,18 @@
 /* Screen-only palettes. Client PDFs and exported documents keep their official colours. */
 @media screen {
+  /* Glass cards create stacking contexts; lift the whole header over the next card. */
+  .efi-pdf-generator-header { position: relative; z-index: 20; }
+  .efi-pdf-actions { position: relative; flex-shrink: 0; }
+  .efi-pdf-actions > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 13px 18px; border: 1px solid #356299; border-radius: 14px; background: linear-gradient(115deg,#244f88,#173c73); color: #fff; font-size: 12px; font-weight: 650; box-shadow: 0 6px 18px -10px #173c7380; }
+  .efi-pdf-actions > summary::-webkit-details-marker { display: none; }
+  .efi-pdf-actions > summary:focus-visible { outline: 3px solid #85b9f8; outline-offset: 3px; }
+  .efi-pdf-actions > summary > svg:last-child { transition: transform .2s; }
+  .efi-pdf-actions[open] > summary > svg:last-child { transform: rotate(180deg); }
+  .efi-app .efi-pdf-actions-panel { position: absolute; top: calc(100% + 10px); right: 0; z-index: 35; width: min(600px,calc(100vw - 80px)); max-height: calc(100dvh - 160px); overflow-y: auto; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; padding: 16px; background: var(--theme-bg,#f6f9ff); color: var(--theme-fg,#233d61); border: 1px solid var(--theme-line,#c5d3e6); border-radius: 20px; box-shadow: 0 20px 60px -20px #152f5b55; backdrop-filter: blur(24px); }
+  .efi-pdf-actions-panel > button { min-width: 0; white-space: normal; text-align: left; justify-content: flex-start; }
+  .efi-pdf-actions-panel > button > svg { flex-shrink: 0; }
+  .efi-app .efi-pdf-actions-panel > button.bg-slate-800 { background: var(--theme-surface,#edf2fa); color: var(--theme-fg,#233d61); border-color: var(--theme-line,#c5d3e6); }
+  @media (max-width: 640px) { .efi-pdf-actions-panel { grid-template-columns: 1fr !important; }.efi-pdf-actions > summary { width: 100%; } }
   .efi-app { --row-hover: #1d598315; --row-focus: #1d59833b; }
   .efi-theme-control { position: relative; }
   .efi-theme-picker { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 5px 9px; border: 1px solid #ffffffa0; border-radius: 10px; background: #ffffff80; color: #526b8b; font-size: 10px; }

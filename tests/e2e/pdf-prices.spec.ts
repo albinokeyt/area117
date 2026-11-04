@@ -1,3 +1,4 @@
+import { openPdfActions } from './pdf-actions';
 import { navigate } from './navigation';
 import { openLogin } from './login';
 import { test, expect } from './fixtures';
@@ -66,6 +67,7 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_sabana_prices_v1?.sources?.['SABANA_CUSTOM:client']?.TORREJON?.sinIva).toBe(1.535);
     const published = (await (await request.get('/api/sync')).json()).data.efi_sabana_prices_v1;
     await page.getByPlaceholder('Filtrar por nombre o ubicación...').fill('TORREJON');
+    await openPdfActions(page);
     await page.getByRole('button', { name: 'Validar tarifas PDF', exact: true }).click();
     const validation = page.getByRole('dialog', { name: 'Validación de tarifas PDF', exact: true });
     const stationCount = Object.keys(published.sources.SABANA_T12).length;
@@ -110,8 +112,9 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     console.log('PDF_PRICE_CELLS_CHECKED', checked);
     await page.getByRole('button', { name: 'SIN ENLACE', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('Sin origen');
-    await page.getByRole('button', { name: /Descargar \/ Imprimir PDF/ }).click();
-    await expect(page.getByRole('alert').filter({ hasText: 'No se puede generar' })).toContainText('No se puede generar');
+    await openPdfActions(page);
+    await page.getByRole('button', { name: /Descargar PDF actual/ }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'No se puede descargar' })).toContainText('No se puede descargar');
     await navigate(page, 'Compras');
     await page.getByLabel('TORREJON GOA curr', { exact: true }).fill('1,400');
     await page.getByRole('button', { name: 'Tarifas Especiales', exact: true }).click();
@@ -132,7 +135,8 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await page.locator('input[type="date"]').last().fill('2026-10-20');
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,523');
     await page.evaluate(() => { (window as any).printCalls = 0; window.print = () => { (window as any).printCalls++; }; });
-    await page.getByRole('button', { name: /Descargar \/ Imprimir PDF/ }).click();
+    await openPdfActions(page);
+    await page.getByRole('button', { name: 'Imprimir tarifa actual', exact: true }).click();
     expect(await page.evaluate(() => (window as any).printCalls)).toBe(1);
     await page.pdf({ path: testInfo.outputPath('tarifa12.pdf'), format: 'A4', printBackground: true });
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_postes_data_v2?.hvoAlfajarinSinIva).toBe('1,800');
@@ -142,6 +146,7 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await page.getByRole('button', { name: 'TARIFA 12', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,523');
     await expect(page.getByTestId('pdf-hvo-alfajarinSinIva')).toContainText('1,800');
+    await openPdfActions(page);
     await page.getByRole('button', { name: 'Modificar Origen de Datos', exact: true }).click();
     const origins = page.getByRole('dialog', { name: 'Orígenes de precios' });
     await origins.getByLabel('Origen Sábana TORREJON', { exact: true }).selectOption('SABANA_T24');
@@ -149,6 +154,7 @@ test('all PDF station/tariff cells follow Sabana and HVO follows Postes, includi
     await origins.getByRole('button', { name: 'Cerrar orígenes', exact: true }).click();
     await expect(page.getByTestId('pdf-price-TORREJON-sinIva')).toContainText('1,424');
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_pdf_station_source_mapping_v1?.['TARIFA 12::TORREJON']?.sourceType).toBe('SABANA_T24');
+    await openPdfActions(page);
     await page.getByRole('button', { name: 'Añadir Nueva Tarifa', exact: true }).click();
     await page.getByPlaceholder('Ej: TARIFA 32, TARIFA GRUPO LOGISTICO').fill('CLIENTE NUEVO');
     await page.getByLabel('Origen de nueva tarifa PDF', { exact: true }).selectOption('SABANA_CUSTOM:client');

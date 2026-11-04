@@ -1,5 +1,11 @@
 'use client';
 import { useFormulaAccess } from './FormulaAccessNotice';
+import { useAuth } from '@/context/AuthContext';
+import { PdfActionsMenu } from './PdfActionsMenu';
+import { PdfExportNamesModal } from './PdfExportNamesModal';
+import { PDF_EXPORT_NAMES_KEY, PDF_DOCUMENT_DATE_KEY, clientPdfFilename, parsePdfExportNames, snapshotClientPdfs } from '@/lib/clientPdfModel';
+import { flushPendingSync } from '@/lib/serverSyncService';
+import { STATION_LABELS_KEY, STATION_LABELS_ACTIVE_KEY, parseStationLabels, parseLabelActivation, stationLabelsFor, stationRouteActive } from '@/lib/stationLabels';
 
 import { workspaceStorage } from '@/lib/workspaceStorage';
 import { useStationLabels } from './useStationLabels';
@@ -9,9 +15,13 @@ import { PdfPriceSourcesModal } from './PdfPriceSourcesModal';
 import { PdfPriceValidationModal } from './PdfPriceValidationModal';
 import { captureSabanaForValidation, validatePdfPrices } from '@/lib/pdfPriceValidation';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useSyncExternalStore, useRef, useCallback } from 'react';
 import { getAllStations } from '@/lib/stationsService';
-import { Printer, FileText, Search, Check, Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert, RotateCcw, Sliders, Tag, CheckCircle2 } from 'lucide-react';
+import { Printer, FileText, Download, FolderDown, Pencil, Search, Check, Plus, CheckSquare, Square, Trash2, X, Flame, AlertTriangle, ShieldAlert, RotateCcw, Sliders, Tag, CheckCircle2 } from 'lucide-react';
+
+const subscribeExportNames = (notify: () => void) => workspaceStorage.subscribe(key => { if (key === PDF_EXPORT_NAMES_KEY) notify(); });
+const readExportNames = () => workspaceStorage.getItem(PDF_EXPORT_NAMES_KEY);
+const noServerNames = () => null;
 
 interface PdfGeneratorProps {
   isActive?: boolean;
@@ -255,6 +265,13 @@ export interface CustomSourceConfig {
 
 export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGeneratorProps) {
   const formulaAccess = useFormulaAccess();
+  const { currentUser } = useAuth();
+  const rawExportNames = useSyncExternalStore(subscribeExportNames, readExportNames, noServerNames);
+  const exportNames = useMemo(() => parsePdfExportNames(rawExportNames), [rawExportNames]);
+  const [showExportNames, setShowExportNames] = useState(false);
+  const closeExportNames = useCallback(() => setShowExportNames(false), []);
+  const [downloadProgress, setDownloadProgress] = useState<{ done: number; total: number } | null>(null);
+  const downloading = useRef(false);
   const [tariffsList, setTariffsList] = useState<{ name: string; markup: number }[]>(() => {
     try {
       const savedDeleted = workspaceStorage.getItem('efi_deleted_tariffs_list');
@@ -263,7 +280,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
       const saved = workspaceStorage.getItem('efi_custom_tariffs_catalog_v5');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed
             .filter((t: any) => t && t.name && !deletedList.includes(t.name));
         }
@@ -287,7 +304,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
 
   const [targetDate, setTargetDate] = useState<string>(() => {
     try {
-      return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate || new Date().toISOString().split('T')[0];
+      return workspaceStorage.getItem(PDF_DOCUMENT_DATE_KEY) ?? workspaceStorage.getItem('efi_compras_valid_from') ?? selectedDate;
     } catch (e) {
       return selectedDate;
     }
@@ -296,8 +313,8 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
   useEffect(() => {
     const updateValidDate = () => {
       try {
-        const saved = workspaceStorage.getItem('efi_compras_valid_from');
-        if (saved) setTargetDate(saved);
+        const saved = workspaceStorage.getItem(PDF_DOCUMENT_DATE_KEY) ?? workspaceStorage.getItem('efi_compras_valid_from');
+        if (saved !== null) setTargetDate(saved);
       } catch (e) {}
     };
     window.addEventListener('efi_valid_date_changed', updateValidDate);
@@ -353,6 +370,20 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
         }
       }
     } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    const reloadSelections = () => {
+      const catalog = workspaceStorage.readJson<{ name: string; markup: number }[]>('efi_custom_tariffs_catalog_v5') || INITIAL_TARIFFS_LIST;
+      const deleted = workspaceStorage.readJson<string[]>('efi_deleted_tariffs_list') || [];
+      const next = catalog.filter(tariff => !deleted.includes(tariff.name));
+      setTariffsList(next);
+      setSelectedTariff(previous => next.some(tariff => tariff.name === previous) ? previous : next[0]?.name || '');
+      setIncludeHvoMap({ ...(workspaceStorage.readJson<Record<string, boolean>>('efi_pdf_include_hvo_map') || {}) });
+      setActiveStationsMap({ ...(workspaceStorage.readJson<Record<string, string[]>>('efi_tariff_active_stations_map') || {}) });
+    };
+    window.addEventListener('efi_server_state_applied', reloadSelections);
+    return () => window.removeEventListener('efi_server_state_applied', reloadSelections);
   }, []);
 
   // Proteger ante Cierre de Día: las tarifas eliminadas NUNCA deben reaparecer al cerrar el día
@@ -606,14 +637,55 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
     return isoDate;
   };
 
+  const handleDownloadPdfs = async (all: boolean) => {
+    if (downloading.current) return;
+    downloading.current = true;
+    setDownloadProgress({ done: 0, total: all ? tariffsList.length : 1 });
+    setDownloadNotice(null);
+    try {
+      await flushPendingSync();
+      const catalog = workspaceStorage.readJson<{ name: string; markup: number }[]>('efi_custom_tariffs_catalog_v5') || tariffsList;
+      const deleted = workspaceStorage.readJson<string[]>('efi_deleted_tariffs_list') || [];
+      const allTariffs = catalog.filter(tariff => !deleted.includes(tariff.name));
+      const tariffs = all ? allTariffs : allTariffs.filter(tariff => tariff.name === selectedTariff);
+      const stations = getAllStations();
+      const mapping = workspaceStorage.readJson<Record<string, CustomSourceConfig>>('efi_pdf_station_source_mapping_v1') || {};
+      const active = workspaceStorage.readJson<Record<string, string[]>>('efi_tariff_active_stations_map') || {};
+      const hvoMap = workspaceStorage.readJson<Record<string, boolean>>('efi_pdf_include_hvo_map') || {};
+      const isActive = (tariff: string, station: string) => active[tariff] !== undefined ? active[tariff].includes(station)
+        : /GOB|GAS[ÓO]LEO B/i.test(tariff) ? /UCLES|TORREMOCHA|ARCOS/i.test(station) : true;
+      const published = workspaceStorage.readJson<SabanaPrices>(SABANA_PRICES_KEY);
+      const live = captureSabanaForValidation();
+      if (!live || live.date !== selectedDate) throw new Error('La Sábana de Precios no está disponible para la fecha de trabajo.');
+      const report = validatePdfPrices({ date: selectedDate, tariffs, stations, mapping, published, live, isActive });
+      const invalid = report.rows.find(row => row.active && row.status !== 'ok');
+      if (invalid) throw new Error(`${invalid.tariff} · ${invalid.station}: ${invalid.messages.join(' ')} Revisa Validar tarifas PDF.`);
+      const labels = parseStationLabels(workspaceStorage.getItem(STATION_LABELS_KEY));
+      const activation = parseLabelActivation(workspaceStorage.getItem(STATION_LABELS_ACTIVE_KEY));
+      // Freeze the complete batch before fetching assets or building any file.
+      const documents = snapshotClientPdfs({ tariffs, allTariffs, stations, validFrom: targetDate, pricingDate: selectedDate,
+        names: parsePdfExportNames(workspaceStorage.getItem(PDF_EXPORT_NAMES_KEY)), isActive,
+        includeHvo: tariff => hvoMap[tariff] !== undefined ? hvoMap[tariff] : !/GOB|GAS[ÓO]LEO B/i.test(tariff),
+        price: (tariff, station) => publishedStationPrice(published, selectedDate, pdfStationSource(tariff, station, mapping, published), station),
+        metadata: station => getStationMetadata(station, stations.find(item => item.name === station)?.type === 'PROPIA'),
+        labels: station => stationRouteActive(labels, activation, station) ? stationLabelsFor(labels, station) : [],
+        hvo: workspaceStorage.readJson<HvoPrices>(HVO_PRICES_KEY),
+      });
+      const { downloadClientPdfs } = await import('@/lib/clientPdfDownload');
+      const filename = await downloadClientPdfs(documents, all, (done, total) => setDownloadProgress({ done, total }));
+      setDownloadNotice(all ? `${documents.length} PDF descargados en ${filename}` : filename);
+    } catch (err) { setDownloadNotice('No se puede descargar: ' + (err instanceof Error ? err.message : 'Vuelve a intentarlo.')); }
+    finally { downloading.current = false; setDownloadProgress(null); }
+  };
+
   const handlePrintPdf = () => {
-    if (filteredActiveStations.some(st => !Number.isFinite(getStationPrice(st.name, st.type === 'PROPIA').sinIva)) || (isHvoIncluded && !hvoReady)) {
+    if (filteredActiveStations.some(st => !Number.isFinite(getStationPrice(st.name, st.type === 'PROPIA').sinIva) || !Number.isFinite(getStationPrice(st.name, st.type === 'PROPIA').conIva)) || (isHvoIncluded && !hvoReady)) {
       setDownloadNotice('No se puede generar el PDF: revisa los orígenes de precios de esta tarifa.');
       return;
     }
-    const cleanTariffName = selectedTariff.replace(/\s+/g, '_').toUpperCase();
-    const formattedDate = formatDateDDMMYYYY(targetDate).replace(/\//g, '-');
-    const fileName = `${cleanTariffName}_VALIDO_A_PARTIR_DE_${formattedDate}.pdf`;
+    let fileName: string;
+    try { fileName = clientPdfFilename(selectedTariff, tariffsList.findIndex(tariff => tariff.name === selectedTariff), exportNames, targetDate); }
+    catch (error) { setDownloadNotice('No se puede imprimir: ' + (error as Error).message); return; }
 
     const originalTitle = document.title;
     document.title = fileName.replace('.pdf', '');
@@ -630,7 +702,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl print:hidden">
+      <div className="efi-pdf-generator-header bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl print:hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-1">
             <div className="flex items-center space-x-2 text-amber-400 text-xs font-semibold uppercase tracking-wider">
@@ -645,7 +717,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <PdfActionsMenu>
             <button
               disabled={!formulaAccess} onClick={handleRestoreAllTariffs}
               className="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-750 shadow-md transition-all active:scale-95"
@@ -699,15 +771,20 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
             </button>
 
             <button
-              onClick={handlePrintPdf}
+              disabled={downloadProgress !== null || !tariffsList.length} onClick={() => void handleDownloadPdfs(false)}
               className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95"
             >
-              <Printer className="h-4 w-4" />
-              <span>Descargar / Imprimir PDF ({filteredActiveStations.length} EESS)</span>
+              <Download className="h-4 w-4" />
+              <span>Descargar PDF actual ({currentActiveStations.length} EESS)</span>
             </button>
-          </div>
+            <button type="button" disabled={downloadProgress !== null || !tariffsList.length} onClick={() => void handleDownloadPdfs(true)} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold"><FolderDown size={16} /><span>Descargar todos los PDF ({tariffsList.length})</span></button>
+            <button type="button" onClick={() => setShowExportNames(true)} className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold"><Pencil size={16} /><span>Nombres de archivos PDF</span></button>
+            <button type="button" disabled={downloadProgress !== null || !tariffsList.length} onClick={handlePrintPdf} className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold"><Printer size={16} /><span>Imprimir tarifa actual</span></button>
+          </PdfActionsMenu>
         </div>
       </div>
+
+      {downloadProgress && <div role="status" className="print:hidden rounded-2xl border border-blue-500/30 bg-slate-900 px-5 py-3 text-sm text-blue-300">Preparando PDF {downloadProgress.done} de {downloadProgress.total}…</div>}
 
       {/* Control Panel: Select Tariff & Date */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5 print:hidden">
@@ -718,8 +795,9 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
             </label>
             <input
               type="date"
+              aria-label="Fecha de validez del documento"
               value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
+              onChange={(e) => { setTargetDate(e.target.value); if (currentUser && currentUser.role !== 'VISITOR') workspaceStorage.setItem(PDF_DOCUMENT_DATE_KEY, e.target.value); }}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:border-amber-400 focus:outline-none"
             />
           </div>
@@ -795,14 +873,14 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
 
         {/* Quick Checkbox Actions Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800 text-xs">
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-slate-400 font-medium">Estaciones Activas para <strong className="text-white">{selectedTariff}</strong>:</span>
             <span className="bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
               {allStations.filter(st => isStationActive(st.name)).length} de {allStations.length} Seleccionadas
             </span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleSelectAllStations}
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold transition-all flex items-center space-x-1.5"
@@ -863,7 +941,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
         </div>
 
         {/* Sub-Header con Fecha de Aplicación y Tarifa */}
-        <div className="border-b-2 border-slate-900 pb-3 flex flex-row items-center justify-between gap-4">
+        <div className="border-b-2 border-slate-900 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3 print:hidden">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Tarifa:</span>
             <h1 className="text-xl font-black text-slate-950 uppercase tracking-tight">
@@ -880,7 +958,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
 
         {/* HVO Banner Highlights (Opcional por tarifa) */}
         {isHvoIncluded && (
-          <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto text-[11px] print:grid-cols-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto text-[11px] print:grid-cols-2">
             <div className="bg-amber-50/90 border border-amber-300 rounded-xl px-3 py-2 flex items-center justify-between shadow-sm print:shadow-none">
               <div className="pr-2">
                 <span className="font-black text-amber-950 block text-[10px] uppercase leading-tight">
@@ -1090,6 +1168,8 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
           </table>
         </div>
       </div>
+
+      {showExportNames && <PdfExportNamesModal tariffs={tariffsList} names={exportNames} validFrom={targetDate} editable={!!currentUser && currentUser.role !== 'VISITOR'} onClose={closeExportNames} />}
 
       {showLabelsModal && <StationLabelsModal stations={allStations} initialStation={selectedStationForLabel} onClose={closeLabelsModal} />}
 

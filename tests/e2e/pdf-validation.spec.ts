@@ -1,3 +1,4 @@
+import { openPdfActions } from './pdf-actions';
 import { navigate } from './navigation';
 import { openLogin } from './login';
 import { test, expect } from './fixtures';
@@ -26,6 +27,7 @@ test('PDF validator catches invalid formulas, includes inactive stations and inv
     await navigate(page, 'PDFs & Clientes');
     await expect.poll(async () => (await (await request.get('/api/sync')).json()).data.efi_sabana_prices_v1?.sources?.SABANA_T12?.TORREJON?.conIva).toBe(1.710);
     const beforeValidation = (await (await request.get('/api/sync')).json()).version;
+    await openPdfActions(page);
     await page.getByRole('button', { name: 'Validar tarifas PDF', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Validación de tarifas PDF', exact: true });
     await expect(dialog.getByTestId('validation-review')).toHaveText('1 por revisar');
