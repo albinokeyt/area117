@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerState, patchServerState } from '@/lib/db';
 import { StateConflictError } from '@/lib/stateMerge';
 import { FormulaPermissionError } from '@/lib/formulaPermissions';
+import { PDF_EXPORT_NAMES_KEY, PDF_DOCUMENT_DATE_KEY, assertPdfExportNames, pdfValidityDate } from '@/lib/clientPdfModel';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,10 @@ export async function POST(req: NextRequest) {
       !/^(efi_|sabana_|compras_)/.test(key) || ['efi_current_user', 'efi_users_list', 'efi_last_server_version', 'efi_last_server_sync_time'].includes(key))) {
       return NextResponse.json({ success: false, error: 'Datos de sincronización no válidos. Recarga la aplicación.' }, { status: 400 });
     }
+    try {
+      if (data[PDF_EXPORT_NAMES_KEY] != null) assertPdfExportNames(data[PDF_EXPORT_NAMES_KEY]);
+      if (data[PDF_DOCUMENT_DATE_KEY] != null && data[PDF_DOCUMENT_DATE_KEY] !== '') pdfValidityDate(data[PDF_DOCUMENT_DATE_KEY]);
+    } catch (error) { return NextResponse.json({ success: false, error: (error as Error).message }, { status: 400 }); }
     const state = await patchServerState(data, baseData, user);
     return NextResponse.json({ success: true, ...state, isPostgres: true, keysCount: Object.keys(state.data).length });
   } catch (error) {

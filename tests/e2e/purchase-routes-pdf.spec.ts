@@ -1,3 +1,4 @@
+import { openPdfActions } from './pdf-actions';
 import { test, expect } from './fixtures';
 import { navigate } from './navigation';
 import { openLogin } from './login';
@@ -49,6 +50,7 @@ test('routes retain assignments, synchronize both windows and every PDF tariff, 
     inclusion[tariff] = await pdfRow(page).getByRole('checkbox').isChecked();
     await expect(pdfRow(page).getByText('MADRID', { exact: true })).toHaveCount(0);
   }
+  await openPdfActions(page);
   await page.getByRole('button', { name: /Etiquetas de Estaciones/ }).click();
   const modal = page.getByRole('dialog', { name: 'Etiquetas de Estaciones', exact: true });
   await expect(modal).toContainText('MADRID');
