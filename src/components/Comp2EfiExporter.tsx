@@ -1,4 +1,5 @@
 'use client';
+import { addClosingTable, closingPrice, registerClosingSheets } from '@/lib/closingWorkbook';
 
 import { getImportStations } from '@/lib/stationsService';
 import { stationIdentity } from '@/lib/livePriceSources';
@@ -376,6 +377,20 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
   };
 
   // Keep editor state and data effects mounted; render only the visible table.
+  useEffect(() => registerClosingSheets('EFI Export', wb => {
+    addClosingTable(wb, 'EFI PROVEEDORES', ['Proveedor', 'Precio sin IVA (€)', 'Precio con IVA (€)'], [
+      ['Nieves', nievesExclVat, closingPrice(nievesIncVat)],
+      ['Petromiralles', petromirallesExclVat, closingPrice(petromirallesIncVat)],
+      ['Valcarce', closingPrice(valcarceDirectPrice), closingPrice(valcarceNum * 1.21)],
+    ], [26, 22, 22], [1, 2]);
+    addClosingTable(wb, 'EFI COLABORADORAS', ['Estación colaboradora fija', 'GOA (€)'],
+      Object.entries(fixedStationPrices), [32, 16]);
+    const [, ...rows] = buildImportacionTable(selectedDate, validFromDate, finalDate);
+    addClosingTable(wb, 'IMPORTACION_EFI', ['Col A', 'Estación (ID)', 'Producto', 'Inicial', 'Final', 'PVP (con IVA)', 'Estación (nombre)', 'Pago', 'Tarifa'],
+      rows, [10, 16, 13, 15, 15, 17, 32, 14, 36], [5]);
+  }), [selectedDate, validFromDate, finalDate, fixedStationPrices,
+    nievesIncVat, nievesExclVat, petromirallesIncVat, petromirallesExclVat, valcarceDirectPrice, valcarceNum]);
+
   if (!isActive) return null;
 
   return (
@@ -497,6 +512,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
               <input
                 type="text"
                 inputMode="decimal"
+                aria-label="Precio recibido de Nieves con IVA"
                 value={nievesIncVat}
                 onChange={(e) => setNievesIncVat(e.target.value.replace('.', ','))}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
@@ -519,6 +535,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
               <input
                 type="text"
                 inputMode="decimal"
+                aria-label="Precio recibido de Petromiralles con IVA"
                 value={petromirallesIncVat}
                 onChange={(e) => setPetromirallesIncVat(e.target.value.replace('.', ','))}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
@@ -541,6 +558,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
               <input
                 type="text"
                 inputMode="decimal"
+                aria-label="Precio neto recibido de Valcarce"
                 value={valcarceDirectPrice}
                 onChange={(e) => setValcarceDirectPrice(e.target.value.replace('.', ','))}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
@@ -574,6 +592,7 @@ Estimado equipo, los precios del día han sido actualizados en EFI DATA OIL:
                 <input
                   type="number"
                   step="0.0001"
+                  aria-label={`Precio GOA de EFI para ${stName}`}
                   value={price}
                   onChange={(e) => handlePriceChange(stName, e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-amber-300 font-bold font-mono text-xs focus:border-amber-400 focus:outline-none"

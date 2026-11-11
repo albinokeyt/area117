@@ -57,9 +57,9 @@ test('prices persist in PostgreSQL, propagate to formulas and survive close + re
   const download = await closing;
   const book = XLSX.read(await readFile((await download.path())!), { type: 'buffer' });
   expect(book.SheetNames).toContain('CALCULO INICIAL');
-  expect(book.SheetNames).toContain('CONFIGURACION COMPLETA');
+  expect(book.SheetNames).toEqual(expect.arrayContaining(['POSTES', 'TARIFAS_ESTANDAR', 'PDFS CLIENTES', 'IMPORTACION_EFI']));
   const posteRows = XLSX.utils.sheet_to_json<any[]>(book.Sheets.POSTES, { header: 1 });
-  expect(posteRows.find(row => row[4] === 'POSTES:ARCOS:POSTE_GOA')?.[3]).toBe(1.987);
+  expect(posteRows.find(row => row[0] === 'ARCOS')?.[1]).toBe(1.987);
   const closed = await (await page.request.get('/api/sync')).json();
   expect(closed.data.efi_compras_data.modified).toEqual([]);
   expect(closed.data.efi_compras_data.data.TORREJON_GOA.prev).toBe('1,555');
@@ -121,7 +121,7 @@ test('failed PostgreSQL save cannot display success', async ({ page }) => {
 
 test('database read errors return 503 instead of successful empty default data', async ({ request }) => {
   await request.post('/api/auth', { data: { email: 'admin@efidataoil.com', password: 'admin123' } });
-  const db = new Client({ connectionString: 'postgresql://postgres:test-only@127.0.0.1:55437/postgres' });
+  const db = new Client({ connectionString: `postgresql://postgres:test-only@127.0.0.1:${Number(process.env.AREA117_TEST_PG_PORT || 55437)}/postgres` });
   await db.connect();
   try {
     await db.query('ALTER TABLE efi_server_state RENAME TO efi_test_state_backup');

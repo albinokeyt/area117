@@ -225,6 +225,25 @@ export function getAllStations(): StationSeed[] {
   return [...cat.propias, ...cat.colaboradoras];
 }
 
+export function purchaseLocation(location?: string, fallback?: string) {
+  return [location, fallback].map(value => value?.trim()).find(value => value && !/^(0|n\/a)$/i.test(value)) || 'TORREJON';
+}
+
+export function savePurchaseLocations(edits: { station: string; before: string; location: string }[]) {
+  const catalog = getStationsCatalog();
+  for (const { station, before, location } of edits) {
+    const entry = [...catalog.propias, ...catalog.colaboradoras].find(item => item.name === station);
+    if (!entry) throw new Error(`La estación ${station} ya no está en el catálogo.`);
+    const current = purchaseLocation(catalog.costs[station]?.clhName);
+    if (current !== before && current !== location) throw new Error(`Otro usuario cambió el CLH de ${station}. Vuelve a abrir el editor para revisarlo.`);
+    const costs = catalog.costs[station] ?? {
+      type: entry.type, porte: 0.005, pase: 0.01, fin: 0.01, defaultPrev: 1.2, defaultCurr: 1.2,
+    };
+    catalog.costs[station] = { ...costs, clhName: location };
+  }
+  if (edits.length) saveStationsCatalog(catalog);
+}
+
 /**
  * Obtiene el mapa de costes de estaciones
  */

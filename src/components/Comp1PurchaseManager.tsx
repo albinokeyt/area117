@@ -5,6 +5,9 @@ import { useStationLabels } from './useStationLabels';
 import { StationLabelsModal } from './StationLabelsModal';
 import { setStationRouteActive } from '@/lib/stationLabels';
 import { capturePurchaseTable } from '@/lib/purchaseTableSnapshot';
+import { buildClosingWorkbook, addClosingTable, closingPrice, prepareClosingDownload } from '@/lib/closingWorkbook';
+import { PurchaseLocationsModal } from './PurchaseLocationsModal';
+import { useAuth } from '@/context/AuthContext';
 
 import { getLatestPurchasePayload, closePurchaseDay } from '@/lib/purchaseState';
 import { jsonValuesEqual } from '@/lib/jsonEquality';
@@ -22,15 +25,16 @@ import {
   getStationExcelCosts,
   getOfficialSuggestedSalePrices,
   getAdblueStationsConfig,
+  purchaseLocation,
 } from '@/lib/stationsService';
 import { StationManagerModal } from './StationManagerModal';
-import { generateAndDownloadCierreWorkbook, downloadWorkbookAsXlsx, GasolinaBroncoRow } from '@/lib/excelExportService';
+import { downloadWorkbookAsXlsx, GasolinaBroncoRow } from '@/lib/excelExportService';
 import * as XLSX from 'xlsx';
 import { flushPendingSync, markKeyModifiedLocally } from '@/lib/serverSyncService';
 import {
   Save, ArrowRightLeft, Sparkles, Building2, Store, FileText,
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, X, Check, Eye,
-  ShieldCheck, Droplet, Fuel, Flame, Layers, Download, RefreshCw, Star, Calendar, Copy
+  ShieldCheck, Droplet, Fuel, Flame, Layers, Download, RefreshCw, Star, Calendar, Copy, Pencil
 } from 'lucide-react';
 
 const formatToDMY = (dateStr: string): string => {
@@ -150,6 +154,13 @@ interface PurchaseRowValues {
 }
 
 export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Props) {
+  const { currentUser } = useAuth();
+  const canEdit = !!currentUser && currentUser.role !== 'VISITOR';
+  const [locationGroup, setLocationGroup] = useState<{ title: string; stations: { name: string; location: string }[] } | null>(null);
+  const closeLocations = useCallback(() => setLocationGroup(null), []);
+  const [closing, setClosing] = useState(false);
+  const closingBusy = useRef(false);
+  const pendingClosingDownload = useRef<(() => void) | null>(null);
   const { labelsFor, routeActive } = useStationLabels();
   const [showLabelsModal, setShowLabelsModal] = useState(false);
   const [labelStation, setLabelStation] = useState('');
@@ -210,7 +221,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
     return num.toFixed(decimals).replace('.', ',');
   };
 
-  const getFilteredProductsForStation = (stationName: string) => {
+  const getFilteredProductsForStation = (stationName: string, filter: ProductSubTab = activeProductTab) => {
     const allForStation: { code: string; name: string }[] = [
       { code: 'GOA', name: 'Gasóleo A (GOA)' },
       { code: 'GASOLINA', name: 'Gasolina 95' },
@@ -219,10 +230,10 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
       allForStation.push({ code: 'ADBLUE', name: 'AdBlue' });
     }
 
-    if (activeProductTab === 'ALL') {
+    if (filter === 'ALL') {
       return allForStation;
     }
-    return allForStation.filter((p) => p.code === activeProductTab);
+    return allForStation.filter((p) => p.code === filter);
   };
 
   const [purchases, setPurchases] = useState<Record<string, PurchaseRowValues>>(() => {
@@ -820,108 +831,56 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
   };
 
   const handleCierreDeDia = async () => {
-    // Flush pending Postes edits before taking the closing snapshot.
-    window.dispatchEvent(new Event('efi_before_close_day'));
-    const nextPurchases = closePurchaseDay(purchases);
-    const cleanedSpecialRates = specialRates;
-    setPurchases(nextPurchases);
-      const timestamp = new Date().toISOString();
-      try {
-        // 2) Guardar y sincronizar todas las ventanas del sistema (compras, postes, sabana de precios, pdfs y clientes, efi export)
-        if (validFromDate) {
-          workspaceStorage.setItem(`efi_purchases_${validFromDate}`, JSON.stringify({
-            data: nextPurchases,
-            modified: [],
-            updatedAt: timestamp,
-          }));
-          markKeyModifiedLocally(`efi_purchases_${validFromDate}`);
+    if (!canEdit || closingBusy.current) return;
+    closingBusy.current = true;
+    setClosing(true);
+    let closeConfirmed = false;
+    try {
+      if (!pendingClosingDownload.current) {
+        const workbook = buildClosingWorkbook(selectedDate, validFromDate, wb => appendPurchaseSheets(wb, true));
+        const download = prepareClosingDownload(workbook, selectedDate, validFromDate);
+        const nextPurchases = closePurchaseDay(purchases);
+        const timestamp = new Date().toISOString();
+        const payload = JSON.stringify({ data: nextPurchases, modified: [], updatedAt: timestamp });
+        const dates = [...new Set([selectedDate, validFromDate].filter(Boolean))];
+        for (const date of dates) {
+          workspaceStorage.setItem(`efi_purchases_${date}`, payload);
+          workspaceStorage.setItem(`efi_purchases_bronco_${date}`, JSON.stringify(gasolinaBronco));
         }
-        if (selectedDate && selectedDate !== validFromDate) {
-          workspaceStorage.setItem(`efi_purchases_${selectedDate}`, JSON.stringify({
-            data: nextPurchases,
-            modified: [],
-            updatedAt: timestamp,
-          }));
-          markKeyModifiedLocally(`efi_purchases_${selectedDate}`);
-        }
-        workspaceStorage.setItem('efi_compras_data', JSON.stringify({
-          data: nextPurchases,
-          modified: [],
-          updatedAt: timestamp,
-        }));
-        markKeyModifiedLocally('efi_compras_data');
-        workspaceStorage.setItem('efi_special_rates_b50_f82_v4', JSON.stringify(cleanedSpecialRates));
-        workspaceStorage.setItem('efi_special_rates_b50_f82_v3', JSON.stringify(cleanedSpecialRates));
-        markKeyModifiedLocally('efi_special_rates_b50_f82_v4');
-        if (validFromDate) {
-          workspaceStorage.setItem('efi_compras_valid_from', validFromDate);
-          workspaceStorage.setItem('efi_global_valid_from_date', validFromDate);
-        }
+        workspaceStorage.setItem('efi_compras_data', payload);
+        workspaceStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
         workspaceStorage.setItem('efi_last_cierre_date', selectedDate);
         workspaceStorage.setItem('efi_last_cierre_timestamp', timestamp);
-        if (validFromDate) workspaceStorage.setItem(`efi_purchases_bronco_${validFromDate}`, JSON.stringify(gasolinaBronco));
-        if (selectedDate && selectedDate !== validFromDate) workspaceStorage.setItem(`efi_purchases_bronco_${selectedDate}`, JSON.stringify(gasolinaBronco));
-        workspaceStorage.setItem('efi_compras_gasolina_bronco', JSON.stringify(gasolinaBronco));
-        markKeyModifiedLocally('efi_compras_gasolina_bronco');
-
         workspaceStorage.setItem(`efi_cierre_completo_${selectedDate}`, JSON.stringify({
-          selectedDate,
-          validFromDate,
-          purchases: nextPurchases,
-          specialRates: cleanedSpecialRates,
-          gasolinaBronco,
-          closedAt: timestamp,
+          selectedDate, validFromDate, purchases, specialRates, gasolinaBronco, closedAt: timestamp,
         }));
-
-        // Limpiar marcas amarillas de modificación en Postes manteniendo intactos todos los datos ingresados
-        try {
-          const rawPostes = workspaceStorage.getItem('efi_postes_data_v2');
-          if (rawPostes) {
-            const parsedPostes = JSON.parse(rawPostes);
-            parsedPostes.modified = [];
-            workspaceStorage.setItem('efi_postes_data_v2', JSON.stringify(parsedPostes));
-            markKeyModifiedLocally('efi_postes_data_v2');
-          }
-          const rawPostesDate = workspaceStorage.getItem(`efi_postes_data_${selectedDate}`);
-          if (rawPostesDate) {
-            const parsedPostesDate = JSON.parse(rawPostesDate);
-            parsedPostesDate.modified = [];
-            workspaceStorage.setItem(`efi_postes_data_${selectedDate}`, JSON.stringify(parsedPostesDate));
-            markKeyModifiedLocally(`efi_postes_data_${selectedDate}`);
-          }
-          if (validFromDate && validFromDate !== selectedDate) {
-            const rawPostesValid = workspaceStorage.getItem(`efi_postes_data_${validFromDate}`);
-            if (rawPostesValid) {
-              const parsedPostesValid = JSON.parse(rawPostesValid);
-              parsedPostesValid.modified = [];
-              workspaceStorage.setItem(`efi_postes_data_${validFromDate}`, JSON.stringify(parsedPostesValid));
-              markKeyModifiedLocally(`efi_postes_data_${validFromDate}`);
-            }
-          }
-        } catch (e) {
-          console.error('Error al limpiar modified en efi_postes_data_v2:', e);
+        for (const key of ['efi_postes_data_v2', ...dates.map(date => `efi_postes_data_${date}`)]) {
+          const postes = workspaceStorage.readJson<Record<string, unknown>>(key);
+          if (postes) workspaceStorage.setItem(key, JSON.stringify({ ...postes, modified: [] }));
         }
-
-        // Notificar reactivamente a todas las ventanas
+        setPurchases(nextPurchases);
+        modifiedKeysRef.current = new Set();
+        setModifiedKeys(modifiedKeysRef.current);
+        pendingClosingDownload.current = download;
         window.dispatchEvent(new Event('efi_compras_updated'));
         window.dispatchEvent(new Event('efi_postes_updated'));
-        window.dispatchEvent(new Event('efi_valid_date_changed'));
         window.dispatchEvent(new Event('efi_cierre_dia'));
-        window.dispatchEvent(new Event('storage'));
-      } catch (e) {
-        console.error('Error al guardar cierre en workspaceStorage:', e);
       }
-
-    setModifiedKeys(new Set());
-    modifiedKeysRef.current = new Set();
-    try {
       await flushPendingSync();
-      generateAndDownloadCierreWorkbook(selectedDate, validFromDate, nextPurchases, cleanedSpecialRates, gasolinaBronco);
-      setToastMessage('Cierre guardado en PostgreSQL. Marcas limpiadas y Excel descargado.');
-    } catch (e) {
-      setToastMessage('El cierre o su Excel no se completó: ' + (e instanceof Error ? e.message : 'Error desconocido'));
+      closeConfirmed = true;
+      pendingClosingDownload.current();
+      pendingClosingDownload.current = null;
+      setToastMessage('Cierre guardado en PostgreSQL y Excel completo descargado.');
+    } catch (error) {
+      const prefix = closeConfirmed ? 'Cierre guardado. No se pudo descargar el Excel'
+        : pendingClosingDownload.current ? 'No se confirmó el cierre en PostgreSQL'
+        : 'No se inició el cierre';
+      setToastMessage(`${prefix}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      closingBusy.current = false;
+      setClosing(false);
+      setTimeout(() => setToastMessage(null), 6000);
     }
-    setTimeout(() => setToastMessage(null), 6000);
   };
 
   // Botón: Copiar "Precio Compra Hoy" a "P. Ant. Compra" y "P. Venta Sugerido" a "P. Venta Ant."
@@ -940,14 +899,12 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
     setTimeout(() => setToastMessage(null), 5000);
   };
 
-  const handleExportDailyExcel = () => {
-    const wb = XLSX.utils.book_new();
+  const appendPurchaseSheets = (wb: XLSX.WorkBook, closing = false) => {
 
     // Hoja 1: COMPRAS Y COSTES
     const comprasRows: any[][] = [
       ['INFORME DIARIO DE COMPRAS Y COSTES - AREA 117'],
-      ['FECHA EMISION:', selectedDate, 'PRECIOS VALIDOS A PARTIR DE:', validFromDate],
-      ['AVISO IMPORTANTE:', `TODOS LOS PRECIOS Y COSTES TIENEN VALIDEZ OFICIAL A PARTIR DEL: ${validFromDate}`],
+      ['Fecha de trabajo:', selectedDate, 'Válido desde:', validFromDate],
       [],
       [
         'ESTACION',
@@ -955,7 +912,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
         'PRODUCTO',
         'P. ANT. COMPRA (EUR)',
         'PRECIO COMPRA HOY (EUR)',
-        'CLH (TERMINAL)',
+        'CLH (Lugar compra)',
         'PORTE (R)',
         'PASE (S)',
         'FINANCIACION (T)',
@@ -968,13 +925,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
 
     const exportSection = (stationList: typeof propiasStations, typeLabel: string) => {
       stationList.forEach((st) => {
-        const prods = [
-          { code: 'GOA', name: 'Gasóleo A (GOA)' },
-          { code: 'GASOLINA', name: 'Gasolina 95' },
-        ];
-        if (ADBLUE_STATIONS_CONFIG[st.name]) {
-          prods.push({ code: 'ADBLUE', name: 'AdBlue' });
-        }
+        const prods = getFilteredProductsForStation(st.name, 'ALL');
 
         prods.forEach((prod) => {
           const key = `${st.name}_${prod.code}`;
@@ -986,24 +937,24 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
           const paseNum = parseNum(item.pase);
           const finNum = parseNum(item.fin);
           const totalCost = Number((currNum + porteNum + paseNum + finNum).toFixed(3));
-          const effectiveSale = item.sale !== undefined && item.sale !== '' ? item.sale : totalCost.toFixed(3);
+          const effectiveSale = item.sale !== undefined && item.sale !== '' ? item.sale : (prod.code === 'GOA' ? OFFICIAL_SUGGESTED_SALE_PRICES[st.name] ?? totalCost : prod.code === 'ADBLUE' ? currNum : totalCost).toFixed(3);
           const saleNum = parseNum(effectiveSale);
-          const clhName = STATION_EXCEL_COSTS[st.name]?.clhName || item.clh || 'TORREJON';
-          const prevSaleVal = item.prevSale !== undefined ? item.prevSale : (item.prev || totalCost.toFixed(3));
+          const clhName = purchaseLocation(stationCosts[st.name]?.clhName, item.clh);
+          const prevSaleVal = item.prevSale !== undefined ? item.prevSale : (item.prev || (prod.code === 'ADBLUE' ? currNum : totalCost).toFixed(3));
           const margin = Number((saleNum - parseNum(prevSaleVal)).toFixed(3));
 
           comprasRows.push([
             st.name,
             typeLabel,
             prod.name,
-            Number(parseNum(item.prev).toFixed(3)),
-            Number(currNum.toFixed(3)),
+            closing ? closingPrice(item.prev) : closingPrice(parseNum(item.prev)),
+            closing ? closingPrice(item.curr) : closingPrice(currNum),
             clhName,
-            Number(porteNum.toFixed(3)),
-            Number(paseNum.toFixed(3)),
-            Number(finNum.toFixed(3)),
+            closing ? closingPrice(item.porte) : closingPrice(porteNum),
+            closing ? closingPrice(item.pase) : closingPrice(paseNum),
+            closing ? closingPrice(item.fin) : closingPrice(finNum),
             totalCost,
-            Number(parseNum(prevSaleVal).toFixed(3)),
+            closing ? closingPrice(prevSaleVal) : closingPrice(parseNum(prevSaleVal)),
             saleNum,
             margin,
           ]);
@@ -1014,6 +965,8 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
     exportSection(propiasStations, 'PROPIA');
     exportSection(fixedCollaborators, 'COLABORADORA FIJA');
     exportSection(remainingCollaborators, 'COLABORADORA RESTANTE');
+    const lastStationRow = comprasRows.length;
+    const clhWidth = Math.max(22, ...comprasRows.slice(4).map(row => String(row[5] ?? '').length + 2));
 
     // Cuadro Especial: GASOLINA BRONCO
     comprasRows.push([]);
@@ -1034,8 +987,8 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
       { wch: 22 }, // TIPO
       { wch: 20 }, // PRODUCTO
       { wch: 18 }, // P. ANT COMPRA
-      { wch: 20 }, // PRECIO COMPRA HOY
-      { wch: 16 }, // CLH
+      { wch: 25 }, // PRECIO COMPRA HOY
+      { wch: clhWidth }, // CLH
       { wch: 12 }, // PORTE
       { wch: 12 }, // PASE
       { wch: 16 }, // FINANCIACION
@@ -1044,14 +997,27 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
       { wch: 20 }, // P. VENTA SUGERIDO
       { wch: 14 }, // MARGEN
     ];
-    XLSX.utils.book_append_sheet(wb, wsCompras, 'COMPRAS_Y_COSTES');
+    for (const address in wsCompras) if (wsCompras[address]?.t === 'n') wsCompras[address].z = '0.000';
+    if (lastStationRow > 4) wsCompras['!autofilter'] = { ref: `A4:M${lastStationRow}` };
+    XLSX.utils.book_append_sheet(wb, wsCompras, closing ? 'CALCULO INICIAL' : 'COMPRAS_Y_COSTES');
+    if (closing) {
+      const stationRows = [...propiasStations, ...fixedCollaborators, ...remainingCollaborators];
+      addClosingTable(wb, 'COMPRAS ADBLUE', ['Estación', 'CLH (Lugar compra)', 'Compra sin IVA (€)', 'Compra con IVA (€)'],
+        stationRows.filter(st => getFilteredProductsForStation(st.name, 'ADBLUE').length).map(st => {
+          const item = purchases[`${st.name}_ADBLUE`];
+          const buy = closingPrice(item?.curr);
+          return [st.name, purchaseLocation(stationCosts[st.name]?.clhName, item?.clh), buy, buy === null ? null : closingPrice(parseNum(item?.curr) * 1.21)];
+        }), [28, clhWidth, 23, 23], [2, 3]);
+      addClosingTable(wb, 'COMPRAS RUTAS', ['Estación', 'Ruta activa', 'Etiquetas asignadas'],
+        stationRows.map(st => [st.name, routeActive(st.name) ? 'Sí' : 'No', labelsFor(st.name).join(', ')]), [30, 15, 45]);
+    }
 
     // Hoja 2: TARIFAS ESPECIALES
     const specialRows: any[][] = [
       ['TARIFAS ESPECIALES - AREA 117'],
-      ['FECHA:', selectedDate, 'VALIDO A PARTIR DE:', validFromDate],
+      ['Fecha de trabajo:', selectedDate, 'Válido desde:', validFromDate],
       [],
-      ['ESTACION', 'PRECIO REFERENCIA (EUR)', 'PRECIO ACTUAL / ESPECIAL (EUR)', 'PRECIO BASE / COSTE (EUR)'],
+      ['ESTACION', 'PRECIO REFERENCIA (EUR)', 'PRECIO ESPECIAL SUGERIDO (EUR)', 'PRECIO BASE / COSTE (EUR)'],
     ];
 
     specialRates.forEach((row) => {
@@ -1060,8 +1026,8 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
       const baseVal = getSpecialBasePrice(row);
       specialRows.push([
         row.name,
-        Number(parseNum(refVal).toFixed(3)),
         Number(parseNum(actVal).toFixed(3)),
+        Number(parseNum(refVal).toFixed(3)),
         Number(parseNum(baseVal).toFixed(3)),
       ]);
     });
@@ -1070,10 +1036,16 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
     wsSpecial['!cols'] = [
       { wch: 32 }, // ESTACION
       { wch: 24 }, // PRECIO REFERENCIA
-      { wch: 28 }, // PRECIO ACTUAL / ESPECIAL
+      { wch: 30 }, // PRECIO ESPECIAL SUGERIDO
       { wch: 24 }, // PRECIO BASE / COSTE
     ];
+    for (const address in wsSpecial) if (wsSpecial[address]?.t === 'n') wsSpecial[address].z = '0.000';
     XLSX.utils.book_append_sheet(wb, wsSpecial, 'TARIFAS_ESPECIALES');
+  };
+
+  const handleExportDailyExcel = () => {
+    const wb = XLSX.utils.book_new();
+    appendPurchaseSheets(wb);
 
     const filename = `EFI_COMPRAS_DIARIO_${selectedDate}_VALIDO_${validFromDate}.xlsx`;
     downloadWorkbookAsXlsx(wb, filename);
@@ -1101,12 +1073,30 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
   ) => {
     const Icon = icon;
     const filteredStationsForAdBlue = activeProductTab === 'ADBLUE'
-      ? stations.filter((st) => ADBLUE_STATIONS_CONFIG[st.name])
+      ? stations.filter(st => getFilteredProductsForStation(st.name, 'ADBLUE').length > 0)
       : stations;
 
     if (filteredStationsForAdBlue.length === 0) {
       return null;
     }
+
+    const clhHeader = (
+      <th scope="col" className="py-3.5 px-3 text-slate-300">
+        <button type="button" disabled={!canEdit || closing} className="inline-flex items-center gap-1.5 uppercase text-left hover:underline focus-visible:outline rounded"
+          aria-label={`Editar CLH · ${title}`} title="Editar el lugar de compra de las estaciones de este cuadro"
+          onClick={() => setLocationGroup({ title, stations: filteredStationsForAdBlue.map(st => ({
+            name: st.name, location: purchaseLocation(stationCosts[st.name]?.clhName),
+          })) })}>
+          CLH (Lugar Compra) <Pencil aria-hidden size={12} />
+        </button>
+      </th>
+    );
+    const renderLocation = (location: string) => (
+      <td className="py-2.5 px-3" data-pdf-value={location}>
+        <span className="inline-flex max-w-[130px] truncate rounded-lg bg-slate-950 border border-slate-800 px-2.5 py-1 font-mono font-semibold"
+          title={`Lugar de compra: ${location}`}>{location}</span>
+      </td>
+    );
 
     const themeStyles = {
       blue: {
@@ -1180,6 +1170,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
                     Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
                   </th>
+                  {clhHeader}
                   <th className="py-3.5 px-3 text-amber-400 bg-slate-900/50">Precio Sin IVA (€)</th>
                   <th className="py-3.5 px-3 text-emerald-400 bg-slate-900/80">Precio Con IVA 21% (€)</th>
                   <th className="py-3.5 px-3 bg-slate-900/50 text-slate-300">P. Venta Ant. (€)</th>
@@ -1194,7 +1185,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   <th className="py-3.5 px-3 text-amber-300 bg-slate-900">
                     Precio Compra Hoy (€) <span className="text-[10px] text-slate-500 font-normal">(. o ,)</span>
                   </th>
-                  <th className="py-3.5 px-3 text-slate-300">CLH (Lugar Compra)</th>
+                  {clhHeader}
                   <th className="py-3.5 px-2 text-amber-300">Porte (R)</th>
                   <th className="py-3.5 px-2 text-blue-300">Pase (S)</th>
                   <th className="py-3.5 px-2 text-purple-300">Financ. (T)</th>
@@ -1208,7 +1199,6 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
               {filteredStationsForAdBlue.map((st) => {
                 const stationProds = getFilteredProductsForStation(st.name);
-                const excelCosts = STATION_EXCEL_COSTS[st.name];
 
                 return stationProds.map((prod, pIdx) => {
                   const key = `${st.name}_${prod.code}`;
@@ -1245,9 +1235,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   const isPrevSaleMod = modifiedKeys.has(`${key}_prevSale`);
                   const isSaleMod = modifiedKeys.has(`${key}_sale`);
 
-                  const clhDisplayName = excelCosts?.clhName && excelCosts.clhName !== '0' && excelCosts.clhName !== 'n/a'
-                    ? excelCosts.clhName
-                    : 'TORREJON';
+                  const clhDisplayName = purchaseLocation(stationCosts[st.name]?.clhName, item.clh);
 
                   if (activeProductTab === 'ADBLUE') {
                     const adblueSinIva = currNum;
@@ -1326,7 +1314,8 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                           </div>
                         </td>
 
-                        {/* 5. Precio Sin IVA (= Precio Compra Hoy) */}
+                        {renderLocation(clhDisplayName)}
+                        {/* Precio Sin IVA (= Precio Compra Hoy) */}
                         <td className="py-2.5 px-3 font-mono font-bold text-amber-300 bg-slate-900/40 text-center">
                           {formatNum(adblueSinIva, 3)} €
                         </td>
@@ -1475,19 +1464,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                         </div>
                       </td>
 
-                      {/* 5. CLH (Badge sin ningún input) */}
-                      <td className="py-2.5 px-3">
-                        {prod.code !== 'ADBLUE' ? (
-                          <span
-                            className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 text-xs font-mono font-semibold tracking-tight shadow-sm truncate max-w-[130px]"
-                            title={`Lugar de Compra / Terminal: ${clhDisplayName}`}
-                          >
-                            {clhDisplayName}
-                          </span>
-                        ) : (
-                          <span className="text-slate-600 text-xs font-mono font-bold">-</span>
-                        )}
-                      </td>
+                      {renderLocation(clhDisplayName)}
 
                       {/* 6. Porte (R) */}
                       <td className="py-2.5 px-2">
@@ -1605,6 +1582,7 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
 
   return (
     <div className="space-y-8">
+      {locationGroup && <PurchaseLocationsModal group={locationGroup.title} stations={locationGroup.stations} onClose={closeLocations} />}
       {showLabelsModal && <StationLabelsModal stations={[...propiasStations, ...colaboradoraStations]} initialStation={labelStation} onClose={closeLabelsModal} />}
       {/* 1. Barra Principal Superior */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
@@ -1669,11 +1647,12 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
 
             <button
               onClick={handleCierreDeDia}
+              disabled={closing || !canEdit}
               className="flex items-center space-x-2 px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 rounded-xl text-xs font-bold border border-indigo-500/30 shadow-md transition-all active:scale-95"
-              title="Copiar P. Venta Sugerido a Precio Anterior para cerrar el día"
+              title="Descargar el Excel completo y cerrar el día"
             >
               <RefreshCw className="h-4 w-4 text-indigo-400" />
-              <span>Cierre de Día</span>
+              <span>{closing ? 'Preparando cierre…' : pendingClosingDownload.current ? 'Reintentar Cierre de Día' : 'Cierre de Día'}</span>
             </button>
 
             <button
@@ -2002,10 +1981,10 @@ export function Comp1PurchaseManager({ selectedDate, isActive = true }: Comp1Pro
                   <th className="py-3 px-4 w-12 text-center">Nº</th>
                   <th className="py-3 px-6 sticky left-0 bg-slate-950 z-30">Estación</th>
                   <th className="py-3 px-6 text-center text-rose-400 bg-rose-950/20 border-b border-rose-500/30">
-                    PRECIO ACTUAL / ESPECIAL
+                    PRECIO REFERENCIA
                   </th>
                   <th className="py-3 px-6 text-center text-amber-300 bg-amber-950/20 border-b border-amber-500/30">
-                    PRECIO REFERENCIA
+                    PRECIO ESPECIAL SUGERIDO
                   </th>
                   <th className="py-3 px-6 text-center text-slate-300">
                     Precio Base / Coste (€)

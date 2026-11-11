@@ -3,6 +3,11 @@ import type { HvoPrices, PricePair } from './publishedPrices';
 export const PDF_EXPORT_NAMES_KEY = 'efi_pdf_export_names_v1';
 export const PDF_DOCUMENT_DATE_KEY = 'efi_pdf_document_valid_from';
 export type PdfExportNames = Record<string, string>;
+
+const isGasoleoBTariff = (tariff: string) => /GOB|GAS[ÓO]LEO B/i.test(tariff);
+export const pdfIncludesHvo = (tariff: string, settings: Record<string, boolean>) => settings[tariff] ?? !isGasoleoBTariff(tariff);
+export const pdfStationIsActive = (tariff: string, station: string, settings: Record<string, string[]>) =>
+  settings[tariff]?.includes(station) ?? (!isGasoleoBTariff(tariff) || /UCLES|TORREMOCHA|ARCOS/i.test(station));
 export interface ClientPdfRow extends PricePair {
   station: string; bandera: string; ubicacion: string; labels: string[];
 }

@@ -11,8 +11,8 @@ export function downloadPurchasePdf(snapshot: PurchaseTableSnapshot, info: {
   const height = doc.internal.pageSize.getHeight();
   const formatDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.split('-').reverse().join('/') : date;
   doc.setProperties({ title: `Compras - ${info.title}`, author: 'AREA117', subject: info.product });
-  const widths = snapshot.headers.length === 9
-    ? [42, 23, 27, 28, 28, 29, 33, 37, 30]
+  const widths = snapshot.headers.length === 10
+    ? [34, 18, 25, 28, 25, 25, 29, 29, 38, 26]
     : [42, 23, 22, 24, 28, 14, 14, 14, 24, 24, 26, 22];
   autoTable(doc, {
     head: [snapshot.headers],
@@ -20,7 +20,7 @@ export function downloadPurchasePdf(snapshot: PurchaseTableSnapshot, info: {
     theme: 'grid', startY: 42, margin: { top: 42, bottom: 17, left: 10, right: 10 },
     styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1, textColor: [28, 45, 68], lineColor: [221, 229, 239], lineWidth: 0.15, overflow: 'linebreak', valign: 'middle' },
     headStyles: { fillColor: [27, 58, 99], textColor: [255, 255, 255], fontSize: 7.1, fontStyle: 'bold', cellPadding: 2.1 },
-    columnStyles: Object.fromEntries(widths.map((cellWidth, index) => [index, { cellWidth, halign: index < 2 ? 'left' : 'right' }])),
+    columnStyles: Object.fromEntries(widths.map((cellWidth, index) => [index, { cellWidth, halign: index < 2 || index === 4 ? 'left' : 'right' }])),
     alternateRowStyles: { fillColor: [246, 249, 253] },
     rowPageBreak: 'avoid', showHead: 'everyPage',
     didParseCell(data) {

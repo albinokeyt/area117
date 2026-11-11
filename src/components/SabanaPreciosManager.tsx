@@ -1,4 +1,5 @@
 'use client';
+import { addClosingTable, closingPrice, registerClosingSheets } from '@/lib/closingWorkbook';
 import { useFormulaAccess } from './FormulaAccessNotice';
 
 import { registerSabanaValidationReader, SabanaValidationSnapshot, SourceDetails } from '@/lib/pdfPriceValidation';
@@ -148,17 +149,6 @@ const SPECIAL_TARIFF_BLOCKS: SpecialTariffGroupDef[] = [
     ],
     borderTheme: 'border-purple-500/30',
     badgeTheme: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-  },
-  {
-    id: 'tarifa_75',
-    title: 'Tarifa Especial 75',
-    description: 'Tarifa Especial 75: P. Venta Sugerido Gasóleo A + 0.038. Con IVA = Sin IVA * 1.21',
-    columnsRange: 'Cols BG:BH',
-    tariffs: [
-      { name: 'Tarifa 75', markup: 0.038 },
-    ],
-    borderTheme: 'border-cyan-500/30',
-    badgeTheme: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
   },
 ];
 
@@ -1886,8 +1876,8 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
     const rows: any[][] = [];
     rows.push(['SABANA DE PRECIOS - AREA 117']);
-    rows.push(['Fecha Emision:', selectedDate, 'Precios Validos A Partir De:', validDate]);
-    rows.push(['Aviso:', 'Precios oficiales con y sin IVA aplicables a partir del:', validDate]);
+    rows.push(['Fecha de trabajo:', selectedDate, 'Válido desde:', validDate]);
+    rows.push([]);
     rows.push([]);
 
     const headers: string[] = ['EESS DE SERVICIO'];
@@ -1936,7 +1926,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
     const rows: any[][] = [];
     rows.push([`AREA 117 - ${block.title.toUpperCase()}`]);
-    rows.push(['Fecha Emision:', selectedDate, 'Precios Validos A Partir De:', validDate]);
+    rows.push(['Fecha de trabajo:', selectedDate, 'Válido desde:', validDate]);
     rows.push(['Descripcion:', block.description]);
     rows.push([]);
 
@@ -2024,18 +2014,6 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
         const t15 = getTarifa15SurPrices(st.name, false);
         rows.push([st.name, t27.sinIva, t27.conIva, t15.sinIva, t15.conIva]);
       });
-    } else if (block.id === 'tarifa_75') {
-      cols = ['EESS DE SERVICIO', 'TARIFA 75 SIN IVA', 'CON IVA'];
-      rows.push(cols);
-      propiasStations.forEach((st) => {
-        const t75 = getTarifa75Prices(st.name, true);
-        rows.push([st.name, t75.sinIva, t75.conIva]);
-      });
-      rows.push(['COLABORADORAS', '-', 0]);
-      colaboradoraStations.forEach((st) => {
-        const t75 = getTarifa75Prices(st.name, false);
-        rows.push([st.name, t75.sinIva, t75.conIva]);
-      });
     } else {
       cols = ['EESS DE SERVICIO'];
       block.tariffs.forEach((t) => {
@@ -2116,20 +2094,21 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
     setTimeout(() => setDownloadToast(null), 3500);
   };
 
-  // Descarga completa de TODA la Sábana de Precios en un único LIBRO DE EXCEL (*.XLSX) multi-hoja
-  const handleExportFullSabanaXlsx = () => {
-    const validDate = (() => {
-      try {
-        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
-      } catch (e) {
-        return selectedDate;
+  const appendSabanaSheets = (wb: XLSX.WorkBook) => {
+    const add = (ws: XLSX.WorkSheet, name: string, headerRow: number) => {
+      const headers = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, range: headerRow })[0] || [];
+      ws['!cols'] = headers.map((header, index) => ({ wch: Math.max(index ? 16 : 30, String(header ?? '').length + 3) }));
+      const { e } = XLSX.utils.decode_range(ws['!ref']!);
+      for (let r = headerRow + 1; r <= e.r; r++) {
+        if (ws[XLSX.utils.encode_cell({ c: 0, r })]?.v !== 'COLABORADORAS') continue;
+        for (let c = 1; c <= e.c; c++) delete ws[XLSX.utils.encode_cell({ c, r })];
       }
-    })();
-    const wb = XLSX.utils.book_new();
-
+      for (const address in ws) if (ws[address]?.t === 'n') ws[address].z = '0.000';
+      XLSX.utils.book_append_sheet(wb, ws, name, true);
+    };
     // Hoja 1: Tarifas Estándar
     const wsStd = buildStandardSheet();
-    XLSX.utils.book_append_sheet(wb, wsStd, 'TARIFAS_ESTANDAR');
+    add(wsStd, 'TARIFAS_ESTANDAR', 4);
 
     // Hojas para cada bloque especial
     SPECIAL_TARIFF_BLOCKS.forEach((block) => {
@@ -2141,24 +2120,35 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
       else if (block.id === 'ror_esteban') sheetName = 'ROR_Y_ESTEBAN';
       else if (block.id === 'miki_ecotrans_tarifa30') sheetName = '90MIKI_ECOTRANS_T30';
       else if (block.id === 'sur_benito') sheetName = 'SUR_BENITO_27_15';
-      else if (block.id === 'tarifa_75') sheetName = 'TARIFA_75';
 
-      XLSX.utils.book_append_sheet(wb, wsBlock, sheetName);
+      add(wsBlock, sheetName, 4);
     });
 
     // Si existen tarifas especiales personalizadas, agregar su hoja
     if (customSpecialTariffs.length > 0) {
       const wsCustom = buildCustomSpecialTariffsSheet();
-      XLSX.utils.book_append_sheet(wb, wsCustom, 'ESPECIALES_PERSONALIZADAS');
+      add(wsCustom, 'ESPECIALES_PERSONALIZADAS', 3);
     }
 
     // Si existen recuadros aparte independientes, agregar sus hojas
     customBlockGroups.forEach((group) => {
       const wsCustomBlock = buildCustomBlockSheet(group);
       const safeSheetName = group.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 31).toUpperCase();
-      XLSX.utils.book_append_sheet(wb, wsCustomBlock, safeSheetName || 'RECUADRO');
+      add(wsCustomBlock, safeSheetName || 'RECUADRO', 3);
     });
 
+  };
+
+  const handleExportFullSabanaXlsx = () => {
+    const validDate = (() => {
+      try {
+        return workspaceStorage.getItem('efi_compras_valid_from') || selectedDate;
+      } catch (e) {
+        return selectedDate;
+      }
+    })();
+    const wb = XLSX.utils.book_new();
+    appendSabanaSheets(wb);
     const filename = `SABANA_COMPLETA_AREA117_${selectedDate}_VALIDO_${validDate}.xlsx`;
     downloadWorkbookAsXlsx(wb, filename);
     setDownloadToast(`Descargando Libro de Excel (*.xlsx): ${filename}`);
@@ -2177,7 +2167,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
     const rows: any[][] = [
       ['SÁBANA DE PRECIOS - TARIFAS ESPECIALES PERSONALIZADAS - AREA 117'],
-      ['FECHA EMISIÓN:', selectedDate, 'PRECIOS VÁLIDOS A PARTIR DE:', validDate],
+      ['Fecha de trabajo:', selectedDate, 'Válido desde:', validDate],
       [],
     ];
 
@@ -2245,7 +2235,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
     const rows: any[][] = [
       [`SÁBANA DE PRECIOS - ${group.name.toUpperCase()} - AREA 117`],
-      ['FECHA EMISIÓN:', selectedDate, 'PRECIOS VÁLIDOS A PARTIR DE:', validDate],
+      ['Fecha de trabajo:', selectedDate, 'Válido desde:', validDate],
       [],
     ];
 
@@ -2587,30 +2577,6 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
           },
         },
       ];
-    } else if (block.id === 'tarifa_75') {
-      columns = [
-        {
-          name: 'TARIFA ESPECIAL 75',
-          headerTheme: 'text-cyan-300 bg-cyan-950/20 border-b border-cyan-500/30',
-          getPrices: (stName: string, isPropia: boolean) => {
-            const p = getTarifa75Prices(stName, isPropia);
-            return {
-              sinIvaKey: p.sinIvaKey,
-              conIvaKey: p.conIvaKey,
-              sinIva: p.sinIva,
-              defaultSinIva: p.defaultSinIva,
-              conIva: p.conIva,
-              defaultConIva: p.defaultConIva,
-              customSinIva: p.customSinIva,
-              customConIva: p.customConIva,
-              sinIvaTitle: `${stName} — Tarifa 75 (Sin IVA)`,
-              conIvaTitle: `${stName} — Tarifa 75 (Con IVA)`,
-              columnLabel: 'Tarifa 75 Sin IVA (=P.Venta+0.038)',
-              tooltip: p.customSinIva ? `Fórmula: ${p.customSinIva.rawFormula}` : 'Blanco: P. Venta Sugerido GOA + 0.038',
-            };
-          },
-        },
-      ];
     } else {
       columns = block.tariffs.map((t) => ({
         name: t.name,
@@ -2810,6 +2776,13 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
   };
 
   // Keep editor state and data effects mounted; render only the visible table.
+  useEffect(() => registerClosingSheets('Sábana de Precios', wb => {
+    appendSabanaSheets(wb);
+    const formulas = Object.entries(resolvedFormulas).filter(([cell]) => !cell.startsWith('SPEC_tarifa_75_'));
+    if (formulas.length) addClosingTable(wb, 'SABANA FORMULAS', ['Celda', 'Fórmula', 'Valor (€)'],
+      formulas.map(([cell, formula]) => [cell, formula.rawFormula, closingPrice(formula.evaluatedValue)]), [60, 90, 16], [2]);
+  }));
+
   if (!isActive) return null;
 
   return (
@@ -3453,8 +3426,6 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
                           ? 'Miki: P. Venta Sugerido GOA + 0.09. ECOTRANS: P. Venta Sugerido GOA + 0.05. Tarifa 30: ABRERA toma Precio Especial, resto P. Venta Sugerido GOA + 0.03. Con IVA = Sin IVA * 1.21'
                           : block.id === 'sur_benito'
                           ? 'Celdas anaranjadas: Copia de Precio Referencia de Tarifas Especiales (Compras). Celdas verdes: P. Venta Sugerido GOA + 0.036 (Tarifa 27) / + 0.024 (Tarifa 15). Celdas blancas: P. Venta Sugerido GOA + 0.027 (Tarifa 27) / + 0.015 (Tarifa 15). Con IVA = Sin IVA * 1.21'
-                          : block.id === 'tarifa_75'
-                          ? 'Celdas blancas: P. Venta Sugerido GOA + 0.038. Con IVA = Sin IVA * 1.21'
                           : block.description}
                       </p>
                     </div>
@@ -3478,7 +3449,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
 
           {/* Bloque para Tarifas Especiales Personalizadas */}
           {customSpecialTariffs.length > 0 && (
-            <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-5 shadow-2xl overflow-hidden backdrop-blur-md">
+            <div className="lg:col-span-2 min-w-0 bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-5 shadow-2xl backdrop-blur-md">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
                 <div className="flex items-center space-x-3">
                   <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
@@ -3521,7 +3492,7 @@ export function SabanaPreciosManager({ selectedDate, isActive = true }: SabanaPr
               </div>
 
               {/* Table for Custom Special Tariffs */}
-              <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[600px] shadow-inner mt-4">
+              <div className="overflow-auto border border-slate-800 rounded-xl max-h-[70vh] shadow-inner mt-4">
                 <table className="w-full text-xs border-collapse">
                   <thead className="sticky top-0 z-30 bg-slate-900 border-b border-slate-800 shadow-md">
                     <tr>

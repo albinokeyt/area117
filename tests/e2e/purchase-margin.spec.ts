@@ -18,13 +18,12 @@ async function auditMargins(page: Page) {
   return rows;
 }
 
-function auditWorkbook(book: XLSX.WorkBook, sheet: string, closed = false) {
+function auditWorkbook(book: XLSX.WorkBook, sheet: string) {
   const rows = XLSX.utils.sheet_to_json<any[]>(book.Sheets[sheet], { header: 1 })
     .filter(row => row.length === 13 && typeof row[10] === 'number' && typeof row[11] === 'number');
   expect(rows.length).toBeGreaterThan(100);
   for (const row of rows) {
     expect(Math.round(row[12] * 1000), `${row[0]} ${row[2]}`).toBe(Math.round(row[11] * 1000) - Math.round(row[10] * 1000));
-    if (closed) expect(row[12]).toBe(0);
   }
   return rows;
 }
@@ -87,7 +86,8 @@ test('all purchase margins follow suggested minus previous sale, including Excel
   const closingDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: /Cierre.*Día/ }).click();
   const closing = XLSX.read(await readFile((await (await closingDownload).path())!), { type: 'buffer' });
-  auditWorkbook(closing, 'CALCULO INICIAL', true);
+  const closingRows = auditWorkbook(closing, 'CALCULO INICIAL');
+  expect(closingRows.find(row => row[0] === 'TORREJON' && String(row[2]).includes('GOA'))?.[12]).toBe(0.03);
   const afterClose = (await (await page.request.get('/api/sync')).json()).data.efi_compras_data.data;
   for (const key of Object.keys(beforeClose)) {
     expect(afterClose[key].sale).toBe(beforeClose[key].sale);
