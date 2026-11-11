@@ -1,6 +1,12 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.6.9', date: '11/11/2026', title: 'Lugares de compra editables y Excel de cierre completo', changes: [
+    'En Compras, el encabezado CLH (Lugar Compra) abre un editor por cuadro. El lugar se guarda por estación en PostgreSQL, se aplica a todos sus productos y permanece hasta que lo cambies.',
+    'Cierre de Día descarga un único Excel ordenado por las ventanas Compras, Postes, Sábana de Precios, PDFs y Clientes y EFI Export. Registra el día antes de actualizar los precios anteriores, e incluye las tarifas, estaciones y filas completas aunque haya filtros en pantalla.',
+    'En Compras → Tarifas Especiales, las columnas ahora se llaman Precio Referencia y Precio Especial Sugerido. Los valores y cálculos de las dos columnas se conservan.',
+    'En Sábana de Precios se retira el cuadro de Tarifa Especial 75. Se conservan sus referencias para los clientes que todavía la usan. Las tarifas especiales personalizadas ocupan todo el ancho disponible.',
+  ] },
   { version: 'v1.6.8', date: '04/11/2026', title: 'Descarga conjunta y nombres permanentes de los PDF de clientes', changes: [
     'El generador de PDFs y Clientes reúne sus opciones y botones en el desplegable Opciones y descargas, accesible también con teclado y adaptado a móvil.',
     'Descargar PDF actual genera un archivo PDF directamente. Descargar todos los PDF crea un ZIP con un PDF independiente por cada tarifa del catálogo, en el orden del programa y con sus estaciones activas, etiquetas, precios actuales y opción HVO. La búsqueda de la vista previa no recorta las descargas.',

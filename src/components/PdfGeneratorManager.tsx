@@ -3,7 +3,8 @@ import { useFormulaAccess } from './FormulaAccessNotice';
 import { useAuth } from '@/context/AuthContext';
 import { PdfActionsMenu } from './PdfActionsMenu';
 import { PdfExportNamesModal } from './PdfExportNamesModal';
-import { PDF_EXPORT_NAMES_KEY, PDF_DOCUMENT_DATE_KEY, clientPdfFilename, parsePdfExportNames, snapshotClientPdfs } from '@/lib/clientPdfModel';
+import { PDF_EXPORT_NAMES_KEY, PDF_DOCUMENT_DATE_KEY, clientPdfFilename, parsePdfExportNames, snapshotClientPdfs, pdfIncludesHvo, pdfStationIsActive } from '@/lib/clientPdfModel';
+import { addClosingTable, closingPrice, registerClosingSheets, type ClosingCell } from '@/lib/closingWorkbook';
 import { flushPendingSync } from '@/lib/serverSyncService';
 import { STATION_LABELS_KEY, STATION_LABELS_ACTIVE_KEY, parseStationLabels, parseLabelActivation, stationLabelsFor, stationRouteActive } from '@/lib/stationLabels';
 
@@ -452,13 +453,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
     return {};
   });
 
-  const isGobTariff = selectedTariff.toUpperCase().includes('GOB') ||
-    selectedTariff.toUpperCase().includes('GASOLEO B') ||
-    selectedTariff.toUpperCase().includes('GASÓLEO B');
-
-  const isHvoIncluded = includeHvoMap[selectedTariff] !== undefined
-    ? includeHvoMap[selectedTariff]
-    : !isGobTariff; // Por defecto incluido salvo en GOB
+  const isHvoIncluded = pdfIncludesHvo(selectedTariff, includeHvoMap);
 
   const toggleIncludeHvo = () => {
     setIncludeHvoMap((prev) => {
@@ -481,14 +476,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
   });
 
   // Obtener lista de estaciones activas para la tarifa actual
-  const currentActiveStations = activeStationsMap[selectedTariff] !== undefined
-    ? activeStationsMap[selectedTariff]
-    : isGobTariff
-    ? allStations.filter((st) => {
-        const u = st.name.toUpperCase();
-        return u.includes('UCLES') || u.includes('TORREMOCHA') || u.includes('ARCOS');
-      }).map((st) => st.name)
-    : allStations.map((st) => st.name);
+  const currentActiveStations = allStations.filter(st => pdfStationIsActive(selectedTariff, st.name, activeStationsMap)).map(st => st.name);
 
   const isStationActive = (stName: string) => {
     return currentActiveStations.includes(stName);
@@ -652,8 +640,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
       const mapping = workspaceStorage.readJson<Record<string, CustomSourceConfig>>('efi_pdf_station_source_mapping_v1') || {};
       const active = workspaceStorage.readJson<Record<string, string[]>>('efi_tariff_active_stations_map') || {};
       const hvoMap = workspaceStorage.readJson<Record<string, boolean>>('efi_pdf_include_hvo_map') || {};
-      const isActive = (tariff: string, station: string) => active[tariff] !== undefined ? active[tariff].includes(station)
-        : /GOB|GAS[ÓO]LEO B/i.test(tariff) ? /UCLES|TORREMOCHA|ARCOS/i.test(station) : true;
+      const isActive = (tariff: string, station: string) => pdfStationIsActive(tariff, station, active);
       const published = workspaceStorage.readJson<SabanaPrices>(SABANA_PRICES_KEY);
       const live = captureSabanaForValidation();
       if (!live || live.date !== selectedDate) throw new Error('La Sábana de Precios no está disponible para la fecha de trabajo.');
@@ -665,7 +652,7 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
       // Freeze the complete batch before fetching assets or building any file.
       const documents = snapshotClientPdfs({ tariffs, allTariffs, stations, validFrom: targetDate, pricingDate: selectedDate,
         names: parsePdfExportNames(workspaceStorage.getItem(PDF_EXPORT_NAMES_KEY)), isActive,
-        includeHvo: tariff => hvoMap[tariff] !== undefined ? hvoMap[tariff] : !/GOB|GAS[ÓO]LEO B/i.test(tariff),
+        includeHvo: tariff => pdfIncludesHvo(tariff, hvoMap),
         price: (tariff, station) => publishedStationPrice(published, selectedDate, pdfStationSource(tariff, station, mapping, published), station),
         metadata: station => getStationMetadata(station, stations.find(item => item.name === station)?.type === 'PROPIA'),
         labels: station => stationRouteActive(labels, activation, station) ? stationLabelsFor(labels, station) : [],
@@ -695,6 +682,36 @@ export function PdfGeneratorManager({ selectedDate, isActive = true }: PdfGenera
     setDownloadNotice(fileName);
     setTimeout(() => setDownloadNotice(null), 4000);
   };
+
+  useEffect(() => registerClosingSheets('PDFs y Clientes', wb => {
+    const tariffRows: ClosingCell[][] = [];
+    const stationRows: ClosingCell[][] = [];
+    tariffsList.forEach(({ name }, index) => {
+      const hvo = pdfIncludesHvo(name, includeHvoMap);
+      let filename = '';
+      try { filename = clientPdfFilename(name, index, exportNames, targetDate); } catch { /* Missing date is archived as entered. */ }
+      let activeCount = 0;
+      allStations.forEach((station, stationIndex) => {
+        const active = pdfStationIsActive(name, station.name, activeStationsMap);
+        if (active) activeCount++;
+        const metadata = getStationMetadata(station.name, station.type === 'PROPIA');
+        const prices = getStationPrice(station.name, station.type === 'PROPIA', name);
+        stationRows.push([name, active ? activeCount : stationIndex + 1, active ? 'Sí' : 'No', station.name, metadata.bandera, metadata.ubicacion,
+          routeActive(station.name) ? getStationLabels(station.name).join(', ') : '',
+          closingPrice(prices.sinIva), closingPrice(prices.conIva), getStationSource(station.name, name),
+          Number.isFinite(prices.sinIva) && Number.isFinite(prices.conIva) ? 'Disponible' : 'Sin origen']);
+      });
+      tariffRows.push([index + 1, name, targetDate, exportNames[name] || '', filename, activeCount, hvo ? 'Sí' : 'No',
+        hvo ? closingPrice(hvoPrices.alfajarinSinIva) : null, hvo ? closingPrice(hvoPrices.alfajarinConIva) : null,
+        hvo ? closingPrice(hvoPrices.valdemoroSinIva) : null, hvo ? closingPrice(hvoPrices.valdemoroConIva) : null]);
+    });
+    addClosingTable(wb, 'PDFS TARIFAS', ['Orden', 'Tarifa', 'Fecha de validez', 'Nombre elegido', 'Nombre de archivo',
+      'Estaciones activas', 'Incluye HVO', 'HVO Alfajarín sin IVA (€)', 'HVO Alfajarín con IVA (€)', 'HVO Valdemoro sin IVA (€)', 'HVO Valdemoro con IVA (€)'],
+      tariffRows, [10, 32, 18, 32, 78, 21, 16, 27, 27, 29, 29], [7, 8, 9, 10]);
+    addClosingTable(wb, 'PDFS CLIENTES', ['Tarifa', 'N.º', 'Estación activa', 'Estación', 'Bandera', 'Ubicación', 'Etiquetas',
+      'Sin IVA (€)', 'Con IVA (€)', 'Origen del precio', 'Estado del precio'],
+      stationRows, [32, 9, 18, 32, 24, 76, 28, 14, 14, 33, 21], [7, 8]);
+  }));
 
   // Keep editor state and data effects mounted; render only the visible table.
   if (!isActive) return null;

@@ -1,4 +1,5 @@
 'use client';
+import { addClosingTable, closingPrice, registerClosingSheets } from '@/lib/closingWorkbook';
 import { useFormulaAccess } from './FormulaAccessNotice';
 
 import { workspaceStorage } from '@/lib/workspaceStorage';
@@ -1591,6 +1592,170 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
   const SUR_GROUP = ['BENAMEJI', 'HUMILLADERO'];
 
   // Keep editor state and data effects mounted; render only the visible table.
+  const readPosteStation = (st: (typeof postesStations)[number]) => {
+    const item = postes[st.name] || { goa: st.defaultGoa, gasolina: st.defaultGasolina, gasolinaGain: st.defaultGain };
+
+    // 1. Gasóleo A
+    const goaKey = `POSTE_${st.name}_GOA`;
+    const customGoa = resolvedPostesFormulas[goaKey];
+    const goaNum = customGoa ? customGoa.evaluatedValue : parseNum(item.goa);
+    const goaDisplay = customGoa ? formatNum(customGoa.evaluatedValue, 3) : item.goa;
+
+    // 2. Margen Gasóleo A = Tarifa 60 con IVA - Precio Poste Gasóleo A
+    const { margen: defaultMargenGoa, t60ConIva } = getMargenGoa(st.name, goaNum);
+    const margenGoaKey = `POSTE_${st.name}_MARGEN_GOA`;
+    const customMargenGoa = resolvedPostesFormulas[margenGoaKey];
+    const margenGoa = customMargenGoa ? customMargenGoa.evaluatedValue : defaultMargenGoa;
+
+    // 3. GOA Premium = GOA + 0.04€
+    const defaultPremium = Number((goaNum + 0.04).toFixed(3));
+    const premiumKey = `POSTE_${st.name}_GOA_PREMIUM`;
+    const customPremium = resolvedPostesFormulas[premiumKey];
+    const premiumPrice = customPremium ? customPremium.evaluatedValue : defaultPremium;
+
+    // 4. Gasolina 95
+    const hasGasolina = st.hasGasolina !== false && st.name !== 'ARCOS';
+    const gasKey = `POSTE_${st.name}_GASOLINA`;
+    const customGas = resolvedPostesFormulas[gasKey];
+    const gasNum = customGas ? customGas.evaluatedValue : parseNum(item.gasolina);
+    const gasDisplay = customGas ? formatNum(customGas.evaluatedValue, 3) : item.gasolina;
+
+    const isGoaMod = modifiedKeys.has(`poste_${st.name}_goa`);
+    const isMargenGoaMod = modifiedKeys.has(`poste_${st.name}_margenGoa`) || isGoaMod;
+    const isPremiumMod = modifiedKeys.has(`poste_${st.name}_goaPremium`) || isGoaMod;
+    const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
+    const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`) || isGasMod;
+
+    // 5. Margen Gasolina según fórmula oficial de la columna D
+    const autoMargenGas = hasGasolina ? getMargenGasolina(st.name, gasNum) : null;
+    const margenGasolinaKey = `POSTE_${st.name}_MARGEN_GASOLINA`;
+    const customMargenGas = resolvedPostesFormulas[margenGasolinaKey];
+    const displayMargenGas = customMargenGas
+      ? formatNum(customMargenGas.evaluatedValue, 3)
+      : isGainMod
+      ? item.gasolinaGain
+      : autoMargenGas !== null
+      ? formatNum(autoMargenGas, 3)
+      : '—';
+    return { item, goaKey, customGoa, goaNum, goaDisplay, t60ConIva, defaultMargenGoa, margenGoaKey, customMargenGoa, margenGoa, defaultPremium, premiumKey, customPremium, premiumPrice, hasGasolina, gasKey, customGas, gasNum, gasDisplay, isGoaMod, isMargenGoaMod, isPremiumMod, isGasMod, isGainMod, autoMargenGas, margenGasolinaKey, customMargenGas, displayMargenGas };
+  };
+
+  const readGasoleoB = (stName: string) => {
+    const item = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
+    const customCompra = resolvedPostesFormulas[`POSTE_GASB_${stName}_COMPRA`];
+    const customTransfer = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER`];
+    const customTransCon = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER_CON_IVA`];
+    const customPoste = resolvedPostesFormulas[`POSTE_GASB_${stName}_POSTE`];
+
+    const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(item.compra);
+    const isMod = modifiedKeys.has(`gasb_${stName}`) || modifiedKeys.has(`gasb_compra_${stName}`);
+
+    // Fórmulas oficiales Gasóleo B:
+    // 1. Transfrired = Compra Sin IVA + 0.017
+    const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
+    const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`) || isMod;
+    const transferNum = customTransfer ? customTransfer.evaluatedValue : (isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum);
+    const transferDisplay = customTransfer ? formatNum(customTransfer.evaluatedValue, 3) : (isTransferMod && item.transfer ? item.transfer : formatNum(autoTransferNum, 3));
+
+    // 2. Transfrired Con IVA = Transfrired * 1.21
+    const transfriredConIva = customTransCon ? customTransCon.evaluatedValue : Number((transferNum * 1.21).toFixed(3));
+
+    // 3. Precio Poste Gasóleo B = (Compra Sin IVA + 0.035) * 1.21
+    const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
+    const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`) || isMod;
+    const posteNum = customPoste ? customPoste.evaluatedValue : (isPosteMod && item.poste ? parseNum(item.poste) : autoPosteNum);
+    const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : (isPosteMod && item.poste ? item.poste : formatNum(autoPosteNum, 3));
+    return { item, customCompra, customTransfer, customTransCon, customPoste, compraNum, isMod, autoTransferNum, isTransferMod, transferNum, transferDisplay, transfriredConIva, autoPosteNum, isPosteMod, posteNum, posteDisplay };
+  };
+
+  const readAdBlue = (stName: string, data: (typeof adblueRows)[string]) => {
+    const customCompra = resolvedPostesFormulas[`POSTE_ADBLUE_${stName}_COMPRA`];
+    const customConIva = resolvedPostesFormulas[`POSTE_ADBLUE_${stName}_CON_IVA`];
+    const customPoste = resolvedPostesFormulas[`POSTE_ADBLUE_${stName}_POSTE`];
+
+    const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(data.compra);
+    const conIva = customConIva ? customConIva.evaluatedValue : Number((compraNum * 1.21).toFixed(4));
+    const compraDisplay = customCompra ? formatNum(customCompra.evaluatedValue, 3) : data.compra;
+    const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : data.poste;
+    const isCompraMod = modifiedKeys.has(`adblue_${stName}`) || modifiedKeys.has(`adblue_compra_${stName}`);
+    const isPosteMod = modifiedKeys.has(`adblue_poste_${stName}`);
+    return { customCompra, customConIva, customPoste, compraNum, conIva, compraDisplay, posteDisplay, isCompraMod, isPosteMod };
+  };
+
+  const readGas = (gasName: string, data: (typeof gasesRows)[string]) => {
+    let shortName = 'GLP';
+    if (gasName.includes('GNC')) shortName = 'GNC';
+    else if (gasName.includes('GNL')) shortName = 'GNL';
+
+    const customSinIva = resolvedPostesFormulas[`POSTE_GASES_${shortName}_SIN_IVA`];
+    const customConIva = resolvedPostesFormulas[`POSTE_GASES_${shortName}_CON_IVA`];
+    const customPoste = resolvedPostesFormulas[`POSTE_GASES_${shortName}_POSTE`];
+
+    const sinIvaNum = customSinIva ? customSinIva.evaluatedValue : parseNum(data.sinIva);
+    const conIva = customConIva ? customConIva.evaluatedValue : Number((sinIvaNum * 1.21).toFixed(4));
+    const sinIvaDisplay = customSinIva ? formatNum(customSinIva.evaluatedValue, 3) : data.sinIva;
+    const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : data.poste;
+    const isSinIvaMod = modifiedKeys.has(`gas_${gasName}`) || modifiedKeys.has(`gas_sinIva_${gasName}`) || modifiedKeys.has(`gas_${shortName}`);
+    const isPosteMod = modifiedKeys.has(`gas_poste_${gasName}`) || modifiedKeys.has(`gas_poste_${shortName}`);
+    return { shortName, customSinIva, customConIva, customPoste, sinIvaNum, conIva, sinIvaDisplay, posteDisplay, isSinIvaMod, isPosteMod };
+  };
+
+  const readBronco = () => {
+    const customBroncoCompra = resolvedPostesFormulas['POSTE_BRONCO_COMPRA'];
+    const customBroncoSinIva = resolvedPostesFormulas['POSTE_BRONCO_SIN_IVA'];
+    const customBroncoConIva = resolvedPostesFormulas['POSTE_BRONCO_CON_IVA'];
+    const customBroncoBeneficio = resolvedPostesFormulas['POSTE_BRONCO_BENEFICIO'];
+
+    const compraDisplay = customBroncoCompra ? formatNum(customBroncoCompra.evaluatedValue, 3) : broncoRow.compra;
+    const sinIvaDisplay = customBroncoSinIva ? formatNum(customBroncoSinIva.evaluatedValue, 3) : broncoRow.sinIva;
+    const conIvaDisplay = customBroncoConIva ? formatNum(customBroncoConIva.evaluatedValue, 3) : broncoRow.conIva;
+    const beneficioDisplay = customBroncoBeneficio ? formatNum(customBroncoBeneficio.evaluatedValue, 3) : broncoRow.beneficio;
+    return { customBroncoCompra, customBroncoSinIva, customBroncoConIva, customBroncoBeneficio, compraDisplay, sinIvaDisplay, conIvaDisplay, beneficioDisplay };
+  };
+
+  useEffect(() => registerClosingSheets('Postes', wb => {
+    addClosingTable(wb, 'POSTES', ['Estación', 'Gasóleo A (€/L)', 'Tarifa 60 con IVA (€)', 'Margen GOA (€)', 'GOA Premium (€/L)', 'Gasolina 95 (€/L)', 'Margen Gasolina (€)'],
+      postesStations.map(st => {
+        const row = readPosteStation(st);
+        return [st.name, closingPrice(row.goaDisplay), closingPrice(row.t60ConIva), closingPrice(row.margenGoa),
+          closingPrice(row.premiumPrice), row.hasGasolina ? closingPrice(row.gasDisplay) : null,
+          row.hasGasolina ? closingPrice(row.displayMargenGas) : null];
+      }), [30, 20, 24, 18, 22, 22, 25], [1, 2, 3, 4, 5, 6]);
+
+    addClosingTable(wb, 'POSTES HVO', ['Producto', 'Base (€)', 'Ajuste (€)', 'Sin IVA (€)', 'Con IVA (€)'], [
+      ['HVO Poste General', closingPrice(hvoGenBaseVal), closingPrice(hvoGenAddVal), closingPrice(computedHvoGeneralSinIva), closingPrice(computedHvoGeneralConIva)],
+      ['HVO Alfajarín', null, null, closingPrice(computedHvoAlfajarinSinIva), closingPrice(computedHvoAlfajarinConIva)],
+      ['HVO Valdemoro', closingPrice(goaValdemoroPrice), closingPrice(hvoValAddVal), closingPrice(computedHvoValdemoroSinIva), closingPrice(computedHvoValdemoroConIva)],
+    ], [25, 16, 16, 16, 16], [1, 2, 3, 4]);
+
+    addClosingTable(wb, 'POSTES GASOLEO B', ['Estación', 'Compra sin IVA (€)', 'Transfrired (€)', 'Transfrired con IVA (€)', 'Precio poste (€)'],
+      ['UCLES', 'TORREMOCHA', 'ARCOS'].map(st => {
+        const row = readGasoleoB(st);
+        return [st, closingPrice(row.compraNum), closingPrice(row.transferDisplay), closingPrice(row.transfriredConIva), closingPrice(row.posteDisplay)];
+      }), [24, 22, 19, 25, 20], [1, 2, 3, 4]);
+
+    addClosingTable(wb, 'POSTES ADBLUE', ['Estación', 'Compra sin IVA (€)', 'Compra con IVA (€)', 'Precio poste (€)'],
+      Object.entries(adblueRows).map(([st, data]) => {
+        const row = readAdBlue(st, data);
+        return [st, closingPrice(row.compraDisplay), closingPrice(row.conIva), closingPrice(row.posteDisplay)];
+      }), [30, 22, 22, 22], [1, 2, 3]);
+
+    addClosingTable(wb, 'POSTES GASES', ['Producto', 'Adquisición sin IVA (€)', 'Adquisición con IVA (€)', 'Precio poste (€)'],
+      Object.entries(gasesRows).map(([name, data]) => {
+        const row = readGas(name, data);
+        return [name, closingPrice(row.sinIvaDisplay), closingPrice(row.conIva), closingPrice(row.posteDisplay)];
+      }), [38, 25, 25, 20], [1, 2, 3]);
+
+    const bronco = readBronco();
+    addClosingTable(wb, 'POSTES BRONCO', ['Producto', 'Compra sin IVA (€)', 'Sin IVA (€)', 'Con IVA (€)', 'Beneficio (€)'],
+      [['Gasolina Bronco', closingPrice(bronco.compraDisplay), closingPrice(bronco.sinIvaDisplay),
+        closingPrice(bronco.conIvaDisplay), closingPrice(bronco.beneficioDisplay)]], [27, 22, 18, 18, 19], [1, 2, 3, 4]);
+
+    const formulas = Object.entries(resolvedPostesFormulas);
+    if (formulas.length) addClosingTable(wb, 'POSTES FORMULAS', ['Celda', 'Fórmula', 'Valor (€)'],
+      formulas.map(([cell, formula]) => [cell, formula.rawFormula, closingPrice(formula.evaluatedValue)]), [60, 90, 16], [2]);
+  }));
+
   if (!isActive) return null;
 
   return (
@@ -1750,50 +1915,11 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs font-medium text-slate-200">
               {postesStations.map((st) => {
-                const item = postes[st.name] || { goa: st.defaultGoa, gasolina: st.defaultGasolina, gasolinaGain: st.defaultGain };
-
-                // 1. Gasóleo A
-                const goaKey = `POSTE_${st.name}_GOA`;
-                const customGoa = resolvedPostesFormulas[goaKey];
-                const goaNum = customGoa ? customGoa.evaluatedValue : parseNum(item.goa);
-                const goaDisplay = customGoa ? formatNum(customGoa.evaluatedValue, 3) : item.goa;
-
-                // 2. Margen Gasóleo A = Tarifa 60 con IVA - Precio Poste Gasóleo A
-                const { margen: defaultMargenGoa, t60ConIva } = getMargenGoa(st.name, goaNum);
-                const margenGoaKey = `POSTE_${st.name}_MARGEN_GOA`;
-                const customMargenGoa = resolvedPostesFormulas[margenGoaKey];
-                const margenGoa = customMargenGoa ? customMargenGoa.evaluatedValue : defaultMargenGoa;
-
-                // 3. GOA Premium = GOA + 0.04€
-                const defaultPremium = Number((goaNum + 0.04).toFixed(3));
-                const premiumKey = `POSTE_${st.name}_GOA_PREMIUM`;
-                const customPremium = resolvedPostesFormulas[premiumKey];
-                const premiumPrice = customPremium ? customPremium.evaluatedValue : defaultPremium;
-
-                // 4. Gasolina 95
-                const hasGasolina = st.hasGasolina !== false && st.name !== 'ARCOS';
-                const gasKey = `POSTE_${st.name}_GASOLINA`;
-                const customGas = resolvedPostesFormulas[gasKey];
-                const gasNum = customGas ? customGas.evaluatedValue : parseNum(item.gasolina);
-                const gasDisplay = customGas ? formatNum(customGas.evaluatedValue, 3) : item.gasolina;
-
-                const isGoaMod = modifiedKeys.has(`poste_${st.name}_goa`);
-                const isMargenGoaMod = modifiedKeys.has(`poste_${st.name}_margenGoa`) || isGoaMod;
-                const isPremiumMod = modifiedKeys.has(`poste_${st.name}_goaPremium`) || isGoaMod;
-                const isGasMod = modifiedKeys.has(`poste_${st.name}_gasolina`);
-                const isGainMod = modifiedKeys.has(`poste_${st.name}_gasolinaGain`) || isGasMod;
-
-                // 5. Margen Gasolina según fórmula oficial de la columna D
-                const autoMargenGas = hasGasolina ? getMargenGasolina(st.name, gasNum) : null;
-                const margenGasolinaKey = `POSTE_${st.name}_MARGEN_GASOLINA`;
-                const customMargenGas = resolvedPostesFormulas[margenGasolinaKey];
-                const displayMargenGas = customMargenGas
-                  ? formatNum(customMargenGas.evaluatedValue, 3)
-                  : isGainMod
-                  ? item.gasolinaGain
-                  : autoMargenGas !== null
-                  ? formatNum(autoMargenGas, 3)
-                  : '—';
+                const {
+                  item, goaKey, customGoa, goaNum, goaDisplay, t60ConIva, defaultMargenGoa, margenGoaKey, customMargenGoa, margenGoa,
+                  defaultPremium, premiumKey, customPremium, premiumPrice, hasGasolina, gasKey, customGas, gasNum, gasDisplay,
+                  isGoaMod, isMargenGoaMod, isPremiumMod, isGasMod, isGainMod, autoMargenGas, margenGasolinaKey, customMargenGas, displayMargenGas,
+                } = readPosteStation(st);
 
                 const isMadridGroup = MADRID_GROUP.includes(st.name);
                 const isSurGroup = SUR_GROUP.includes(st.name);
@@ -2808,30 +2934,10 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-medium">
               {['UCLES', 'TORREMOCHA', 'ARCOS'].map((stName) => {
-                const item = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
-                const customCompra = resolvedPostesFormulas[`POSTE_GASB_${stName}_COMPRA`];
-                const customTransfer = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER`];
-                const customTransCon = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER_CON_IVA`];
-                const customPoste = resolvedPostesFormulas[`POSTE_GASB_${stName}_POSTE`];
-
-                const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(item.compra);
-                const isMod = modifiedKeys.has(`gasb_${stName}`) || modifiedKeys.has(`gasb_compra_${stName}`);
-
-                // Fórmulas oficiales Gasóleo B:
-                // 1. Transfrired = Compra Sin IVA + 0.017
-                const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
-                const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`) || isMod;
-                const transferNum = customTransfer ? customTransfer.evaluatedValue : (isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum);
-                const transferDisplay = customTransfer ? formatNum(customTransfer.evaluatedValue, 3) : (isTransferMod && item.transfer ? item.transfer : formatNum(autoTransferNum, 3));
-
-                // 2. Transfrired Con IVA = Transfrired * 1.21
-                const transfriredConIva = customTransCon ? customTransCon.evaluatedValue : Number((transferNum * 1.21).toFixed(3));
-
-                // 3. Precio Poste Gasóleo B = (Compra Sin IVA + 0.035) * 1.21
-                const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
-                const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`) || isMod;
-                const posteNum = customPoste ? customPoste.evaluatedValue : (isPosteMod && item.poste ? parseNum(item.poste) : autoPosteNum);
-                const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : (isPosteMod && item.poste ? item.poste : formatNum(autoPosteNum, 3));
+                const {
+                  item, customCompra, customTransfer, customTransCon, customPoste, compraNum, isMod, autoTransferNum,
+                  isTransferMod, transferNum, transferDisplay, transfriredConIva, autoPosteNum, isPosteMod, posteNum, posteDisplay,
+                } = readGasoleoB(stName);
 
                 return (
                   <tr key={stName} className="hover:bg-slate-800/40 transition-colors">
@@ -3159,16 +3265,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {Object.entries(adblueRows).map(([stName, data]) => {
-            const customCompra = resolvedPostesFormulas[`POSTE_ADBLUE_${stName}_COMPRA`];
-            const customConIva = resolvedPostesFormulas[`POSTE_ADBLUE_${stName}_CON_IVA`];
-            const customPoste = resolvedPostesFormulas[`POSTE_ADBLUE_${stName}_POSTE`];
-
-            const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(data.compra);
-            const conIva = customConIva ? customConIva.evaluatedValue : Number((compraNum * 1.21).toFixed(4));
-            const compraDisplay = customCompra ? formatNum(customCompra.evaluatedValue, 3) : data.compra;
-            const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : data.poste;
-            const isCompraMod = modifiedKeys.has(`adblue_${stName}`) || modifiedKeys.has(`adblue_compra_${stName}`);
-            const isPosteMod = modifiedKeys.has(`adblue_poste_${stName}`);
+            const { customCompra, customConIva, customPoste, compraNum, conIva, compraDisplay, posteDisplay, isCompraMod, isPosteMod } = readAdBlue(stName, data);
 
             return (
               <div key={stName} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5">
@@ -3428,20 +3525,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {Object.entries(gasesRows).map(([gasName, data]) => {
-            let shortName = 'GLP';
-            if (gasName.includes('GNC')) shortName = 'GNC';
-            else if (gasName.includes('GNL')) shortName = 'GNL';
-
-            const customSinIva = resolvedPostesFormulas[`POSTE_GASES_${shortName}_SIN_IVA`];
-            const customConIva = resolvedPostesFormulas[`POSTE_GASES_${shortName}_CON_IVA`];
-            const customPoste = resolvedPostesFormulas[`POSTE_GASES_${shortName}_POSTE`];
-
-            const sinIvaNum = customSinIva ? customSinIva.evaluatedValue : parseNum(data.sinIva);
-            const conIva = customConIva ? customConIva.evaluatedValue : Number((sinIvaNum * 1.21).toFixed(4));
-            const sinIvaDisplay = customSinIva ? formatNum(customSinIva.evaluatedValue, 3) : data.sinIva;
-            const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : data.poste;
-            const isSinIvaMod = modifiedKeys.has(`gas_${gasName}`) || modifiedKeys.has(`gas_sinIva_${gasName}`) || modifiedKeys.has(`gas_${shortName}`);
-            const isPosteMod = modifiedKeys.has(`gas_poste_${gasName}`) || modifiedKeys.has(`gas_poste_${shortName}`);
+            const { shortName, customSinIva, customConIva, customPoste, sinIvaNum, conIva, sinIvaDisplay, posteDisplay, isSinIvaMod, isPosteMod } = readGas(gasName, data);
 
             return (
               <div key={gasName} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -3670,15 +3754,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
 
       {/* 6. Sección Gasolina Bronco */}
       {(() => {
-        const customBroncoCompra = resolvedPostesFormulas['POSTE_BRONCO_COMPRA'];
-        const customBroncoSinIva = resolvedPostesFormulas['POSTE_BRONCO_SIN_IVA'];
-        const customBroncoConIva = resolvedPostesFormulas['POSTE_BRONCO_CON_IVA'];
-        const customBroncoBeneficio = resolvedPostesFormulas['POSTE_BRONCO_BENEFICIO'];
-
-        const compraDisplay = customBroncoCompra ? formatNum(customBroncoCompra.evaluatedValue, 3) : broncoRow.compra;
-        const sinIvaDisplay = customBroncoSinIva ? formatNum(customBroncoSinIva.evaluatedValue, 3) : broncoRow.sinIva;
-        const conIvaDisplay = customBroncoConIva ? formatNum(customBroncoConIva.evaluatedValue, 3) : broncoRow.conIva;
-        const beneficioDisplay = customBroncoBeneficio ? formatNum(customBroncoBeneficio.evaluatedValue, 3) : broncoRow.beneficio;
+        const { customBroncoCompra, customBroncoSinIva, customBroncoConIva, customBroncoBeneficio, compraDisplay, sinIvaDisplay, conIvaDisplay, beneficioDisplay } = readBronco();
 
         const isCompraMod = modifiedKeys.has('bronco_compra') || modifiedKeys.has('cuadro_bronco_compra');
         const isSinIvaMod = modifiedKeys.has('bronco_sinIva') || modifiedKeys.has('cuadro_bronco_sinIva');
