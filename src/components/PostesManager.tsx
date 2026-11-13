@@ -72,6 +72,8 @@ const POSTES_PROPIAS_STATIONS: {
   { name: 'ES REAL DE GANDIA', defaultGoa: '1,680', defaultGasolina: '1,689', defaultGain: '0,340', hasGasolina: true },
 ];
 
+interface GasoleoBRow { compra: string; transfer: string; gob: string; poste: string; isCustomTransfer?: boolean; isCustomPoste?: boolean }
+
 interface PostesManagerProps {
   isActive?: boolean;
   selectedDate?: string;
@@ -182,18 +184,20 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
       return s ? (JSON.parse(s).gasoleoBPosteGlobal || '1,350').replace('.', ',') : '1,350';
     } catch (e) { return '1,350'; }
   });
-  const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, { compra: string; transfer: string; gob: string; poste: string }>>(() => {
+  const [gasoleoBRows, setGasoleoBRows] = useState<Record<string, GasoleoBRow>>(() => {
     try {
       const s = workspaceStorage.getItem('efi_postes_data_v2');
       if (s && JSON.parse(s).gasoleoBRows) {
         const raw = JSON.parse(s).gasoleoBRows;
-        const sanitized: Record<string, { compra: string; transfer: string; gob: string; poste: string }> = {};
+        const sanitized: Record<string, GasoleoBRow> = {};
         Object.entries(raw).forEach(([k, v]: [string, any]) => {
           sanitized[k] = {
             compra: (v.compra || '').replace('.', ','),
             transfer: (v.transfer || '').replace('.', ','),
             gob: (v.gob || '').replace('.', ','),
             poste: (v.poste || '').replace('.', ','),
+            ...(v.isCustomTransfer ? { isCustomTransfer: true } : {}),
+            ...(v.isCustomPoste ? { isCustomPoste: true } : {}),
           };
         });
         return sanitized;
@@ -866,13 +870,15 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
         if (parsed.hvoAlfajarinSinIva) setHvoAlfajarinSinIva(String(parsed.hvoAlfajarinSinIva).replace('.', ','));
         if (parsed.hvoValdemoroAddition) setHvoValdemoroAddition(String(parsed.hvoValdemoroAddition).replace('.', ','));
         if (parsed.gasoleoBRows) {
-          const sanitized: Record<string, { compra: string; transfer: string; gob: string; poste: string }> = {};
+          const sanitized: Record<string, GasoleoBRow> = {};
           Object.entries(parsed.gasoleoBRows).forEach(([k, v]: [string, any]) => {
             sanitized[k] = {
               compra: (v.compra || '').replace('.', ','),
               transfer: (v.transfer || '').replace('.', ','),
               gob: (v.gob || '').replace('.', ','),
               poste: (v.poste || '').replace('.', ','),
+              ...(v.isCustomTransfer ? { isCustomTransfer: true } : {}),
+              ...(v.isCustomPoste ? { isCustomPoste: true } : {}),
             };
           });
           setGasoleoBRows(sanitized);
@@ -1218,7 +1224,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     ctx.fillRect(0, 0, width, height);
 
     stationNames.forEach((stName, idx) => {
-      const item = gasoleoBRows[stName] || { compra: '1.005' };
+      const item: GasoleoBRow = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
       const customCompra = resolvedPostesFormulas[`POSTE_GASB_${stName}_COMPRA`];
       const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(item.compra || '1.005');
       const conIvaNum = Number((compraNum * 1.21).toFixed(3));
@@ -1319,13 +1325,13 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     ctx.fillRect(0, 0, width, height);
 
     stationNames.forEach((stName, idx) => {
-      const item = gasoleoBRows[stName] || { compra: '1.005' };
+      const item: GasoleoBRow = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
       const customCompra = resolvedPostesFormulas[`POSTE_GASB_${stName}_COMPRA`];
       const customTransfer = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER`];
       const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(item.compra || '1.005');
       const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
       const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`);
-      const transferNum = customTransfer ? customTransfer.evaluatedValue : (isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum);
+      const transferNum = customTransfer ? customTransfer.evaluatedValue : ((isTransferMod || item.isCustomTransfer) && item.transfer ? parseNum(item.transfer) : autoTransferNum);
       const yStart = idx * rowHeight;
 
       // Columna 1: Estación
@@ -1419,7 +1425,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     });
 
     stationNames.forEach((stName, idx) => {
-      const item = gasoleoBRows[stName] || { compra: '1.005' };
+      const item: GasoleoBRow = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
       const customCompra = resolvedPostesFormulas[`POSTE_GASB_${stName}_COMPRA`];
       const customTransfer = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER`];
       const customTransCon = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER_CON_IVA`];
@@ -1428,11 +1434,11 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
       const compraNum = customCompra ? customCompra.evaluatedValue : parseNum(item.compra || '1.005');
       const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
       const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`);
-      const transferNum = customTransfer ? customTransfer.evaluatedValue : (isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum);
+      const transferNum = customTransfer ? customTransfer.evaluatedValue : ((isTransferMod || item.isCustomTransfer) && item.transfer ? parseNum(item.transfer) : autoTransferNum);
       const transfriredConIva = customTransCon ? customTransCon.evaluatedValue : Number((transferNum * 1.21).toFixed(3));
       const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
       const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`);
-      const posteNum = customPoste ? customPoste.evaluatedValue : (isPosteMod && item.poste ? parseNum(item.poste) : autoPosteNum);
+      const posteNum = customPoste ? customPoste.evaluatedValue : ((isPosteMod || item.isCustomPoste) && item.poste ? parseNum(item.poste) : autoPosteNum);
 
       const y = (idx + 1) * rowHeight;
 
@@ -1641,7 +1647,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
   };
 
   const readGasoleoB = (stName: string) => {
-    const item = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
+    const item: GasoleoBRow = gasoleoBRows[stName] || { compra: '1.005', transfer: '', gob: '', poste: '' };
     const customCompra = resolvedPostesFormulas[`POSTE_GASB_${stName}_COMPRA`];
     const customTransfer = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER`];
     const customTransCon = resolvedPostesFormulas[`POSTE_GASB_${stName}_TRANSFER_CON_IVA`];
@@ -1654,8 +1660,8 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     // 1. Transfrired = Compra Sin IVA + 0.017
     const autoTransferNum = Number((compraNum + 0.017).toFixed(3));
     const isTransferMod = modifiedKeys.has(`gasb_transfer_${stName}`) || isMod;
-    const transferNum = customTransfer ? customTransfer.evaluatedValue : (isTransferMod && item.transfer ? parseNum(item.transfer) : autoTransferNum);
-    const transferDisplay = customTransfer ? formatNum(customTransfer.evaluatedValue, 3) : (isTransferMod && item.transfer ? item.transfer : formatNum(autoTransferNum, 3));
+    const transferNum = customTransfer ? customTransfer.evaluatedValue : ((isTransferMod || item.isCustomTransfer) && item.transfer ? parseNum(item.transfer) : autoTransferNum);
+    const transferDisplay = customTransfer ? formatNum(customTransfer.evaluatedValue, 3) : ((isTransferMod || item.isCustomTransfer) && item.transfer ? item.transfer : formatNum(autoTransferNum, 3));
 
     // 2. Transfrired Con IVA = Transfrired * 1.21
     const transfriredConIva = customTransCon ? customTransCon.evaluatedValue : Number((transferNum * 1.21).toFixed(3));
@@ -1663,8 +1669,8 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
     // 3. Precio Poste Gasóleo B = (Compra Sin IVA + 0.035) * 1.21
     const autoPosteNum = Number(((compraNum + 0.035) * 1.21).toFixed(3));
     const isPosteMod = modifiedKeys.has(`gasb_poste_${stName}`) || isMod;
-    const posteNum = customPoste ? customPoste.evaluatedValue : (isPosteMod && item.poste ? parseNum(item.poste) : autoPosteNum);
-    const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : (isPosteMod && item.poste ? item.poste : formatNum(autoPosteNum, 3));
+    const posteNum = customPoste ? customPoste.evaluatedValue : ((isPosteMod || item.isCustomPoste) && item.poste ? parseNum(item.poste) : autoPosteNum);
+    const posteDisplay = customPoste ? formatNum(customPoste.evaluatedValue, 3) : ((isPosteMod || item.isCustomPoste) && item.poste ? item.poste : formatNum(autoPosteNum, 3));
     return { item, customCompra, customTransfer, customTransCon, customPoste, compraNum, isMod, autoTransferNum, isTransferMod, transferNum, transferDisplay, transfriredConIva, autoPosteNum, isPosteMod, posteNum, posteDisplay };
   };
 
@@ -2983,10 +2989,10 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                             onChange={(e) => {
                               const val = e.target.value.replace('.', ',');
                               const valNum = parseNum(val);
-                              const nextTransfer = modifiedKeys.has(`gasb_transfer_${stName}`)
+                              const nextTransfer = item.isCustomTransfer || modifiedKeys.has(`gasb_transfer_${stName}`)
                                 ? item.transfer
                                 : formatNum(Number((valNum + 0.017).toFixed(3)), 3);
-                              const nextPoste = modifiedKeys.has(`gasb_poste_${stName}`)
+                              const nextPoste = item.isCustomPoste || modifiedKeys.has(`gasb_poste_${stName}`)
                                 ? item.poste
                                 : formatNum(Number(((valNum + 0.035) * 1.21).toFixed(3)), 3);
                               const updated = {
@@ -3079,7 +3085,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                               const val = e.target.value.replace('.', ',');
                               const updated = {
                                 ...gasoleoBRows,
-                                [stName]: { ...gasoleoBRows[stName], transfer: val },
+                                [stName]: { ...gasoleoBRows[stName], transfer: val, isCustomTransfer: !!val.trim() },
                               };
                               setGasoleoBRows(updated);
                               const updatedMods = new Set(modifiedKeys).add(`gasb_transfer_${stName}`);
@@ -3192,7 +3198,7 @@ export function PostesManager({ selectedDate, isActive = true }: PostesManagerPr
                               const val = e.target.value.replace('.', ',');
                               const updated = {
                                 ...gasoleoBRows,
-                                [stName]: { ...gasoleoBRows[stName], poste: val },
+                                [stName]: { ...gasoleoBRows[stName], poste: val, isCustomPoste: !!val.trim() },
                               };
                               setGasoleoBRows(updated);
                               const updatedMods = new Set(modifiedKeys).add(`gasb_poste_${stName}`);

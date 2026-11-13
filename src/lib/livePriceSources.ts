@@ -85,7 +85,7 @@ export function resolveLivePrice(source: string, station: string, context: LiveP
     const compra = money(formulas[`POSTE_GASB_${name}_COMPRA`]?.evaluatedValue ?? row.compra);
     if (compra === null) return null;
     const modified: string[] = context.postes.modified || [];
-    const transferModified = modified.includes(`gasb_transfer_${name}`) || modified.includes(`gasb_${name}`) || modified.includes(`gasb_compra_${name}`);
+    const transferModified = row.isCustomTransfer || modified.includes(`gasb_transfer_${name}`) || modified.includes(`gasb_${name}`) || modified.includes(`gasb_compra_${name}`);
     const transfer = money(formulas[`POSTE_GASB_${name}_TRANSFER`]?.evaluatedValue) ?? (transferModified ? money(row.transfer) : null) ?? round(compra + .017);
     return money(formulas[`POSTE_GASB_${name}_TRANSFER_CON_IVA`]?.evaluatedValue) ?? round(transfer * 1.21);
   }

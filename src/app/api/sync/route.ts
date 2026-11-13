@@ -4,6 +4,7 @@ import { getServerState, patchServerState } from '@/lib/db';
 import { StateConflictError } from '@/lib/stateMerge';
 import { FormulaPermissionError } from '@/lib/formulaPermissions';
 import { PDF_EXPORT_NAMES_KEY, PDF_DOCUMENT_DATE_KEY, assertPdfExportNames, pdfValidityDate } from '@/lib/clientPdfModel';
+import { EXCEL_MAPPINGS_KEY, EXCEL_VALUES_KEY, validateExcelMappings, validateExcelValues } from '@/lib/excelImportMappings';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,17 +27,19 @@ export async function POST(req: NextRequest) {
     const user = await sessionUser(req);
     if (!user) return NextResponse.json({ error: 'Inicia sesión.' }, { status: 401 });
     if (user.role === 'VISITOR') return NextResponse.json({ error: 'No tienes permiso para guardar.' }, { status: 403 });
-    const { data, baseData, updatedBy } = await req.json();
+    const { data, baseData, reviewedVersion } = await req.json();
     const record = (v: unknown) => v !== null && typeof v === 'object' && !Array.isArray(v);
-    if (!record(data) || !record(baseData) || Object.keys(data).some(key =>
+    if (!record(data) || !record(baseData) || (reviewedVersion !== undefined && (!Number.isSafeInteger(reviewedVersion) || reviewedVersion < 0)) || Object.keys(data).some(key =>
       !/^(efi_|sabana_|compras_)/.test(key) || ['efi_current_user', 'efi_users_list', 'efi_last_server_version', 'efi_last_server_sync_time'].includes(key))) {
       return NextResponse.json({ success: false, error: 'Datos de sincronización no válidos. Recarga la aplicación.' }, { status: 400 });
     }
     try {
       if (data[PDF_EXPORT_NAMES_KEY] != null) assertPdfExportNames(data[PDF_EXPORT_NAMES_KEY]);
       if (data[PDF_DOCUMENT_DATE_KEY] != null && data[PDF_DOCUMENT_DATE_KEY] !== '') pdfValidityDate(data[PDF_DOCUMENT_DATE_KEY]);
+      if (data[EXCEL_MAPPINGS_KEY] != null) validateExcelMappings(data[EXCEL_MAPPINGS_KEY]);
+      if (data[EXCEL_VALUES_KEY] != null) validateExcelValues(data[EXCEL_VALUES_KEY]);
     } catch (error) { return NextResponse.json({ success: false, error: (error as Error).message }, { status: 400 }); }
-    const state = await patchServerState(data, baseData, user);
+    const state = await patchServerState(data, baseData, user, reviewedVersion);
     return NextResponse.json({ success: true, ...state, isPostgres: true, keysCount: Object.keys(state.data).length });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof StateConflictError || error instanceof FormulaPermissionError ? error.message : 'No se pudo guardar en PostgreSQL.' },

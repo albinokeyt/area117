@@ -109,6 +109,44 @@ export function hasUnsyncedChanges(): boolean {
   return pendingKeysToSync.size > 0 || inFlightKeys.size > 0;
 }
 
+export interface ReviewSnapshot {
+  data: Record<string, any>;
+  version: number;
+}
+
+export async function getReviewSnapshot(): Promise<ReviewSnapshot> {
+  const result = await pullStateFromServer();
+  if (!result.success) throw new Error(result.error || 'No se pudieron cargar los datos de PostgreSQL.');
+  return { data: structuredClone(acknowledgedState), version: confirmedVersion };
+}
+
+// The preview is tied to one PostgreSQL revision; nothing changes locally until the server accepts it.
+export async function commitReviewedPatch(data: Record<string, any>, snapshot: ReviewSnapshot): Promise<void> {
+  await flushPendingSync();
+  const run = pushQueue.catch(() => {}).then(async () => {
+    if (snapshot.version !== confirmedVersion || pendingKeysToSync.size) {
+      throw new Error('Los datos cambiaron después de la vista previa. Actualízala antes de guardar.');
+    }
+    const baseData = Object.fromEntries(Object.keys(data).map(key => [key, snapshot.data[key]]));
+    const res = await fetch('/api/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data, baseData, reviewedVersion: snapshot.version }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(res.status === 409 ? 'Otro usuario guardó cambios. Actualiza la vista previa antes de aplicar.' :
+        json.error || 'No se pudo guardar en PostgreSQL.');
+    }
+    if (json.version >= confirmedVersion) {
+      applyServerStateToLocal(json.data);
+      setLocalServerVersion(json.version, json.updatedAt);
+      window.dispatchEvent(new CustomEvent('efi_server_sync_event', { detail: { type: 'push', version: json.version } }));
+    }
+  });
+  pushQueue = run;
+  return run;
+}
+
 // Guarda la versión del servidor sin retroceder nunca (las respuestas pueden llegar desordenadas)
 function setLocalServerVersion(version: number, updatedAt?: string) {
   if (version >= confirmedVersion) {

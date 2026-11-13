@@ -1,4 +1,5 @@
 import { jsonValuesEqual } from './jsonEquality';
+import { EXCEL_MAPPINGS_KEY, EXCEL_VALUES_KEY } from './excelImportMappings';
 
 export function canManageFormulas(user?: { role: string; canManageFormulas?: boolean } | null) {
   return !!user && (user.role === 'ADMIN' || (user.role !== 'VISITOR' && user.canManageFormulas === true));
@@ -10,6 +11,7 @@ export class FormulaPermissionError extends Error {
 
 // Compare definitions, not recalculated values or timestamps. Applied to the merged state under the PostgreSQL row lock.
 function definitions(key: string, value: any): any {
+  if (key === EXCEL_MAPPINGS_KEY || key === EXCEL_VALUES_KEY) return value ?? null;
   if (/^efi_(sabana|postes)_custom_formulas_/.test(key)) {
     return Object.fromEntries(Object.entries(value || {}).map(([cell, f]) => [cell, (f as any)?.rawFormula]));
   }
