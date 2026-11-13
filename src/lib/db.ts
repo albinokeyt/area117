@@ -1,8 +1,8 @@
 import { hashPassword } from "./passwords";
 import { jsonValuesEqual } from './jsonEquality';
-import { mergeState } from "./stateMerge";
+import { mergeState, StateConflictError } from "./stateMerge";
 import { Pool } from 'pg';
-import { assertFormulaPermission } from './formulaPermissions';
+import { assertFormulaPermission, canManageFormulas, FormulaPermissionError } from './formulaPermissions';
 
 export interface ServerStatePayload {
   version: number;
@@ -250,7 +250,7 @@ export async function deleteServerUser(id: string): Promise<boolean> {
 }
 
 // Row lock works across processes/containers, unlike a JavaScript write queue.
-export async function patchServerState(data: Record<string, any>, base: Record<string, any>, actor: ServerUser): Promise<ServerStatePayload> {
+export async function patchServerState(data: Record<string, any>, base: Record<string, any>, actor: ServerUser, reviewedVersion?: number): Promise<ServerStatePayload> {
   const p = getDatabasePool();
   if (!p) throw new Error('PostgreSQL no está configurado.');
   await ensureTables();
@@ -260,6 +260,7 @@ export async function patchServerState(data: Record<string, any>, base: Record<s
     const { rows } = await client.query('SELECT * FROM efi_server_state WHERE id = 1 FOR UPDATE');
     const current = rows[0];
     if (!current) throw new Error('No se encontró el estado en PostgreSQL.');
+    if (reviewedVersion !== undefined && current.version !== reviewedVersion) throw new StateConflictError('los datos de la vista previa');
     const next = { ...current.data };
     for (const key of ['efi_current_user', 'efi_users_list', 'efi_last_server_version', 'efi_last_server_sync_time']) delete next[key];
     for (const key of Object.keys(data)) {
@@ -269,6 +270,7 @@ export async function patchServerState(data: Record<string, any>, base: Record<s
     // Recheck a registered user's permission in the same transaction as the write.
     const permission = actor.id === '__environment_admin__' ? actor : (await client.query('SELECT role, manage_formulas AS "canManageFormulas" FROM efi_server_users WHERE id = $1 FOR SHARE', [actor.id])).rows[0];
     if (!permission || permission.role === 'VISITOR') throw new Error('Usuario sin permiso de escritura.');
+    if (reviewedVersion !== undefined && !canManageFormulas(permission)) throw new FormulaPermissionError();
     assertFormulaPermission(current.data, next, permission);
     if (jsonValuesEqual(next, current.data)) {
       await client.query('COMMIT');

@@ -3,6 +3,7 @@ import { workspaceStorage } from '@/lib/workspaceStorage';
 import { getLatestPurchasePayload } from "./purchaseState";
 import { PROPIAS_STATIONS, COLABORADORA_STATIONS, STATION_EXCEL_COSTS, OFFICIAL_SUGGESTED_SALE_PRICES } from "./dataSeed";
 import { getAllStations, getStationExcelCosts } from "./stationsService";
+import { EXCEL_VALUES_KEY, excelVariable } from './excelImportMappings';
 
 export interface CellFormula {
   rawFormula: string;
@@ -210,6 +211,10 @@ export function getProgramVariables(
     addVar("compras", "Compras", group, "COMPRAS:" + normName + ":GASOLINA_VENTA", "P. Venta Sugerido Gasolina (" + st.name + ")", pVentaGas, st.name);
   });
 
+  const excelInputs = workspaceStorage.readJson<Record<string, number>>(EXCEL_VALUES_KEY);
+  for (const [key, price] of Object.entries(excelInputs || {})) {
+    if (Number.isFinite(price)) addVar('compras', 'Compras', 'Importación de Excel', excelVariable(key), key, price);
+  }
   if (purchasesOnly) return { list, map };
 
   // 2. GASOLINA BRONCO
@@ -627,12 +632,16 @@ export function evaluateFormula(
   // Absolute bracketed references already identify their station. Resolve only the
   // requested tokens; do not copy and sort thousands of unrelated variables for
   // each cell. Relative and unbracketed formulas keep the full alias resolution.
+  let missingExcelInput = false;
   expression = expression.replace(/\[([^\]]+)\]/g, (match, tokenName: string) => {
     const token = tokenName.trim();
     const upper = token.toUpperCase();
-    if (!/^(COMPRAS|SABANA|ESPECIAL|POSTES):/.test(upper)) return match;
-    return String(variablesMap[token] ?? variablesMap[upper] ?? 0);
+    if (!/^(COMPRAS|SABANA|ESPECIAL|POSTES|EXCEL):/.test(upper)) return match;
+    const value = variablesMap[token] ?? variablesMap[upper];
+    if (upper.startsWith('EXCEL:') && !Number.isFinite(value)) missingExcelInput = true;
+    return String(value ?? 0);
   });
+  if (missingExcelInput) return { success: false, value: 0, error: 'Falta un precio importado de Excel.' };
 
   if (/[a-zA-Z_\[\]:]/.test(expression)) {
     // Si hay contexto de estación, construir aliases locales para tokens relativos

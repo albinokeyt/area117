@@ -1,6 +1,12 @@
 export interface AppRelease { version: string; date: string; title: string; changes: string[] }
 // Add a new entry for every user-facing release. Newest first; keep previous entries.
 export const APP_RELEASES: AppRelease[] = [
+  { version: 'v1.7.0', date: '13/11/2026', title: 'Importación diaria de precios desde Excel', changes: [
+    'En Compras → Importar Excel puedes subir el XLSM diario y revisar los valores actuales y nuevos antes de aplicar los cambios en Compras, Postes y Sábana de Precios.',
+    'El mapa inicial lee la hoja CALCULO INICIAL: GOA de Compras, Gasolina Bronco, Precio Referencia de Tarifas Especiales, GOA y gasolina de Postes, HVO, Gasóleo B y TRAJOTA Madrid sin IVA.',
+    'Configurar mapa de celdas permite cambiar la hoja, la celda y la escala, o añadir otros destinos. Los administradores y usuarios con permiso Gestionar fórmulas guardan el mapa en PostgreSQL.',
+    'La vista previa avisa si falta una celda, no coincide la estación o hay una fórmula que se debe conservar. TRAJOTA Madrid queda vinculada al Excel y actualiza su precio con cada importación.',
+  ] },
   { version: 'v1.6.9', date: '11/11/2026', title: 'Lugares de compra editables y Excel de cierre completo', changes: [
     'En Compras, el encabezado CLH (Lugar Compra) abre un editor por cuadro. El lugar se guarda por estación en PostgreSQL, se aplica a todos sus productos y permanece hasta que lo cambies.',
     'Cierre de Día descarga un único Excel ordenado por las ventanas Compras, Postes, Sábana de Precios, PDFs y Clientes y EFI Export. Registra el día antes de actualizar los precios anteriores, e incluye las tarifas, estaciones y filas completas aunque haya filtros en pantalla.',
